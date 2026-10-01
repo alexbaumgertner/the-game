@@ -13,6 +13,8 @@ npm run dev
 
 Open the URL Vite prints (default `http://localhost:5173`).
 
+**Phase 2:** Explore the 2026 apartment → find the key → inspect the photo → open the Diary → Level 1 fades into Winter 1995 rynok. See project docs `phase2-eras.md` for controls and architecture.
+
 ## Scripts
 
 | Command           | Purpose                          |
@@ -26,11 +28,19 @@ Open the URL Vite prints (default `http://localhost:5173`).
 
 ```
 src/
-  core/       GameLoop, StateManager
+  core/       GameLoop, StateManager, Input
   entities/   Player, Gangster
+  scenes/     Apartment2026, Rynok1995
   systems/    DialogueSystem
   ui/         HUD
-  main.ts     Bootstrap + canvas wiring
+  main.ts     Bootstrap — GameLoop → StateManager
 ```
 
-See the project blueprint for phased build plan.
+## Controls (Phase 2)
+
+| Input | Action |
+|-------|--------|
+| Arrows / WASD | Move |
+| E | Interact |
+| Enter | Confirm |
+| P / Esc | Pause |
