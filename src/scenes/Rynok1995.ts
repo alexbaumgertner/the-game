@@ -38,7 +38,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         maxHp: 100,
         eraLabel: 'TEEN · 1995',
         fortitude: 100,
-        objective: 'Walk the rynok strip',
+        objective: 'Walk the strip',
       });
     },
 

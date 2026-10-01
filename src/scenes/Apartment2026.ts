@@ -65,7 +65,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       hud.set({ objective: 'Search the room' });
     } else if (!states.flags.seenPhoto) {
       prompt = 'THAT PHOTO ON THE WALL';
-      hud.set({ objective: 'Inspect the vintage photo' });
+      hud.set({ objective: 'Inspect the photo' });
     } else if (!states.flags.diaryUnlocked) {
       prompt = 'THE DIARY ANSWERS THE KEY';
       hud.set({ objective: 'Unlock the Diary' });

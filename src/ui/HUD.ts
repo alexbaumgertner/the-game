@@ -39,8 +39,8 @@ export class HUD {
     ctx.save();
     ctx.imageSmoothingEnabled = false;
 
-    // Top-left status box
-    const boxW = 108;
+    // Top-left status box (wide enough for short objectives)
+    const boxW = 130;
     const boxH = objective ? 36 : 28;
     nesBox(ctx, 2, 2, boxW, boxH, '#101018', '#c4a040', true);
 
@@ -49,7 +49,7 @@ export class HUD {
     // Mini HP bar
     const barX = 6;
     const barY = 15;
-    const barW = 96;
+    const barW = 118;
     ctx.fillStyle = '#3c3c3c';
     ctx.fillRect(barX, barY, barW, 4);
     ctx.fillStyle = '#c4a040';
@@ -60,10 +60,9 @@ export class HUD {
     drawNesText(ctx, `MF ${mf}`, 6, 21, '#e8c56a', 1, 1);
 
     if (objective) {
-      // Truncate long objectives to fit box
       let obj = objective.toUpperCase();
       while (measureNesText(obj, 1, 1) > boxW - 8 && obj.length > 3) {
-        obj = obj.slice(0, -1);
+        obj = `${obj.slice(0, -2)}.`;
       }
       drawNesText(ctx, obj, 6, 29, '#6ec6ff', 1, 1);
     }
