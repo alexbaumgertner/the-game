@@ -1,11 +1,8 @@
 /**
  * Player entity — dual-era animation map (teen_* childhood / adult_* present).
  *
- * TODO Phase 3:
- * - Physics: walk, run, jump, crouch on platform tiles
- * - Combat: punch, kick, grab; hitbox frames per anim
- * - Bazar (market) interactions & item pickup
- * - Switch era → swap animation map + stats
+ * Phase 2: walk + inspect for apartment framing; teen presentation in 1995 stub.
+ * Phase 3+: platform physics, combat frames, Bazar interact.
  */
 
 /** Childhood (1990s flashback) sprite states. */
@@ -17,6 +14,7 @@ export type TeenAnimState =
   | 'teen_fall'
   | 'teen_crouch'
   | 'teen_punch'
+  | 'teen_inspect'
   | 'teen_hurt'
   | 'teen_ko';
 
@@ -30,6 +28,7 @@ export type AdultAnimState =
   | 'adult_crouch'
   | 'adult_punch'
   | 'adult_kick'
+  | 'adult_inspect'
   | 'adult_hurt'
   | 'adult_ko';
 
@@ -60,6 +59,7 @@ export const TEEN_ANIM_MAP: TeenAnimMap = {
   teen_fall: { frames: ['teen_fall_0'], fps: 1, loop: false },
   teen_crouch: { frames: ['teen_crouch_0'], fps: 1, loop: false },
   teen_punch: { frames: ['teen_punch_0', 'teen_punch_1'], fps: 10, loop: false },
+  teen_inspect: { frames: ['teen_inspect_0'], fps: 1, loop: false },
   teen_hurt: { frames: ['teen_hurt_0'], fps: 1, loop: false },
   teen_ko: { frames: ['teen_ko_0'], fps: 1, loop: false },
 };
@@ -73,6 +73,7 @@ export const ADULT_ANIM_MAP: AdultAnimMap = {
   adult_crouch: { frames: ['adult_crouch_0'], fps: 1, loop: false },
   adult_punch: { frames: ['adult_punch_0', 'adult_punch_1'], fps: 10, loop: false },
   adult_kick: { frames: ['adult_kick_0', 'adult_kick_1'], fps: 10, loop: false },
+  adult_inspect: { frames: ['adult_inspect_0'], fps: 1, loop: false },
   adult_hurt: { frames: ['adult_hurt_0'], fps: 1, loop: false },
   adult_ko: { frames: ['adult_ko_0'], fps: 1, loop: false },
 };
@@ -92,8 +93,13 @@ export class Player {
   animState: PlayerAnimState;
   facing: 1 | -1 = 1;
   hp = 100;
+  /** Horizontal walk speed (px/s). */
+  walkSpeed = 55;
+  /** True while an inspect pose is locked (blocks movement). */
+  inspecting = false;
 
   private animTime = 0;
+  private inspectTimer = 0;
 
   constructor(config: PlayerConfig = {}) {
     this.x = config.x ?? 40;
@@ -106,10 +112,20 @@ export class Player {
     return this.era === 'teen' ? TEEN_ANIM_MAP : ADULT_ANIM_MAP;
   }
 
+  get width(): number {
+    return this.era === 'teen' ? 10 : 12;
+  }
+
+  get height(): number {
+    return this.era === 'teen' ? 16 : 20;
+  }
+
   setEra(era: PlayerEra): void {
     this.era = era;
     this.animState = era === 'teen' ? 'teen_idle' : 'adult_idle';
     this.animTime = 0;
+    this.inspecting = false;
+    this.inspectTimer = 0;
   }
 
   setAnim(state: PlayerAnimState): void {
@@ -118,10 +134,45 @@ export class Player {
     this.animTime = 0;
   }
 
-  /** Advance animation clock. Physics/input land in Phase 3. */
+  /** Begin a short inspect pose (adult_inspect / teen_inspect). */
+  beginInspect(duration = 0.45): void {
+    this.inspecting = true;
+    this.inspectTimer = duration;
+    this.vx = 0;
+    this.setAnim(this.era === 'teen' ? 'teen_inspect' : 'adult_inspect');
+  }
+
+  /**
+   * Apply horizontal movement from input axis (−1 / 0 / +1).
+   * Clamps to [minX, maxX]. No-op while inspecting.
+   */
+  applyWalk(axis: number, dt: number, minX: number, maxX: number): void {
+    if (this.inspecting) {
+      this.vx = 0;
+      return;
+    }
+    this.vx = axis * this.walkSpeed;
+    if (axis !== 0) this.facing = axis > 0 ? 1 : -1;
+    this.x += this.vx * dt;
+    if (this.x < minX) this.x = minX;
+    if (this.x > maxX) this.x = maxX;
+
+    if (axis !== 0) {
+      this.setAnim(this.era === 'teen' ? 'teen_walk' : 'adult_walk');
+    } else {
+      this.setAnim(this.era === 'teen' ? 'teen_idle' : 'adult_idle');
+    }
+  }
+
   update(dt: number): void {
     this.animTime += dt;
-    // TODO: integrate input, platform collision, combat
+    if (this.inspecting) {
+      this.inspectTimer -= dt;
+      if (this.inspectTimer <= 0) {
+        this.inspecting = false;
+        this.setAnim(this.era === 'teen' ? 'teen_idle' : 'adult_idle');
+      }
+    }
   }
 
   /** Draw a geometric placeholder for the active clip frame. */
@@ -133,22 +184,29 @@ export class Player {
         ? Math.floor(this.animTime * clip.fps) % clip.frames.length
         : 0;
 
-    const w = this.era === 'teen' ? 10 : 12;
-    const h = this.era === 'teen' ? 16 : 20;
+    const w = this.width;
+    const h = this.height;
     const color = this.era === 'teen' ? '#6ec6ff' : '#e8c56a';
+    const bob =
+      this.animState.includes('walk') && frameIndex === 1 ? -1 : 0;
+    const lean = this.animState.includes('inspect') ? 2 : 0;
 
     ctx.save();
-    ctx.translate(Math.round(this.x), Math.round(this.y));
+    ctx.translate(Math.round(this.x), Math.round(this.y + bob));
     ctx.scale(this.facing, 1);
     ctx.fillStyle = color;
-    ctx.fillRect(-w / 2, -h, w, h);
-    // Tiny face marker so facing reads clearly
+    ctx.fillRect(-w / 2 + lean, -h, w, h);
+    // Head accent
+    ctx.fillStyle = this.era === 'teen' ? '#f0d8a8' : '#d4b896';
+    ctx.fillRect(-w / 2 + lean + 1, -h, w - 2, 5);
+    // Face marker
     ctx.fillStyle = '#0a0a0c';
-    ctx.fillRect(2, -h + 4, 2, 2);
-    // Debug frame label (dev scaffold only)
-    ctx.fillStyle = '#e8e4d8';
-    ctx.font = '4px monospace';
-    ctx.fillText(String(frameIndex), -w / 2, -h - 2);
+    ctx.fillRect(2 + lean, -h + 2, 2, 2);
+    // Inspect arm reach
+    if (this.animState.includes('inspect')) {
+      ctx.fillStyle = color;
+      ctx.fillRect(w / 2 - 1, -h + 8, 5, 2);
+    }
     ctx.restore();
   }
 }

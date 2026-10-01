@@ -20,7 +20,7 @@ export class HUD {
   private snapshot: HudSnapshot = {
     hp: 100,
     maxHp: 100,
-    eraLabel: 'ADULT',
+    eraLabel: 'ADULT · 2026',
   };
 
   set(partial: Partial<HudSnapshot>): void {
@@ -31,7 +31,7 @@ export class HUD {
     // TODO: animate HP bar drain, flash on hit
   }
 
-  render(ctx: CanvasRenderingContext2D, _canvasWidth: number, _canvasHeight: number): void {
+  render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     const { hp, maxHp, eraLabel, objective, paused } = this.snapshot;
 
     ctx.save();
@@ -45,10 +45,10 @@ export class HUD {
     }
     if (paused) {
       ctx.fillStyle = 'rgba(10, 10, 12, 0.55)';
-      ctx.fillRect(0, 0, _canvasWidth, _canvasHeight);
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
       ctx.fillStyle = '#e8e4d8';
       ctx.font = '10px monospace';
-      ctx.fillText('PAUSED', _canvasWidth / 2 - 18, _canvasHeight / 2);
+      ctx.fillText('PAUSED', canvasWidth / 2 - 18, canvasHeight / 2);
     }
     ctx.restore();
   }
