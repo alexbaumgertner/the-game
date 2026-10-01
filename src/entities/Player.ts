@@ -56,42 +56,94 @@ export type TeenAnimMap = EraAnimMap<TeenAnimState>;
 export type AdultAnimMap = EraAnimMap<AdultAnimState>;
 
 export const TEEN_ANIM_MAP: TeenAnimMap = {
-  teen_idle: { frames: ['teen_idle_0', 'teen_idle_1'], fps: 4, loop: true },
-  teen_walk: {
-    frames: ['teen_walk_0', 'teen_walk_1', 'teen_walk_2', 'teen_walk_3'],
-    fps: 10,
+  /** Brawler bounce idle — 4 sub-steps. */
+  teen_idle: {
+    frames: ['teen_idle_0', 'teen_idle_1', 'teen_idle_2', 'teen_idle_3'],
+    fps: 8,
     loop: true,
   },
+  teen_walk: {
+    frames: [
+      'teen_walk_0',
+      'teen_walk_1',
+      'teen_walk_2',
+      'teen_walk_3',
+      'teen_walk_4',
+      'teen_walk_5',
+    ],
+    fps: 12,
+    loop: true,
+  },
+  /** Lean sprint — 6 sub-steps. */
   teen_run: {
-    frames: ['teen_run_0', 'teen_run_1', 'teen_run_2', 'teen_run_3'],
-    fps: 14,
+    frames: [
+      'teen_run_0',
+      'teen_run_1',
+      'teen_run_2',
+      'teen_run_3',
+      'teen_run_4',
+      'teen_run_5',
+    ],
+    fps: 16,
     loop: true,
   },
   teen_jump: { frames: ['teen_jump_0'], fps: 1, loop: false },
   teen_fall: { frames: ['teen_fall_0'], fps: 1, loop: false },
   teen_crouch: { frames: ['teen_crouch_0'], fps: 1, loop: false },
-  teen_punch: { frames: ['teen_punch_0', 'teen_punch_1'], fps: 12, loop: false },
-  teen_kick: { frames: ['teen_kick_0', 'teen_kick_1'], fps: 11, loop: false },
-  teen_bazar_shout: {
-    frames: ['teen_bazar_0', 'teen_bazar_1'],
-    fps: 10,
+  /** Punch combo wind → jab → extend → recover. */
+  teen_punch: {
+    frames: ['teen_punch_0', 'teen_punch_1', 'teen_punch_2', 'teen_punch_3'],
+    fps: 14,
     loop: false,
   },
-  teen_inspect: { frames: ['teen_inspect_0', 'teen_inspect_1'], fps: 6, loop: true },
-  teen_hurt: { frames: ['teen_hurt_0'], fps: 1, loop: false },
+  teen_kick: {
+    frames: ['teen_kick_0', 'teen_kick_1', 'teen_kick_2'],
+    fps: 12,
+    loop: false,
+  },
+  teen_bazar_shout: {
+    frames: ['teen_bazar_0', 'teen_bazar_1'],
+    fps: 12,
+    loop: false,
+  },
+  teen_inspect: {
+    frames: ['teen_inspect_0', 'teen_inspect_1', 'teen_inspect_2', 'teen_inspect_3'],
+    fps: 8,
+    loop: true,
+  },
+  teen_hurt: { frames: ['teen_hurt_0', 'teen_hurt_1'], fps: 10, loop: false },
   teen_ko: { frames: ['teen_ko_0'], fps: 1, loop: false },
 };
 
 export const ADULT_ANIM_MAP: AdultAnimMap = {
-  adult_idle: { frames: ['adult_idle_0', 'adult_idle_1'], fps: 4, loop: true },
+  /** Breathing idle — 4 sub-steps. */
+  adult_idle: {
+    frames: ['adult_idle_0', 'adult_idle_1', 'adult_idle_2', 'adult_idle_3'],
+    fps: 6,
+    loop: true,
+  },
   adult_walk: {
-    frames: ['adult_walk_0', 'adult_walk_1', 'adult_walk_2', 'adult_walk_3'],
-    fps: 10,
+    frames: [
+      'adult_walk_0',
+      'adult_walk_1',
+      'adult_walk_2',
+      'adult_walk_3',
+      'adult_walk_4',
+      'adult_walk_5',
+    ],
+    fps: 11,
     loop: true,
   },
   adult_run: {
-    frames: ['adult_run_0', 'adult_run_1', 'adult_run_2', 'adult_run_3'],
-    fps: 12,
+    frames: [
+      'adult_run_0',
+      'adult_run_1',
+      'adult_run_2',
+      'adult_run_3',
+      'adult_run_4',
+      'adult_run_5',
+    ],
+    fps: 13,
     loop: true,
   },
   adult_jump: { frames: ['adult_jump_0'], fps: 1, loop: false },
@@ -99,7 +151,17 @@ export const ADULT_ANIM_MAP: AdultAnimMap = {
   adult_crouch: { frames: ['adult_crouch_0'], fps: 1, loop: false },
   adult_punch: { frames: ['adult_punch_0', 'adult_punch_1'], fps: 10, loop: false },
   adult_kick: { frames: ['adult_kick_0', 'adult_kick_1'], fps: 10, loop: false },
-  adult_inspect: { frames: ['adult_inspect_0', 'adult_inspect_1'], fps: 6, loop: true },
+  /** Hand-reach inspect with pulse. */
+  adult_inspect: {
+    frames: [
+      'adult_inspect_0',
+      'adult_inspect_1',
+      'adult_inspect_2',
+      'adult_inspect_3',
+    ],
+    fps: 8,
+    loop: true,
+  },
   adult_hurt: { frames: ['adult_hurt_0'], fps: 1, loop: false },
   adult_ko: { frames: ['adult_ko_0'], fps: 1, loop: false },
 };
@@ -136,6 +198,8 @@ export class Player {
   inspecting = false;
   grounded = true;
   invuln = 0;
+  /** Remaining screen-shake seconds after Bazar shout. */
+  bazarShake = 0;
 
   private animTime = 0;
   private inspectTimer = 0;
@@ -262,7 +326,7 @@ export class Player {
   tryPunch(): boolean {
     if (this.era !== 'teen' || this.isCombatLocked || !this.grounded) return false;
     this.combatLock = 'punch';
-    this.combatTimer = 0.28;
+    this.combatTimer = 0.34;
     this.attackHitDone = false;
     this.vx = 0;
     this.setAnim('teen_punch');
@@ -272,14 +336,14 @@ export class Player {
   tryKick(): boolean {
     if (this.era !== 'teen' || this.isCombatLocked || !this.grounded) return false;
     this.combatLock = 'kick';
-    this.combatTimer = 0.36;
+    this.combatTimer = 0.38;
     this.attackHitDone = false;
     this.vx = 0;
     this.setAnim('teen_kick');
     return true;
   }
 
-  /** Spend swagger to shout — returns bubble or null. */
+  /** Spend swagger to shout — returns bubble or null. Triggers scene shake. */
   tryBazar(): BazarBubble | null {
     if (this.era !== 'teen' || this.isCombatLocked) return null;
     if (this.streetSwagger < BAZAR_COST) return null;
@@ -287,10 +351,11 @@ export class Player {
     this.combatLock = 'bazar';
     this.combatTimer = 0.42;
     this.vx = 0;
+    this.bazarShake = 0.28;
     this.setAnim('teen_bazar_shout');
     return new BazarBubble({
-      x: this.x + this.facing * 14,
-      y: this.y - this.height + 8,
+      x: this.x + this.facing * 22,
+      y: this.y - this.height + 12,
       facing: this.facing,
     });
   }
@@ -299,23 +364,23 @@ export class Player {
     this.streetSwagger = Math.min(MAX_SWAGGER, this.streetSwagger + amount);
   }
 
-  /** Active melee hitbox during punch/kick active frames. */
+  /** Active melee hitbox during punch/kick active frames (scaled for 28–32px sprites). */
   attackHitbox(): Rect | null {
     if (this.attackHitDone) return null;
-    if (this.combatLock === 'punch' && this.combatTimer <= 0.2) {
+    if (this.combatLock === 'punch' && this.combatTimer <= 0.26) {
       return {
-        x: this.facing > 0 ? this.x + 2 : this.x - 18,
-        y: this.y - 18,
-        w: 16,
-        h: 10,
+        x: this.facing > 0 ? this.x + 4 : this.x - 28,
+        y: this.y - 28,
+        w: 24,
+        h: 14,
       };
     }
-    if (this.combatLock === 'kick' && this.combatTimer <= 0.26) {
+    if (this.combatLock === 'kick' && this.combatTimer <= 0.28) {
       return {
-        x: this.facing > 0 ? this.x + 4 : this.x - 22,
-        y: this.y - 14,
-        w: 20,
-        h: 10,
+        x: this.facing > 0 ? this.x + 6 : this.x - 32,
+        y: this.y - 20,
+        w: 28,
+        h: 14,
       };
     }
     return null;
@@ -373,6 +438,7 @@ export class Player {
 
   update(dt: number): void {
     this.animTime += dt;
+    if (this.bazarShake > 0) this.bazarShake = Math.max(0, this.bazarShake - dt);
     if (this.invuln > 0) this.invuln -= dt;
 
     if (this.inspecting) {
