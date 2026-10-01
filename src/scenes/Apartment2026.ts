@@ -19,9 +19,9 @@ interface Hotspot {
 }
 
 const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'key', x: 248, w: 36, label: 'E · Search drawer' },
-  { id: 'photo', x: 148, w: 40, label: 'E · Inspect photo' },
-  { id: 'diary', x: 52, w: 36, label: 'E · Open Diary' },
+  { id: 'key', x: 235, w: 70, label: 'E · Search drawer' },
+  { id: 'photo', x: 140, w: 50, label: 'E · Inspect photo' },
+  { id: 'diary', x: 40, w: 50, label: 'E · Open Diary' },
 ];
 
 export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary';
@@ -45,7 +45,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let diaryCursor = 0;
   let prompt = 'Explore the apartment';
 
-  const showToast = (msg: string, seconds = 2.2): void => {
+  const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
     toastTimer = seconds;
     overlay = 'toast';
@@ -201,6 +201,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       if (overlay === 'toast') {
         toastTimer -= dt;
         if (toastTimer <= 0) overlay = 'none';
+        // Movement stays live under a toast so the player can keep exploring.
+        const axisToast = states.input?.axisX() ?? 0;
+        player.applyWalk(axisToast, dt, 28, WIDTH - 28);
         tryInteract();
         return;
       }
