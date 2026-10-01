@@ -6,9 +6,9 @@ import { HUD } from './ui/HUD';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
 
-/** Internal pixel resolution — crisp, low-res arcade feel. */
+/** Internal pixel resolution — Genesis-like 320×224, integer-scaled. */
 const WIDTH = 320;
-const HEIGHT = 180;
+const HEIGHT = 224;
 
 function fitCanvas(canvas: HTMLCanvasElement): void {
   const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / WIDTH, window.innerHeight / HEIGHT)));
@@ -39,7 +39,7 @@ function bootstrap(): void {
   const states = new StateManager();
   states.input = input;
 
-  const player = new Player({ x: 100, y: 152, era: 'adult' });
+  const player = new Player({ x: 100, y: 192, era: 'adult' });
   const hud = new HUD();
 
   const apartment = createApartment2026Scene({ states, player, hud });

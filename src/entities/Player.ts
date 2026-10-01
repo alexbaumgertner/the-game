@@ -1,11 +1,11 @@
 /**
- * Player entity — dual-era NES multi-tile sprites (teen_* / adult_*).
+ * Player entity — dual-era Genesis multi-tile sprites (teen_* / adult_*).
  *
  * Phase 2: walk + inspect for apartment framing; teen presentation in 1995 stub.
  * Phase 3+: platform physics, combat frames, Bazar interact.
  */
 
-import { drawPlayerSprite, type PlayerSpriteKind } from '@/art/playerSprites';
+import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
 
 /** Childhood (1990s flashback) sprite states. */
 export type TeenAnimState =
@@ -53,28 +53,44 @@ export type TeenAnimMap = EraAnimMap<TeenAnimState>;
 export type AdultAnimMap = EraAnimMap<AdultAnimState>;
 
 export const TEEN_ANIM_MAP: TeenAnimMap = {
-  teen_idle: { frames: ['teen_idle_0', 'teen_idle_1'], fps: 3, loop: true },
-  teen_walk: { frames: ['teen_walk_0', 'teen_walk_1'], fps: 8, loop: true },
-  teen_run: { frames: ['teen_run_0', 'teen_run_1', 'teen_run_2'], fps: 12, loop: true },
+  teen_idle: { frames: ['teen_idle_0', 'teen_idle_1'], fps: 4, loop: true },
+  teen_walk: {
+    frames: ['teen_walk_0', 'teen_walk_1', 'teen_walk_2', 'teen_walk_3'],
+    fps: 10,
+    loop: true,
+  },
+  teen_run: {
+    frames: ['teen_run_0', 'teen_run_1', 'teen_run_2', 'teen_run_3'],
+    fps: 14,
+    loop: true,
+  },
   teen_jump: { frames: ['teen_jump_0'], fps: 1, loop: false },
   teen_fall: { frames: ['teen_fall_0'], fps: 1, loop: false },
   teen_crouch: { frames: ['teen_crouch_0'], fps: 1, loop: false },
   teen_punch: { frames: ['teen_punch_0', 'teen_punch_1'], fps: 10, loop: false },
-  teen_inspect: { frames: ['teen_inspect_0'], fps: 1, loop: false },
+  teen_inspect: { frames: ['teen_inspect_0', 'teen_inspect_1'], fps: 6, loop: true },
   teen_hurt: { frames: ['teen_hurt_0'], fps: 1, loop: false },
   teen_ko: { frames: ['teen_ko_0'], fps: 1, loop: false },
 };
 
 export const ADULT_ANIM_MAP: AdultAnimMap = {
-  adult_idle: { frames: ['adult_idle_0', 'adult_idle_1'], fps: 3, loop: true },
-  adult_walk: { frames: ['adult_walk_0', 'adult_walk_1'], fps: 8, loop: true },
-  adult_run: { frames: ['adult_run_0', 'adult_run_1', 'adult_run_2'], fps: 12, loop: true },
+  adult_idle: { frames: ['adult_idle_0', 'adult_idle_1'], fps: 4, loop: true },
+  adult_walk: {
+    frames: ['adult_walk_0', 'adult_walk_1', 'adult_walk_2', 'adult_walk_3'],
+    fps: 10,
+    loop: true,
+  },
+  adult_run: {
+    frames: ['adult_run_0', 'adult_run_1', 'adult_run_2', 'adult_run_3'],
+    fps: 12,
+    loop: true,
+  },
   adult_jump: { frames: ['adult_jump_0'], fps: 1, loop: false },
   adult_fall: { frames: ['adult_fall_0'], fps: 1, loop: false },
   adult_crouch: { frames: ['adult_crouch_0'], fps: 1, loop: false },
   adult_punch: { frames: ['adult_punch_0', 'adult_punch_1'], fps: 10, loop: false },
   adult_kick: { frames: ['adult_kick_0', 'adult_kick_1'], fps: 10, loop: false },
-  adult_inspect: { frames: ['adult_inspect_0'], fps: 1, loop: false },
+  adult_inspect: { frames: ['adult_inspect_0', 'adult_inspect_1'], fps: 6, loop: true },
   adult_hurt: { frames: ['adult_hurt_0'], fps: 1, loop: false },
   adult_ko: { frames: ['adult_ko_0'], fps: 1, loop: false },
 };
@@ -114,11 +130,11 @@ export class Player {
   }
 
   get width(): number {
-    return this.era === 'teen' ? 10 : 12;
+    return this.era === 'teen' ? SPRITE_SIZES.teen.w : SPRITE_SIZES.adult.w;
   }
 
   get height(): number {
-    return this.era === 'teen' ? 16 : 20;
+    return this.era === 'teen' ? SPRITE_SIZES.teen.h : SPRITE_SIZES.adult.h;
   }
 
   setEra(era: PlayerEra): void {
@@ -181,7 +197,7 @@ export class Player {
     }
   }
 
-  /** Draw multi-tile NES sprite for the active clip frame. */
+  /** Draw multi-tile Genesis sprite for the active clip frame. */
   render(ctx: CanvasRenderingContext2D, _alpha: number): void {
     const map = this.animMap as Record<string, AnimClip>;
     const clip = map[this.animState];

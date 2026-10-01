@@ -2,7 +2,7 @@
 
 TypeScript + Vite + HTML5 Canvas 2D arcade brawler/platformer.
 
-Pixel-crisp 320×180 internal resolution, modular entity/systems architecture.
+Pixel-crisp 320×224 Genesis-like internal resolution, modular entity/systems architecture.
 
 ## Quick start
 
@@ -28,6 +28,7 @@ Open the URL Vite prints (default `http://localhost:5173`).
 
 ```
 src/
+  art/        Palettes, sprites, pixel helpers, bitmap font
   core/       GameLoop, StateManager, Input
   entities/   Player, Gangster
   scenes/     Apartment2026, Rynok1995
@@ -36,6 +37,7 @@ src/
   main.ts     Bootstrap — GameLoop → StateManager
 ```
 
+**Art:** Sega Genesis / Mega Drive 16-bit pass (procedural pixels). See project docs `sega-16bit-art.md`.
 ## Controls (Phase 2)
 
 | Input | Action |
