@@ -1,9 +1,11 @@
 /**
- * Player entity — dual-era animation map (teen_* childhood / adult_* present).
+ * Player entity — dual-era NES multi-tile sprites (teen_* / adult_*).
  *
  * Phase 2: walk + inspect for apartment framing; teen presentation in 1995 stub.
  * Phase 3+: platform physics, combat frames, Bazar interact.
  */
+
+import { drawPlayerSprite, type PlayerSpriteKind } from '@/art/playerSprites';
 
 /** Childhood (1990s flashback) sprite states. */
 export type TeenAnimState =
@@ -50,9 +52,8 @@ export type EraAnimMap<S extends string> = Record<S, AnimClip>;
 export type TeenAnimMap = EraAnimMap<TeenAnimState>;
 export type AdultAnimMap = EraAnimMap<AdultAnimState>;
 
-/** Placeholder clips — procedural rects until real sprites land. */
 export const TEEN_ANIM_MAP: TeenAnimMap = {
-  teen_idle: { frames: ['teen_idle_0'], fps: 4, loop: true },
+  teen_idle: { frames: ['teen_idle_0', 'teen_idle_1'], fps: 3, loop: true },
   teen_walk: { frames: ['teen_walk_0', 'teen_walk_1'], fps: 8, loop: true },
   teen_run: { frames: ['teen_run_0', 'teen_run_1', 'teen_run_2'], fps: 12, loop: true },
   teen_jump: { frames: ['teen_jump_0'], fps: 1, loop: false },
@@ -65,7 +66,7 @@ export const TEEN_ANIM_MAP: TeenAnimMap = {
 };
 
 export const ADULT_ANIM_MAP: AdultAnimMap = {
-  adult_idle: { frames: ['adult_idle_0'], fps: 4, loop: true },
+  adult_idle: { frames: ['adult_idle_0', 'adult_idle_1'], fps: 3, loop: true },
   adult_walk: { frames: ['adult_walk_0', 'adult_walk_1'], fps: 8, loop: true },
   adult_run: { frames: ['adult_run_0', 'adult_run_1', 'adult_run_2'], fps: 12, loop: true },
   adult_jump: { frames: ['adult_jump_0'], fps: 1, loop: false },
@@ -145,6 +146,7 @@ export class Player {
   /**
    * Apply horizontal movement from input axis (−1 / 0 / +1).
    * Clamps to [minX, maxX]. No-op while inspecting.
+   * Teen uses run when |axis| and walkSpeed ≥ 58 (rynok).
    */
   applyWalk(axis: number, dt: number, minX: number, maxX: number): void {
     if (this.inspecting) {
@@ -158,7 +160,11 @@ export class Player {
     if (this.x > maxX) this.x = maxX;
 
     if (axis !== 0) {
-      this.setAnim(this.era === 'teen' ? 'teen_walk' : 'adult_walk');
+      if (this.era === 'teen' && this.walkSpeed >= 58) {
+        this.setAnim('teen_run');
+      } else {
+        this.setAnim(this.era === 'teen' ? 'teen_walk' : 'adult_walk');
+      }
     } else {
       this.setAnim(this.era === 'teen' ? 'teen_idle' : 'adult_idle');
     }
@@ -175,7 +181,7 @@ export class Player {
     }
   }
 
-  /** Draw a geometric placeholder for the active clip frame. */
+  /** Draw multi-tile NES sprite for the active clip frame. */
   render(ctx: CanvasRenderingContext2D, _alpha: number): void {
     const map = this.animMap as Record<string, AnimClip>;
     const clip = map[this.animState];
@@ -184,29 +190,18 @@ export class Player {
         ? Math.floor(this.animTime * clip.fps) % clip.frames.length
         : 0;
 
-    const w = this.width;
-    const h = this.height;
-    const color = this.era === 'teen' ? '#6ec6ff' : '#e8c56a';
-    const bob =
-      this.animState.includes('walk') && frameIndex === 1 ? -1 : 0;
-    const lean = this.animState.includes('inspect') ? 2 : 0;
+    const kind = this.resolveSpriteKind();
+    drawPlayerSprite(ctx, kind, frameIndex, this.x, this.y, this.facing);
+  }
 
-    ctx.save();
-    ctx.translate(Math.round(this.x), Math.round(this.y + bob));
-    ctx.scale(this.facing, 1);
-    ctx.fillStyle = color;
-    ctx.fillRect(-w / 2 + lean, -h, w, h);
-    // Head accent
-    ctx.fillStyle = this.era === 'teen' ? '#f0d8a8' : '#d4b896';
-    ctx.fillRect(-w / 2 + lean + 1, -h, w - 2, 5);
-    // Face marker
-    ctx.fillStyle = '#0a0a0c';
-    ctx.fillRect(2 + lean, -h + 2, 2, 2);
-    // Inspect arm reach
-    if (this.animState.includes('inspect')) {
-      ctx.fillStyle = color;
-      ctx.fillRect(w / 2 - 1, -h + 8, 5, 2);
-    }
-    ctx.restore();
+  private resolveSpriteKind(): PlayerSpriteKind {
+    const s = this.animState;
+    if (s === 'adult_inspect') return 'adult_inspect';
+    if (s === 'adult_walk' || s === 'adult_run') return 'adult_walk';
+    if (s.startsWith('adult_')) return 'adult_idle';
+    if (s === 'teen_inspect') return 'teen_inspect';
+    if (s === 'teen_run') return 'teen_run';
+    if (s === 'teen_walk') return 'teen_walk';
+    return 'teen_idle';
   }
 }
