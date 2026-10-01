@@ -1,11 +1,12 @@
 /**
- * Player entity — dual-era Genesis multi-tile sprites (teen_* / adult_*).
+ * Player entity — dual-era Genesis sprites + Phase 3 arcade combat.
  *
- * Phase 2: walk + inspect for apartment framing; teen presentation in 1995 stub.
- * Phase 3+: platform physics, combat frames, Bazar interact.
+ * Mental Fortitude drives survivability; Street Swagger fuels Bazar shouts.
  */
 
 import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
+import { bodyRect, type Rect } from '@/systems/CombatMath';
+import { BazarBubble } from '@/entities/BazarBubble';
 
 /** Childhood (1990s flashback) sprite states. */
 export type TeenAnimState =
@@ -16,6 +17,8 @@ export type TeenAnimState =
   | 'teen_fall'
   | 'teen_crouch'
   | 'teen_punch'
+  | 'teen_kick'
+  | 'teen_bazar_shout'
   | 'teen_inspect'
   | 'teen_hurt'
   | 'teen_ko';
@@ -67,7 +70,13 @@ export const TEEN_ANIM_MAP: TeenAnimMap = {
   teen_jump: { frames: ['teen_jump_0'], fps: 1, loop: false },
   teen_fall: { frames: ['teen_fall_0'], fps: 1, loop: false },
   teen_crouch: { frames: ['teen_crouch_0'], fps: 1, loop: false },
-  teen_punch: { frames: ['teen_punch_0', 'teen_punch_1'], fps: 10, loop: false },
+  teen_punch: { frames: ['teen_punch_0', 'teen_punch_1'], fps: 12, loop: false },
+  teen_kick: { frames: ['teen_kick_0', 'teen_kick_1'], fps: 11, loop: false },
+  teen_bazar_shout: {
+    frames: ['teen_bazar_0', 'teen_bazar_1'],
+    fps: 10,
+    loop: false,
+  },
   teen_inspect: { frames: ['teen_inspect_0', 'teen_inspect_1'], fps: 6, loop: true },
   teen_hurt: { frames: ['teen_hurt_0'], fps: 1, loop: false },
   teen_ko: { frames: ['teen_ko_0'], fps: 1, loop: false },
@@ -95,11 +104,17 @@ export const ADULT_ANIM_MAP: AdultAnimMap = {
   adult_ko: { frames: ['adult_ko_0'], fps: 1, loop: false },
 };
 
+export const MAX_FORTITUDE = 100;
+export const MAX_SWAGGER = 100;
+export const BAZAR_COST = 40;
+
 export interface PlayerConfig {
   x?: number;
   y?: number;
   era?: PlayerEra;
 }
+
+type CombatLock = 'none' | 'punch' | 'kick' | 'bazar' | 'hurt' | 'ko';
 
 export class Player {
   x: number;
@@ -109,14 +124,27 @@ export class Player {
   era: PlayerEra;
   animState: PlayerAnimState;
   facing: 1 | -1 = 1;
-  hp = 100;
+  /** Synced to mentalFortitude for HUD back-compat. */
+  hp = MAX_FORTITUDE;
+  /** Psychological meter — drained by gangster hits; 0 = Game Over. */
+  mentalFortitude = MAX_FORTITUDE;
+  /** Fills on successful hits; spent for Bazar special. */
+  streetSwagger = 0;
   /** Horizontal walk speed (px/s). */
   walkSpeed = 55;
   /** True while an inspect pose is locked (blocks movement). */
   inspecting = false;
+  grounded = true;
+  invuln = 0;
 
   private animTime = 0;
   private inspectTimer = 0;
+  private combatLock: CombatLock = 'none';
+  private combatTimer = 0;
+  private attackHitDone = false;
+  private gravity = 520;
+  private jumpVel = -195;
+  private floorY = 188;
 
   constructor(config: PlayerConfig = {}) {
     this.x = config.x ?? 40;
@@ -137,18 +165,51 @@ export class Player {
     return this.era === 'teen' ? SPRITE_SIZES.teen.h : SPRITE_SIZES.adult.h;
   }
 
+  get isCombatLocked(): boolean {
+    return this.combatLock !== 'none' || this.inspecting;
+  }
+
+  get isKo(): boolean {
+    return this.combatLock === 'ko' || this.mentalFortitude <= 0;
+  }
+
+  setFloorY(y: number): void {
+    this.floorY = y;
+  }
+
   setEra(era: PlayerEra): void {
     this.era = era;
     this.animState = era === 'teen' ? 'teen_idle' : 'adult_idle';
     this.animTime = 0;
     this.inspecting = false;
     this.inspectTimer = 0;
+    this.combatLock = 'none';
+    this.combatTimer = 0;
   }
 
   setAnim(state: PlayerAnimState): void {
     if (this.animState === state) return;
     this.animState = state;
     this.animTime = 0;
+  }
+
+  /** Reset combat meters / locks (apartment return / scene enter). */
+  resetCombatProgress(opts?: { fortitude?: number; swagger?: number }): void {
+    this.mentalFortitude = opts?.fortitude ?? MAX_FORTITUDE;
+    this.streetSwagger = opts?.swagger ?? 0;
+    this.hp = this.mentalFortitude;
+    this.combatLock = 'none';
+    this.combatTimer = 0;
+    this.attackHitDone = false;
+    this.invuln = 0;
+    this.vx = 0;
+    this.vy = 0;
+    this.grounded = true;
+    this.inspecting = false;
+  }
+
+  syncHp(): void {
+    this.hp = Math.max(0, Math.round(this.mentalFortitude));
   }
 
   /** Begin a short inspect pose (adult_inspect / teen_inspect). */
@@ -161,12 +222,11 @@ export class Player {
 
   /**
    * Apply horizontal movement from input axis (−1 / 0 / +1).
-   * Clamps to [minX, maxX]. No-op while inspecting.
-   * Teen uses run when |axis| and walkSpeed ≥ 58 (rynok).
+   * Clamps to [minX, maxX]. No-op while inspecting / combat-locked.
    */
   applyWalk(axis: number, dt: number, minX: number, maxX: number): void {
-    if (this.inspecting) {
-      this.vx = 0;
+    if (this.inspecting || this.combatLock === 'punch' || this.combatLock === 'kick' || this.combatLock === 'bazar' || this.combatLock === 'hurt' || this.combatLock === 'ko') {
+      if (this.combatLock === 'none') this.vx = 0;
       return;
     }
     this.vx = axis * this.walkSpeed;
@@ -174,6 +234,11 @@ export class Player {
     this.x += this.vx * dt;
     if (this.x < minX) this.x = minX;
     if (this.x > maxX) this.x = maxX;
+
+    if (!this.grounded) {
+      this.setAnim(this.era === 'teen' ? (this.vy < 0 ? 'teen_jump' : 'teen_fall') : this.vy < 0 ? 'adult_jump' : 'adult_fall');
+      return;
+    }
 
     if (axis !== 0) {
       if (this.era === 'teen' && this.walkSpeed >= 58) {
@@ -186,13 +251,149 @@ export class Player {
     }
   }
 
+  tryJump(): boolean {
+    if (!this.grounded || this.isCombatLocked) return false;
+    this.vy = this.jumpVel;
+    this.grounded = false;
+    this.setAnim(this.era === 'teen' ? 'teen_jump' : 'adult_jump');
+    return true;
+  }
+
+  tryPunch(): boolean {
+    if (this.era !== 'teen' || this.isCombatLocked || !this.grounded) return false;
+    this.combatLock = 'punch';
+    this.combatTimer = 0.28;
+    this.attackHitDone = false;
+    this.vx = 0;
+    this.setAnim('teen_punch');
+    return true;
+  }
+
+  tryKick(): boolean {
+    if (this.era !== 'teen' || this.isCombatLocked || !this.grounded) return false;
+    this.combatLock = 'kick';
+    this.combatTimer = 0.36;
+    this.attackHitDone = false;
+    this.vx = 0;
+    this.setAnim('teen_kick');
+    return true;
+  }
+
+  /** Spend swagger to shout — returns bubble or null. */
+  tryBazar(): BazarBubble | null {
+    if (this.era !== 'teen' || this.isCombatLocked) return null;
+    if (this.streetSwagger < BAZAR_COST) return null;
+    this.streetSwagger -= BAZAR_COST;
+    this.combatLock = 'bazar';
+    this.combatTimer = 0.42;
+    this.vx = 0;
+    this.setAnim('teen_bazar_shout');
+    return new BazarBubble({
+      x: this.x + this.facing * 14,
+      y: this.y - this.height + 8,
+      facing: this.facing,
+    });
+  }
+
+  addSwagger(amount: number): void {
+    this.streetSwagger = Math.min(MAX_SWAGGER, this.streetSwagger + amount);
+  }
+
+  /** Active melee hitbox during punch/kick active frames. */
+  attackHitbox(): Rect | null {
+    if (this.attackHitDone) return null;
+    if (this.combatLock === 'punch' && this.combatTimer <= 0.2) {
+      return {
+        x: this.facing > 0 ? this.x + 2 : this.x - 18,
+        y: this.y - 18,
+        w: 16,
+        h: 10,
+      };
+    }
+    if (this.combatLock === 'kick' && this.combatTimer <= 0.26) {
+      return {
+        x: this.facing > 0 ? this.x + 4 : this.x - 22,
+        y: this.y - 14,
+        w: 20,
+        h: 10,
+      };
+    }
+    return null;
+  }
+
+  markAttackConnected(): void {
+    this.attackHitDone = true;
+  }
+
+  body(): Rect {
+    return bodyRect(this.x, this.y, this.width - 2, this.height - 2);
+  }
+
+  takeDamage(amount: number, knockFacing: 1 | -1): void {
+    if (this.invuln > 0 || this.combatLock === 'ko') return;
+    this.mentalFortitude = Math.max(0, this.mentalFortitude - amount);
+    this.syncHp();
+    this.vx = knockFacing * 70;
+    this.invuln = 0.55;
+    this.combatLock = 'hurt';
+    this.combatTimer = 0.32;
+    this.setAnim(this.era === 'teen' ? 'teen_hurt' : 'adult_hurt');
+    if (this.mentalFortitude <= 0) {
+      this.combatLock = 'ko';
+      this.combatTimer = 1.2;
+      this.setAnim(this.era === 'teen' ? 'teen_ko' : 'adult_ko');
+    }
+  }
+
+  /** Integrate jump gravity; call after applyWalk each frame in combat scenes. */
+  applyPhysics(dt: number, minX: number, maxX: number): void {
+    if (!this.grounded || this.vy !== 0) {
+      this.vy += this.gravity * dt;
+      this.y += this.vy * dt;
+      if (this.y >= this.floorY) {
+        this.y = this.floorY;
+        this.vy = 0;
+        this.grounded = true;
+      } else {
+        this.grounded = false;
+      }
+    } else {
+      this.y = this.floorY;
+    }
+
+    // Knockback slide
+    if (this.combatLock === 'hurt' || this.combatLock === 'ko') {
+      this.x += this.vx * dt;
+      this.vx *= Math.pow(0.04, dt);
+    }
+
+    if (this.x < minX) this.x = minX;
+    if (this.x > maxX) this.x = maxX;
+  }
+
   update(dt: number): void {
     this.animTime += dt;
+    if (this.invuln > 0) this.invuln -= dt;
+
     if (this.inspecting) {
       this.inspectTimer -= dt;
       if (this.inspectTimer <= 0) {
         this.inspecting = false;
         this.setAnim(this.era === 'teen' ? 'teen_idle' : 'adult_idle');
+      }
+    }
+
+    if (this.combatLock !== 'none') {
+      this.combatTimer -= dt;
+      if (this.combatTimer <= 0) {
+        if (this.combatLock === 'ko') {
+          // Stay KO until scene handles Game Over
+          this.combatTimer = 0;
+        } else {
+          this.combatLock = 'none';
+          this.attackHitDone = false;
+          this.setAnim(this.era === 'teen' ? 'teen_idle' : 'adult_idle');
+        }
       }
     }
   }
@@ -207,6 +408,8 @@ export class Player {
         : 0;
 
     const kind = this.resolveSpriteKind();
+    const flash = this.invuln > 0 && Math.floor(this.invuln * 20) % 2 === 0;
+    if (flash) return;
     drawPlayerSprite(ctx, kind, frameIndex, this.x, this.y, this.facing);
   }
 
@@ -218,6 +421,11 @@ export class Player {
     if (s === 'teen_inspect') return 'teen_inspect';
     if (s === 'teen_run') return 'teen_run';
     if (s === 'teen_walk') return 'teen_walk';
+    if (s === 'teen_punch') return 'teen_punch';
+    if (s === 'teen_kick') return 'teen_kick';
+    if (s === 'teen_bazar_shout') return 'teen_bazar';
+    if (s === 'teen_jump' || s === 'teen_fall') return 'teen_jump';
+    if (s === 'teen_hurt' || s === 'teen_ko') return 'teen_hurt';
     return 'teen_idle';
   }
 }

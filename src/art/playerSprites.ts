@@ -513,6 +513,130 @@ function teenInspect(frame: number): Cell[] {
   return g;
 }
 
+function teenPunch(frame: number): Cell[] {
+  const g = teenIdle(0);
+  const set = setter(g, TW, TH);
+  const sk = T.skin;
+  const skH = T.skinHi;
+  const skM = T.skinMid;
+  const o = T.outline;
+  // Clear right arm
+  set(11, 8, null);
+  set(12, 8, null);
+  set(12, 9, null);
+  set(12, 10, null);
+  set(13, 9, null);
+  set(13, 10, null);
+  if (frame % 2 === 0) {
+    set(11, 8, sk);
+    set(12, 8, skH);
+    set(12, 9, sk);
+  } else {
+    set(11, 8, sk);
+    set(12, 8, sk);
+    set(13, 8, skH);
+    set(13, 7, sk);
+    set(12, 7, o);
+    set(13, 9, skM);
+  }
+  return g;
+}
+
+function teenKick(frame: number): Cell[] {
+  const g = teenIdle(0);
+  const set = setter(g, TW, TH);
+  const pn = T.pants;
+  const pnH = T.pantsHi;
+  const pnD = T.pantsDark;
+  const shs = T.shoes;
+  const shsH = T.shoesHi;
+  // Clear legs
+  for (let y = 14; y < TH; y++) {
+    for (let x = 0; x < TW; x++) g[y * TW + x] = null;
+  }
+  // Planted back leg
+  set(4, 14, pn);
+  set(5, 14, pnH);
+  set(4, 15, pn);
+  set(5, 15, pnD);
+  set(4, 16, pn);
+  set(3, 17, shs);
+  set(4, 17, shsH);
+  set(3, 18, shs);
+  if (frame % 2 === 0) {
+    set(7, 14, pn);
+    set(8, 14, pnH);
+    set(8, 15, pn);
+    set(9, 15, pn);
+    set(9, 16, shs);
+    set(10, 16, shsH);
+  } else {
+    set(8, 13, pnH);
+    set(9, 13, pn);
+    set(10, 14, pn);
+    set(11, 14, pnD);
+    set(11, 15, shs);
+    set(12, 15, shsH);
+    set(12, 14, shs);
+  }
+  return g;
+}
+
+function teenJump(_frame: number): Cell[] {
+  const g = teenIdle(0);
+  const set = setter(g, TW, TH);
+  const pn = T.pants;
+  const shs = T.shoes;
+  const sk = T.skin;
+  for (let y = 14; y < TH; y++) {
+    for (let x = 0; x < TW; x++) g[y * TW + x] = null;
+  }
+  set(3, 14, pn);
+  set(4, 14, pn);
+  set(2, 15, pn);
+  set(3, 15, pn);
+  set(2, 16, shs);
+  set(1, 16, shs);
+  set(8, 14, pn);
+  set(9, 14, pn);
+  set(9, 15, pn);
+  set(10, 15, shs);
+  set(11, 15, shs);
+  set(0, 8, sk);
+  set(13, 8, sk);
+  return g;
+}
+
+function teenHurt(_frame: number): Cell[] {
+  const g = teenIdle(1);
+  const set = setter(g, TW, TH);
+  const o = T.outline;
+  set(5, 5, o);
+  set(8, 5, o);
+  set(6, 6, '#e05050');
+  return g;
+}
+
+function teenBazar(frame: number): Cell[] {
+  const g = teenIdle(frame % 2);
+  const set = setter(g, TW, TH);
+  const sk = T.skin;
+  const skH = T.skinHi;
+  const sc = T.scarf;
+  // Arms out / shout
+  set(1, 8, sk);
+  set(0, 9, sk);
+  set(12, 8, sk);
+  set(13, 9, skH);
+  set(6, 5, sc);
+  set(7, 5, sc);
+  if (frame % 2 === 1) {
+    set(5, 4, sc);
+    set(8, 4, T.scarfDark);
+  }
+  return g;
+}
+
 export type PlayerSpriteKind =
   | 'adult_idle'
   | 'adult_walk'
@@ -520,7 +644,12 @@ export type PlayerSpriteKind =
   | 'teen_idle'
   | 'teen_walk'
   | 'teen_run'
-  | 'teen_inspect';
+  | 'teen_inspect'
+  | 'teen_punch'
+  | 'teen_kick'
+  | 'teen_jump'
+  | 'teen_hurt'
+  | 'teen_bazar';
 
 export function drawPlayerSprite(
   ctx: CanvasRenderingContext2D,
@@ -567,6 +696,31 @@ export function drawPlayerSprite(
       break;
     case 'teen_inspect':
       cells = teenInspect(frame);
+      w = TW;
+      h = TH;
+      break;
+    case 'teen_punch':
+      cells = teenPunch(frame);
+      w = TW;
+      h = TH;
+      break;
+    case 'teen_kick':
+      cells = teenKick(frame);
+      w = TW;
+      h = TH;
+      break;
+    case 'teen_jump':
+      cells = teenJump(frame);
+      w = TW;
+      h = TH;
+      break;
+    case 'teen_hurt':
+      cells = teenHurt(frame);
+      w = TW;
+      h = TH;
+      break;
+    case 'teen_bazar':
+      cells = teenBazar(frame);
       w = TW;
       h = TH;
       break;
