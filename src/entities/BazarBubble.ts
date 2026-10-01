@@ -27,8 +27,12 @@ export class BazarBubble {
   vx: number;
   facing: 1 | -1;
   phrase: string;
-  life = 1.15;
+  life = 1.45;
+  /** Frames before collision arms — avoids point-blank instant despawn. */
+  armDelay = 0.12;
   hit = false;
+  /** Linger after contact so the slang is readable. */
+  hitLinger = 0;
   readonly width: number;
   readonly height = 14;
 
@@ -36,7 +40,7 @@ export class BazarBubble {
     this.x = config.x;
     this.y = config.y;
     this.facing = config.facing;
-    this.vx = config.facing * 140;
+    this.vx = config.facing * 100;
     this.phrase =
       config.phrase ??
       BAZAR_PHRASES[Math.floor(Math.random() * BAZAR_PHRASES.length)]!;
@@ -44,7 +48,12 @@ export class BazarBubble {
   }
 
   get alive(): boolean {
-    return this.life > 0 && !this.hit;
+    return this.life > 0 || this.hitLinger > 0;
+  }
+
+  /** True once armed and not yet spent. */
+  get canHit(): boolean {
+    return !this.hit && this.armDelay <= 0 && this.life > 0;
   }
 
   /** AABB for stun contact. */
@@ -59,12 +68,21 @@ export class BazarBubble {
   }
 
   update(dt: number): void {
+    if (this.armDelay > 0) this.armDelay -= dt;
+    if (this.hit) {
+      this.hitLinger -= dt;
+      this.vx *= Math.pow(0.01, dt);
+      this.x += this.vx * dt * 0.3;
+      return;
+    }
     this.x += this.vx * dt;
     this.life -= dt;
   }
 
   markHit(): void {
+    if (this.hit) return;
     this.hit = true;
+    this.hitLinger = 0.55;
     this.life = 0;
   }
 

@@ -152,7 +152,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       // Bubbles
       for (const b of bubbles) {
         b.update(dt);
-        if (!b.alive) continue;
+        if (!b.canHit) continue;
         const hb = b.hitbox();
         for (const g of gangsters) {
           if (g.isKo) continue;
@@ -160,8 +160,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
             g.takeBazarStun(b.facing);
             player.addSwagger(6);
             b.markHit();
-            toast = 'STUNNED!';
-            toastTimer = 0.6;
+            toast = b.phrase;
+            toastTimer = 0.9;
             break;
           }
         }
