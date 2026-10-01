@@ -34,7 +34,12 @@ export class Input {
 
   setEnabled(value: boolean): void {
     this.enabled = value;
-    if (!value) this.clearAll();
+    // Keep physically-held keys in `down` so walk resumes after a fade without
+    // requiring a fresh keydown. Only clear edge buffers.
+    if (!value) {
+      this.pressed.clear();
+      this.released.clear();
+    }
   }
 
   get isEnabled(): boolean {

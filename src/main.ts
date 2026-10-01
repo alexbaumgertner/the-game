@@ -60,9 +60,10 @@ function bootstrap(): void {
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-      // Scenes own their full backdrop; StateManager draws fade on top.
+      // Scenes own their full backdrop; fade paints last so HUD is covered too.
       states.render(ctx, alpha, WIDTH, HEIGHT);
       hud.render(ctx, WIDTH, HEIGHT);
+      states.renderFade(ctx, WIDTH, HEIGHT);
     },
   });
 

@@ -167,7 +167,10 @@ export class StateManager {
     height: number,
   ): void {
     this.handlers.get(this.scene)?.render?.(ctx2d, alpha, this.current, width, height);
+  }
 
+  /** Draw fade overlay after HUD so chrome does not float on top of black. */
+  renderFade(ctx2d: CanvasRenderingContext2D, width: number, height: number): void {
     const a = this.fadeAlpha;
     if (a > 0) {
       ctx2d.fillStyle = `rgba(0, 0, 0, ${a.toFixed(3)})`;

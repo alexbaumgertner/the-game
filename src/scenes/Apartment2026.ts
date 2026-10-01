@@ -51,6 +51,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     overlay = 'toast';
   };
 
+  const maybeUnlockDiary = (): void => {
+    if (states.flags.hasKey && states.flags.seenPhoto && !states.flags.diaryUnlocked) {
+      states.setFlag('diaryUnlocked', true);
+      showToast('The diary unlocks.');
+      refreshObjective();
+    }
+  };
+
   const refreshObjective = (): void => {
     if (!states.flags.hasKey) {
       prompt = 'Find something forgotten…';
@@ -205,19 +213,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         const axisToast = states.input?.axisX() ?? 0;
         player.applyWalk(axisToast, dt, 28, WIDTH - 28);
         tryInteract();
+        maybeUnlockDiary();
         return;
       }
 
       const axis = states.input?.axisX() ?? 0;
       player.applyWalk(axis, dt, 28, WIDTH - 28);
       tryInteract();
-
-      // Auto-unlock diary once prerequisites met
-      if (states.flags.hasKey && states.flags.seenPhoto && !states.flags.diaryUnlocked) {
-        states.setFlag('diaryUnlocked', true);
-        showToast('The diary unlocks.');
-        refreshObjective();
-      }
+      maybeUnlockDiary();
     },
 
     render(
