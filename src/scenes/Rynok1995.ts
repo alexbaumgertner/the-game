@@ -1,14 +1,18 @@
 /**
- * ERA_1995 — Novgorod Rynok, Winter 1995.
- * Genesis tiled brick/snow market strip with parallax roofs; teen walk/run.
+ * ERA_1995 — Novgorod Rynok combat strip.
+ * Teen arcade brawler: move / jump / punch / kick / Bazar stun.
+ * Mental Fortitude → 0 triggers Game Over → snap back to 2026 apartment.
  */
 
 import type { StateManager } from '@/core/StateManager';
-import type { Player } from '@/entities/Player';
+import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
+import { Gangster } from '@/entities/Gangster';
+import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, fillSkyGradient, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
+import { aabbOverlap } from '@/systems/CombatMath';
 
 const FLOOR_Y = 188;
 const R = RYNOK_PAL;
@@ -23,35 +27,173 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   const { states, player, hud } = deps;
 
   let camX = 0;
-  const worldW = 480;
+  const worldW = 520;
+  let gangsters: Gangster[] = [];
+  let bubbles: BazarBubble[] = [];
+  let gameOver = false;
+  let gameOverTimer = 0;
+  let toast = '';
+  let toastTimer = 0;
+
+  const spawnWave = (): void => {
+    gangsters = [
+      new Gangster({ x: 220, y: FLOOR_Y, hp: 36 }),
+      new Gangster({ x: 340, y: FLOOR_Y, hp: 32 }),
+      new Gangster({ x: 420, y: FLOOR_Y, hp: 40 }),
+    ];
+  };
+
+  const syncHud = (objective?: string): void => {
+    hud.set({
+      hp: player.hp,
+      maxHp: MAX_FORTITUDE,
+      fortitude: player.mentalFortitude,
+      maxFortitude: MAX_FORTITUDE,
+      swagger: player.streetSwagger,
+      maxSwagger: MAX_SWAGGER,
+      showSwagger: true,
+      eraLabel: 'TEEN · 1995',
+      objective: objective ?? 'Clear the rynok thugs',
+    });
+  };
+
+  const clearCombatAndReturn = (): void => {
+    gangsters = [];
+    bubbles = [];
+    gameOver = false;
+    gameOverTimer = 0;
+    player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
+    // Snap back to framing apartment — clear 1995 combat progress only
+    states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
+  };
 
   return {
     enter(): void {
       player.setEra('teen');
+      player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 60;
+      player.setFloorY(FLOOR_Y);
       player.y = FLOOR_Y;
       player.facing = 1;
       player.walkSpeed = 60;
       camX = 0;
-      hud.set({
-        hp: player.hp,
-        maxHp: 100,
-        eraLabel: 'TEEN · 1995',
-        fortitude: 100,
-        objective: 'Walk the strip',
-      });
+      bubbles = [];
+      gameOver = false;
+      gameOverTimer = 0;
+      toast = '';
+      toastTimer = 0;
+      spawnWave();
+      syncHud('Punch thugs - fill Swagger');
     },
 
     exit(): void {
-      // nothing
+      gangsters = [];
+      bubbles = [];
+      hud.set({ showSwagger: false });
     },
 
     update(dt: number): void {
-      player.update(dt);
-      const axis = states.input?.axisX() ?? 0;
-      player.applyWalk(axis, dt, 20, worldW - 20);
+      if (toastTimer > 0) {
+        toastTimer -= dt;
+        if (toastTimer <= 0) toast = '';
+      }
 
-      const target = player.x - 160;
+      if (gameOver) {
+        gameOverTimer -= dt;
+        player.update(dt);
+        if (gameOverTimer <= 0) {
+          clearCombatAndReturn();
+        }
+        syncHud('GAME OVER');
+        return;
+      }
+
+      player.update(dt);
+      const input = states.input;
+
+      if (input && !player.isKo) {
+        if (input.justPressed('jump')) player.tryJump();
+        if (input.justPressed('punch')) player.tryPunch();
+        if (input.justPressed('kick')) player.tryKick();
+        if (input.justPressed('special')) {
+          const bubble = player.tryBazar();
+          if (bubble) {
+            bubbles.push(bubble);
+            toast = bubble.phrase;
+            toastTimer = 0.9;
+          } else if (player.streetSwagger < BAZAR_COST) {
+            toast = `NEED ${BAZAR_COST} SWAG`;
+            toastTimer = 0.7;
+          }
+        }
+
+        const axis = input.axisX();
+        player.applyWalk(axis, dt, 20, worldW - 20);
+      }
+
+      player.applyPhysics(dt, 20, worldW - 20);
+
+      // Player melee → gangsters
+      const atk = player.attackHitbox();
+      if (atk) {
+        for (const g of gangsters) {
+          if (g.isKo) continue;
+          if (aabbOverlap(atk, g.body())) {
+            const dmg = player.animState === 'teen_kick' ? 14 : 10;
+            const swag = player.animState === 'teen_kick' ? 18 : 12;
+            g.takeHit(dmg, player.facing);
+            player.addSwagger(swag);
+            player.markAttackConnected();
+            break;
+          }
+        }
+      }
+
+      // Bubbles
+      for (const b of bubbles) {
+        b.update(dt);
+        if (!b.alive) continue;
+        const hb = b.hitbox();
+        for (const g of gangsters) {
+          if (g.isKo) continue;
+          if (aabbOverlap(hb, g.body())) {
+            g.takeBazarStun(b.facing);
+            player.addSwagger(6);
+            b.markHit();
+            toast = 'STUNNED!';
+            toastTimer = 0.6;
+            break;
+          }
+        }
+      }
+      bubbles = bubbles.filter((b) => b.alive);
+
+      // Gangsters AI + damage player
+      for (const g of gangsters) {
+        g.update(dt, player.x, player.y, FLOOR_Y, 30, worldW - 30);
+        if (player.invuln > 0 || player.isKo || g.isKo) continue;
+        const ah = g.attackHitbox();
+        if (ah && aabbOverlap(ah, player.body())) {
+          const dmg = g.consumeAttackHit();
+          if (dmg > 0) player.takeDamage(dmg, g.facing);
+        }
+      }
+
+      if (player.isKo && !gameOver) {
+        gameOver = true;
+        gameOverTimer = 1.8;
+        toast = 'MENTAL FORTITUDE BROKEN';
+        toastTimer = 1.8;
+      }
+
+      const alive = gangsters.filter((g) => !g.isKo).length;
+      if (alive === 0 && !gameOver) {
+        syncHud('Wave clear - walk on');
+      } else {
+        syncHud(alive === 1 ? 'One thug left' : `Thugs: ${alive}`);
+      }
+
+      const target = player.x - 140;
       camX += (target - camX) * Math.min(1, dt * 6);
       if (camX < 0) camX = 0;
       if (camX > worldW - 320) camX = worldW - 320;
@@ -80,6 +222,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       drawStall(ctx, 310, FLOOR_Y, 'FURS', 'brown');
       drawGate(ctx);
 
+      for (const g of gangsters) g.render(ctx, alpha);
+      for (const b of bubbles) b.render(ctx);
       player.render(ctx, alpha);
       ctx.restore();
 
@@ -93,11 +237,45 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       drawSnowParticles(ctx, width, height, ox);
 
-      const hint = 'A D / ARROWS WALK';
-      segaBox(ctx, 4, height - 16, measureNesText(hint, 1, 1) + 10, 12, R.uiBox, R.uiBorderDark, {
+      const hint = 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
+      const hw = measureNesText(hint, 1, 1) + 10;
+      segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, R.uiBox, R.uiBorderDark, {
         inset: false,
       });
       drawNesText(ctx, hint, 8, height - 12, R.uiBorder, 1, 1);
+
+      if (toast) {
+        const tw2 = measureNesText(toast, 1, 1) + 14;
+        segaBox(
+          ctx,
+          Math.round((width - tw2) / 2),
+          28,
+          tw2,
+          14,
+          '#201018',
+          '#f0c040',
+          { borderDark: '#a05020', inset: false },
+        );
+        drawNesTextCentered(ctx, toast, width / 2, 32, '#f8f0d0', 1, 1);
+      }
+
+      if (gameOver) {
+        ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
+        ctx.fillRect(0, 0, width, height);
+        const gw = measureNesText('GAME OVER', 2, 1) + 24;
+        segaBox(
+          ctx,
+          Math.round((width - gw) / 2),
+          Math.round(height / 2 - 28),
+          gw,
+          40,
+          R.uiBox,
+          '#e04040',
+          { borderDark: '#802020', fillHi: '#281018' },
+        );
+        drawNesTextCentered(ctx, 'GAME OVER', width / 2, height / 2 - 16, '#f08080', 2, 1);
+        drawNesTextCentered(ctx, 'BACK TO 2026...', width / 2, height / 2 + 2, R.uiBorder, 1, 1);
+      }
     },
   };
 }
@@ -141,7 +319,6 @@ function drawMidRoofs(ctx: CanvasRenderingContext2D, width: number, scroll: numb
     px(ctx, rx + 4, 82, 40, 2, R.roofSnow);
     px(ctx, rx + 10, 78, 28, 4, R.roof);
     px(ctx, rx + 12, 76, 24, 2, R.roofSnow);
-    // Chimney
     if (i % 2 === 0) {
       px(ctx, rx + 34, 72, 6, 10, R.brickDark);
       px(ctx, rx + 33, 70, 8, 2, R.roofSnow);
@@ -163,12 +340,10 @@ function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
     8,
     R.brickDark,
   );
-  // Occasional darker / lighter bricks for variety
   for (let x = 20; x < worldW; x += 48) {
     px(ctx, x, 120, 14, 6, R.brickMid);
     px(ctx, x + 24, 144, 14, 6, R.brickDeep);
   }
-  // Concrete band
   px(ctx, 0, FLOOR_Y - 14, worldW, 10, R.concrete);
   px(ctx, 0, FLOOR_Y - 14, worldW, 2, R.concreteHi);
   px(ctx, 0, FLOOR_Y - 6, worldW, 2, R.concreteDark);
@@ -178,30 +353,25 @@ function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
 }
 
 function drawGround(ctx: CanvasRenderingContext2D, worldW: number, height: number): void {
-  // Packed street under snow
   px(ctx, 0, FLOOR_Y - 4, worldW, height - (FLOOR_Y - 4), R.street);
   ditherRect(ctx, 0, FLOOR_Y - 4, worldW, 4, R.streetHi, R.street);
 
-  // Snow tile depth
   for (let x = 0; x < worldW; x += 10) {
     for (let y = FLOOR_Y + 2; y < height; y += 7) {
       const light = (x / 10 + y / 7) % 2 === 0;
       px(ctx, x, y, 10, 7, light ? R.snow : R.snowMid);
     }
   }
-  // Top packed snow path
   px(ctx, 0, FLOOR_Y - 4, worldW, 4, R.snow);
   px(ctx, 0, FLOOR_Y - 4, worldW, 1, R.snowHi);
   px(ctx, 0, FLOOR_Y, worldW, 2, R.snowShadow);
 
-  // Footprints / grit
   ctx.fillStyle = R.snowDeep;
   for (let x = 10; x < worldW; x += 20) {
     ctx.fillRect(x, FLOOR_Y + 10, 4, 1);
     ctx.fillRect(x + 6, FLOOR_Y + 16, 3, 1);
     ctx.fillRect(x + 2, FLOOR_Y + 22, 2, 1);
   }
-  // Slush patches
   for (let x = 40; x < worldW; x += 70) {
     px(ctx, x, FLOOR_Y + 6, 18, 3, R.snowShadow);
     px(ctx, x + 2, FLOOR_Y + 7, 14, 1, R.streetDark);
@@ -222,30 +392,25 @@ function drawStall(
   const awningDark =
     theme === 'red' ? R.awningDark : theme === 'blue' ? R.awningBlueDark : R.awningBrownDark;
 
-  // Awning with stripes + bevel
   px(ctx, x, floorY - 56, 68, 12, awning);
   px(ctx, x, floorY - 56, 68, 2, R.awningStripe);
   px(ctx, x, floorY - 54, 68, 1, awningHi);
   for (let i = 0; i < 6; i++) {
     px(ctx, x + 4 + i * 11, floorY - 52, 7, 7, i % 2 === 0 ? awning : awningDark);
   }
-  // Snow on awning
   px(ctx, x + 8, floorY - 58, 12, 2, R.snow);
   px(ctx, x + 40, floorY - 58, 10, 2, R.snow);
 
-  // Posts with wood grain
   px(ctx, x + 4, floorY - 44, 4, 44, R.wood);
   px(ctx, x + 5, floorY - 44, 1, 44, R.woodHi);
   px(ctx, x + 60, floorY - 44, 4, 44, R.wood);
   px(ctx, x + 61, floorY - 44, 1, 44, R.woodHi);
 
-  // Counter bevelled
   px(ctx, x + 2, floorY - 24, 64, 14, R.wood);
   px(ctx, x + 2, floorY - 24, 64, 2, R.woodHi);
   px(ctx, x + 2, floorY - 12, 64, 2, R.woodDark);
   px(ctx, x + 2, floorY - 10, 64, 2, R.woodDeep);
 
-  // Goods
   if (label === 'FISH') {
     px(ctx, x + 8, floorY - 32, 12, 6, R.fish);
     px(ctx, x + 10, floorY - 33, 8, 2, R.fishHi);
@@ -264,7 +429,6 @@ function drawStall(
     px(ctx, x + 36, floorY - 30, 10, 5, R.bread);
     px(ctx, x + 48, floorY - 33, 8, 7, R.breadDark);
     px(ctx, x + 50, floorY - 34, 4, 2, R.bread);
-    // Basket rim
     px(ctx, x + 8, floorY - 26, 52, 2, R.woodDark);
   } else {
     px(ctx, x + 8, floorY - 34, 16, 10, R.fur);
@@ -277,7 +441,6 @@ function drawStall(
     px(ctx, x + 48, floorY - 28, 6, 2, R.furDark);
   }
 
-  // Sign
   segaBox(ctx, x + 14, floorY - 68, 40, 12, R.uiBox, R.awningStripe, {
     borderDark: R.woodDeep,
     inset: false,
@@ -286,17 +449,17 @@ function drawStall(
 }
 
 function drawGate(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 434, FLOOR_Y - 68, 12, 68, R.gate);
-  px(ctx, 436, FLOOR_Y - 66, 2, 64, R.gateHi);
-  px(ctx, 458, FLOOR_Y - 68, 12, 68, R.gate);
-  px(ctx, 460, FLOOR_Y - 66, 2, 64, R.gateHi);
-  px(ctx, 434, FLOOR_Y - 74, 36, 10, R.wood);
-  px(ctx, 436, FLOOR_Y - 72, 32, 2, R.woodHi);
-  px(ctx, 444, FLOOR_Y - 48, 16, 4, R.woodDark);
-  px(ctx, 444, FLOOR_Y - 34, 16, 4, R.woodDark);
-  px(ctx, 432, FLOOR_Y - 76, 40, 3, R.snow);
-  px(ctx, 436, FLOOR_Y - 78, 12, 2, R.snowHi);
-  px(ctx, 454, FLOOR_Y - 78, 10, 2, R.snow);
+  px(ctx, 474, FLOOR_Y - 68, 12, 68, R.gate);
+  px(ctx, 476, FLOOR_Y - 66, 2, 64, R.gateHi);
+  px(ctx, 498, FLOOR_Y - 68, 12, 68, R.gate);
+  px(ctx, 500, FLOOR_Y - 66, 2, 64, R.gateHi);
+  px(ctx, 474, FLOOR_Y - 74, 36, 10, R.wood);
+  px(ctx, 476, FLOOR_Y - 72, 32, 2, R.woodHi);
+  px(ctx, 484, FLOOR_Y - 48, 16, 4, R.woodDark);
+  px(ctx, 484, FLOOR_Y - 34, 16, 4, R.woodDark);
+  px(ctx, 472, FLOOR_Y - 76, 40, 3, R.snow);
+  px(ctx, 476, FLOOR_Y - 78, 12, 2, R.snowHi);
+  px(ctx, 494, FLOOR_Y - 78, 10, 2, R.snow);
 }
 
 function drawSnowParticles(

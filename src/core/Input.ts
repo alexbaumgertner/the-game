@@ -1,15 +1,29 @@
 /**
- * Lightweight keyboard state for Phase 2 scenes.
- * Arrow / WASD move · E / Enter interact · Escape / P pause (handled in main).
+ * Lightweight keyboard state for apartment + rynok combat.
+ * Move · Jump · Punch · Kick · Bazar special · Interact · Confirm.
  */
 
-export type InputAction = 'left' | 'right' | 'up' | 'down' | 'interact' | 'confirm';
+export type InputAction =
+  | 'left'
+  | 'right'
+  | 'up'
+  | 'down'
+  | 'jump'
+  | 'punch'
+  | 'kick'
+  | 'special'
+  | 'interact'
+  | 'confirm';
 
 const BINDINGS: Record<InputAction, readonly string[]> = {
   left: ['ArrowLeft', 'KeyA'],
   right: ['ArrowRight', 'KeyD'],
   up: ['ArrowUp', 'KeyW'],
   down: ['ArrowDown', 'KeyS'],
+  jump: ['Space', 'ArrowUp', 'KeyW'],
+  punch: ['KeyJ', 'KeyZ'],
+  kick: ['KeyK', 'KeyX'],
+  special: ['KeyL', 'KeyC', 'KeyF'],
   interact: ['KeyE'],
   confirm: ['Enter'],
 };
@@ -75,12 +89,19 @@ export class Input {
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
     if (e.repeat) return;
-    // Prevent arrow-key page scroll while playing
+    // Prevent arrow-key page scroll / space scroll while playing
     if (
       e.code.startsWith('Arrow') ||
       e.code === 'Space' ||
       e.code === 'KeyE' ||
-      e.code === 'Enter'
+      e.code === 'Enter' ||
+      e.code === 'KeyJ' ||
+      e.code === 'KeyK' ||
+      e.code === 'KeyL' ||
+      e.code === 'KeyZ' ||
+      e.code === 'KeyX' ||
+      e.code === 'KeyC' ||
+      e.code === 'KeyF'
     ) {
       e.preventDefault();
     }

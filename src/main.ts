@@ -54,7 +54,12 @@ function bootstrap(): void {
     update(dt) {
       states.update(dt);
       hud.update(dt);
-      hud.set({ hp: player.hp });
+      player.syncHp();
+      hud.set({
+        hp: player.hp,
+        fortitude: player.mentalFortitude,
+        swagger: player.streetSwagger,
+      });
     },
     render(alpha) {
       ctx.imageSmoothingEnabled = false;

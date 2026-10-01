@@ -13,7 +13,7 @@ npm run dev
 
 Open the URL Vite prints (default `http://localhost:5173`).
 
-**Phase 2:** Explore the 2026 apartment → find the key → inspect the photo → open the Diary → Level 1 fades into Winter 1995 rynok. See project docs `phase2-eras.md` for controls and architecture.
+**Phase 3:** After diary → rynok, fight thugs with punch/kick, fill Street Swagger, fire Bazar slang stuns. Mental Fortitude at 0 returns you to the apartment. See project docs `phase3-combat-bazar.md`.
 
 ## Scripts
 
@@ -30,19 +30,25 @@ Open the URL Vite prints (default `http://localhost:5173`).
 src/
   art/        Palettes, sprites, pixel helpers, bitmap font
   core/       GameLoop, StateManager, Input
-  entities/   Player, Gangster
+  entities/   Player, Gangster, BazarBubble
   scenes/     Apartment2026, Rynok1995
-  systems/    DialogueSystem
+  systems/    DialogueSystem, CombatMath
   ui/         HUD
   main.ts     Bootstrap — GameLoop → StateManager
 ```
 
 **Art:** Sega Genesis / Mega Drive 16-bit pass (procedural pixels). See project docs `sega-16bit-art.md`.
-## Controls (Phase 2)
+
+## Controls
 
 | Input | Action |
 |-------|--------|
 | Arrows / WASD | Move |
+| Space / ↑ / W | Jump (1995) |
+| J / Z | Punch |
+| K / X | Kick |
+| L / C / F | Bazar special |
 | E | Interact |
 | Enter | Confirm |
 | P / Esc | Pause |
+

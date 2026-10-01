@@ -170,6 +170,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   return {
     enter(): void {
       player.setEra('adult');
+      player.resetCombatProgress({ fortitude: 100, swagger: 0 });
+      player.setFloorY(FLOOR_Y);
       player.x = 100;
       player.y = FLOOR_Y;
       player.facing = 1;
@@ -182,7 +184,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         hp: player.hp,
         maxHp: 100,
         eraLabel: 'ADULT · 2026',
-        fortitude: 100,
+        fortitude: player.mentalFortitude,
+        swagger: 0,
+        showSwagger: false,
         paused: false,
       });
       refreshObjective();
