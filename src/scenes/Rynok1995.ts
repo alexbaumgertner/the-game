@@ -1,5 +1,6 @@
 /**
- * ERA_1995 — Novgorod Rynok combat strip.
+ * ERA_1995 — Novgorod Rynok combat strip (Neo-Noir 16-bit).
+ * Parallax: Kremlin → Khrushchyovkas → gameplay → lighting → weather.
  * Teen arcade brawler: move / jump / punch / kick / Bazar stun.
  * Mental Fortitude → 0 triggers Game Over → snap back to 2026 apartment.
  */
@@ -13,9 +14,27 @@ import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, fillSkyGradient, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
 import { aabbOverlap } from '@/systems/CombatMath';
+import { ParallaxStack } from '@/render/ParallaxLayer';
+import {
+  applyLightingOverlay,
+  makeHeadlight,
+  makeTrashFire,
+  type ConeLight,
+  type PointLight,
+} from '@/render/LightingOverlay';
 
 const FLOOR_Y = 188;
 const R = RYNOK_PAL;
+const WORLD_W = 560;
+
+interface StreetCar {
+  x: number;
+  y: number;
+  facing: 1 | -1;
+  speed: number;
+  body: string;
+  bodyHi: string;
+}
 
 export interface RynokSceneDeps {
   states: StateManager;
@@ -27,13 +46,30 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   const { states, player, hud } = deps;
 
   let camX = 0;
-  const worldW = 520;
   let gangsters: Gangster[] = [];
   let bubbles: BazarBubble[] = [];
   let gameOver = false;
   let gameOverTimer = 0;
   let toast = '';
   let toastTimer = 0;
+  let time = 0;
+  let shake = 0;
+  let cars: StreetCar[] = [];
+
+  const fireSpots: PointLight[] = [
+    makeTrashFire(70, FLOOR_Y - 8, 0.2),
+    makeTrashFire(250, FLOOR_Y - 6, 1.4),
+    makeTrashFire(400, FLOOR_Y - 10, 2.8),
+    makeTrashFire(510, FLOOR_Y - 8, 0.9),
+  ];
+
+  const spawnCars = (): void => {
+    cars = [
+      { x: -40, y: FLOOR_Y - 18, facing: 1, speed: 42, body: '#2a3040', bodyHi: '#4a5868' },
+      { x: WORLD_W + 60, y: FLOOR_Y - 16, facing: -1, speed: 36, body: '#3a2828', bodyHi: '#5a4040' },
+      { x: 180, y: FLOOR_Y - 17, facing: 1, speed: 28, body: '#243028', bodyHi: '#3a5040' },
+    ];
+  };
 
   const spawnWave = (): void => {
     gangsters = [
@@ -63,8 +99,98 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     gameOver = false;
     gameOverTimer = 0;
     player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
-    // Snap back to framing apartment — clear 1995 combat progress only
     states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
+  };
+
+  const headlightCones = (): ConeLight[] =>
+    cars.map((c) =>
+      makeHeadlight(
+        c.x + (c.facing > 0 ? 22 : -22),
+        c.y + 6,
+        c.facing,
+        100,
+        16,
+      ),
+    );
+
+  /** Gameplay layer paint (world space; ParallaxStack already translates). */
+  const drawGameplayLayer = (
+    ctx: CanvasRenderingContext2D,
+    _scrollX: number,
+    _camX: number,
+    _viewW: number,
+    viewH: number,
+    alpha: number,
+  ): void => {
+    drawBrickWall(ctx, WORLD_W);
+    drawGround(ctx, WORLD_W, viewH);
+    drawTrashCan(ctx, 62, FLOOR_Y);
+    drawTrashCan(ctx, 242, FLOOR_Y);
+    drawTrashCan(ctx, 392, FLOOR_Y);
+    drawTrashCan(ctx, 502, FLOOR_Y);
+    drawStall(ctx, 100, FLOOR_Y, 'FISH', 'red');
+    drawStall(ctx, 210, FLOOR_Y, 'BREAD', 'blue');
+    drawStall(ctx, 330, FLOOR_Y, 'FURS', 'brown');
+    drawGate(ctx);
+    for (const c of cars) drawCar(ctx, c);
+    for (const g of gangsters) g.render(ctx, alpha);
+    for (const b of bubbles) b.render(ctx);
+    player.render(ctx, alpha);
+  };
+
+  const stack = new ParallaxStack();
+
+  const rebuildStack = (alpha: number, width: number, _height: number): void => {
+    stack.setLayers([
+      {
+        id: 'sky',
+        speedRatio: 0,
+        zIndex: 0,
+        screenSpace: true,
+        draw: (ctx, _s, _c, w, h) => drawSky(ctx, w, h),
+      },
+      {
+        id: 'kremlin',
+        speedRatio: 0.15,
+        zIndex: 10,
+        screenSpace: true,
+        draw: (ctx, scroll) => drawKremlinSilhouette(ctx, width, scroll),
+      },
+      {
+        id: 'khrushchyovka',
+        speedRatio: 0.42,
+        zIndex: 20,
+        screenSpace: true,
+        draw: (ctx, scroll) => drawKhrushchyovkas(ctx, width, scroll),
+      },
+      {
+        id: 'gameplay',
+        speedRatio: 1,
+        zIndex: 30,
+        draw: (ctx, scroll, cam, w, h) => drawGameplayLayer(ctx, scroll, cam, w, h, alpha),
+      },
+      {
+        id: 'lighting',
+        speedRatio: 0,
+        zIndex: 40,
+        screenSpace: true,
+        draw: (ctx, _s, cam, w, h) => {
+          applyLightingOverlay(ctx, cam, w, h, {
+            ambient: { color: 'rgba(18, 22, 48, 0.72)' },
+            points: fireSpots,
+            cones: headlightCones(),
+            time,
+          });
+        },
+      },
+      {
+        id: 'weather',
+        speedRatio: 1.25,
+        zIndex: 50,
+        screenSpace: true,
+        draw: (ctx, scroll, _c, w, h) => drawSnowParticles(ctx, w, h, scroll),
+      },
+    ]);
   };
 
   return {
@@ -82,20 +208,37 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
+      time = 0;
+      shake = 0;
       spawnWave();
+      spawnCars();
       syncHud('Punch thugs - fill Swagger');
     },
 
     exit(): void {
       gangsters = [];
       bubbles = [];
+      cars = [];
       hud.set({ showSwagger: false });
     },
 
     update(dt: number): void {
+      time += dt;
+      if (shake > 0) shake = Math.max(0, shake - dt);
+      if (player.bazarShake > 0) {
+        shake = Math.max(shake, player.bazarShake);
+      }
+
       if (toastTimer > 0) {
         toastTimer -= dt;
         if (toastTimer <= 0) toast = '';
+      }
+
+      // Moving cars along the strip (behind combat Y-ish but drawn in gameplay)
+      for (const c of cars) {
+        c.x += c.facing * c.speed * dt;
+        if (c.facing > 0 && c.x > WORLD_W + 80) c.x = -60;
+        if (c.facing < 0 && c.x < -80) c.x = WORLD_W + 60;
       }
 
       if (gameOver) {
@@ -121,6 +264,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
             bubbles.push(bubble);
             toast = bubble.phrase;
             toastTimer = 0.9;
+            shake = Math.max(shake, 0.28);
           } else if (player.streetSwagger < BAZAR_COST) {
             toast = `NEED ${BAZAR_COST} SWAG`;
             toastTimer = 0.7;
@@ -128,12 +272,11 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         }
 
         const axis = input.axisX();
-        player.applyWalk(axis, dt, 20, worldW - 20);
+        player.applyWalk(axis, dt, 20, WORLD_W - 20);
       }
 
-      player.applyPhysics(dt, 20, worldW - 20);
+      player.applyPhysics(dt, 20, WORLD_W - 20);
 
-      // Player melee → gangsters
       const atk = player.attackHitbox();
       if (atk) {
         for (const g of gangsters) {
@@ -149,7 +292,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         }
       }
 
-      // Bubbles
       for (const b of bubbles) {
         b.update(dt);
         if (!b.canHit) continue;
@@ -168,9 +310,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       }
       bubbles = bubbles.filter((b) => b.alive);
 
-      // Gangsters AI + damage player
       for (const g of gangsters) {
-        g.update(dt, player.x, player.y, FLOOR_Y, 30, worldW - 30);
+        g.update(dt, player.x, player.y, FLOOR_Y, 30, WORLD_W - 30);
         if (player.invuln > 0 || player.isKo || g.isKo) continue;
         const ah = g.attackHitbox();
         if (ah && aabbOverlap(ah, player.body())) {
@@ -196,7 +337,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       const target = player.x - 140;
       camX += (target - camX) * Math.min(1, dt * 6);
       if (camX < 0) camX = 0;
-      if (camX > worldW - 320) camX = worldW - 320;
+      if (camX > WORLD_W - 320) camX = WORLD_W - 320;
     },
 
     render(
@@ -206,25 +347,15 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const ox = Math.round(camX);
-
-      drawSky(ctx, width, height);
-      drawDistantRoofs(ctx, width, ox * 0.22);
-      drawMidRoofs(ctx, width, ox * 0.45);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
 
       ctx.save();
-      ctx.translate(-ox, 0);
+      ctx.translate(shakeX, shakeY);
 
-      drawBrickWall(ctx, worldW);
-      drawGround(ctx, worldW, height);
-      drawStall(ctx, 90, FLOOR_Y, 'FISH', 'red');
-      drawStall(ctx, 195, FLOOR_Y, 'BREAD', 'blue');
-      drawStall(ctx, 310, FLOOR_Y, 'FURS', 'brown');
-      drawGate(ctx);
+      rebuildStack(alpha, width, height);
+      stack.render(ctx, camX, width, height);
 
-      for (const g of gangsters) g.render(ctx, alpha);
-      for (const b of bubbles) b.render(ctx);
-      player.render(ctx, alpha);
       ctx.restore();
 
       const title = 'NOVGOROD RYNOK - WINTER 1995';
@@ -234,8 +365,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         fillHi: R.uiBoxHi,
       });
       drawNesTextCentered(ctx, title, width / 2, 11, R.uiText, 1, 1);
-
-      drawSnowParticles(ctx, width, height, ox);
 
       const hint = 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
       const hw = measureNesText(hint, 1, 1) + 10;
@@ -280,59 +409,112 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   };
 }
 
+/* ───────────────────── Environment draws ───────────────────── */
+
 function drawSky(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  // Darker Neo-Noir winter sky
   fillSkyGradient(
     ctx,
     width,
     [
-      { y: 0, h: 36, color: R.skyTop },
-      { y: 36, h: 28, color: R.skyHi },
-      { y: 64, h: 28, color: R.skyMid },
-      { y: 92, h: 40, color: R.skyLow },
-      { y: 132, h: height - 132, color: R.skyHorizon },
+      { y: 0, h: 40, color: '#080c18' },
+      { y: 40, h: 28, color: '#101828' },
+      { y: 68, h: 28, color: '#182438' },
+      { y: 96, h: 36, color: '#243048' },
+      { y: 132, h: height - 132, color: '#304058' },
     ],
     [
-      { y: 35, a: R.skyTop, b: R.skyHi },
-      { y: 63, a: R.skyHi, b: R.skyMid },
-      { y: 91, a: R.skyMid, b: R.skyLow },
-      { y: 131, a: R.skyLow, b: R.skyHorizon },
+      { y: 39, a: '#080c18', b: '#101828' },
+      { y: 67, a: '#101828', b: '#182438' },
+      { y: 95, a: '#182438', b: '#243048' },
+      { y: 131, a: '#243048', b: '#304058' },
     ],
   );
 }
 
-function drawDistantRoofs(ctx: CanvasRenderingContext2D, width: number, scroll: number): void {
-  for (let i = 0; i < 12; i++) {
-    const rx = Math.round(((i * 52 - scroll) % (width + 52)) - 26);
-    px(ctx, rx, 70, 40, 18, R.roof);
-    px(ctx, rx + 8, 62, 24, 10, R.roofMid);
-    px(ctx, rx + 6, 62, 28, 2, R.roofSnow);
-    px(ctx, rx + 12, 60, 16, 2, R.roofSnow);
-    px(ctx, rx + 12, 76, 2, 2, R.skyTop);
-    px(ctx, rx + 22, 76, 2, 2, '#e8c56a');
-  }
-}
-
-function drawMidRoofs(ctx: CanvasRenderingContext2D, width: number, scroll: number): void {
-  for (let i = 0; i < 8; i++) {
-    const rx = Math.round(((i * 70 - scroll) % (width + 70)) - 35);
-    px(ctx, rx, 82, 48, 22, R.roofMid);
-    px(ctx, rx + 4, 82, 40, 2, R.roofSnow);
-    px(ctx, rx + 10, 78, 28, 4, R.roof);
-    px(ctx, rx + 12, 76, 24, 2, R.roofSnow);
-    if (i % 2 === 0) {
-      px(ctx, rx + 34, 72, 6, 10, R.brickDark);
-      px(ctx, rx + 33, 70, 8, 2, R.roofSnow);
+/** Distant Novgorod Kremlin silhouette (slow parallax). */
+function drawKremlinSilhouette(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  scroll: number,
+): void {
+  const baseY = 78;
+  for (let i = -1; i < 6; i++) {
+    const bx = Math.round(i * 110 - (scroll % 110));
+    // Wall mass
+    px(ctx, bx, baseY + 18, 100, 28, '#0c101c');
+    // Towers
+    px(ctx, bx + 8, baseY, 16, 46, '#0a0e18');
+    px(ctx, bx + 10, baseY - 8, 12, 10, '#121828');
+    // Spire
+    px(ctx, bx + 14, baseY - 18, 4, 12, '#181e2c');
+    px(ctx, bx + 15, baseY - 22, 2, 6, '#202838');
+    px(ctx, bx + 48, baseY + 4, 22, 42, '#0a0e18');
+    px(ctx, bx + 52, baseY - 6, 14, 12, '#121828');
+    px(ctx, bx + 56, baseY - 14, 6, 10, '#181e2c');
+    // Dome hint
+    px(ctx, bx + 78, baseY + 6, 18, 40, '#0c101c');
+    px(ctx, bx + 82, baseY - 2, 10, 10, '#1a2030');
+    // Tiny lit windows
+    if ((i + 3) % 2 === 0) {
+      px(ctx, bx + 14, baseY + 20, 2, 2, '#c8a040');
+      px(ctx, bx + 56, baseY + 24, 2, 2, '#a88830');
     }
   }
+  // Horizon mist band
+  ditherRect(ctx, 0, baseY + 40, width, 4, '#182030', '#243048');
+}
+
+/** Midground panel-block Khrushchyovka row. */
+function drawKhrushchyovkas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  scroll: number,
+): void {
+  for (let i = -1; i < 8; i++) {
+    const bx = Math.round(i * 78 - (scroll % 78));
+    const h = 52 + (i % 3) * 8;
+    const top = 100 - (h - 52);
+    px(ctx, bx, top, 70, h, '#2a3048');
+    px(ctx, bx + 2, top + 2, 66, 2, '#3a4860');
+    px(ctx, bx, top, 2, h, '#1a2030');
+    px(ctx, bx + 68, top, 2, h, '#1a2030');
+    // Snow roof
+    px(ctx, bx - 2, top - 3, 74, 4, '#c8d0dc');
+    px(ctx, bx + 4, top - 5, 20, 2, '#e0e8f0');
+    // Window grid
+    for (let row = 0; row < 4; row++) {
+      for (let col = 0; col < 3; col++) {
+        const lit = (i + row + col) % 5 === 0;
+        px(
+          ctx,
+          bx + 10 + col * 18,
+          top + 10 + row * 10,
+          10,
+          7,
+          lit ? '#d8b050' : '#141820',
+        );
+        if (lit) px(ctx, bx + 10 + col * 18, top + 10 + row * 10, 10, 2, '#f0d878');
+      }
+    }
+    // Balcony rail
+    if (i % 2 === 0) {
+      px(ctx, bx + 40, top + 28, 22, 2, '#485068');
+      px(ctx, bx + 40, top + 28, 2, 8, '#485068');
+      px(ctx, bx + 60, top + 28, 2, 8, '#485068');
+    }
+  }
+  // Soft ground fog under buildings
+  ditherRect(ctx, 0, 148, width, 6, '#283040', '#304058');
 }
 
 function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
   fillBricks(
     ctx,
     0,
-    104,
+    154,
     worldW,
-    FLOOR_Y - 108,
+    FLOOR_Y - 158,
     R.brick,
     R.mortar,
     R.brickHi,
@@ -341,8 +523,8 @@ function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
     R.brickDark,
   );
   for (let x = 20; x < worldW; x += 48) {
-    px(ctx, x, 120, 14, 6, R.brickMid);
-    px(ctx, x + 24, 144, 14, 6, R.brickDeep);
+    px(ctx, x, 160, 14, 6, R.brickMid);
+    px(ctx, x + 24, 168, 14, 6, R.brickDeep);
   }
   px(ctx, 0, FLOOR_Y - 14, worldW, 10, R.concrete);
   px(ctx, 0, FLOOR_Y - 14, worldW, 2, R.concreteHi);
@@ -376,6 +558,38 @@ function drawGround(ctx: CanvasRenderingContext2D, worldW: number, height: numbe
     px(ctx, x, FLOOR_Y + 6, 18, 3, R.snowShadow);
     px(ctx, x + 2, FLOOR_Y + 7, 14, 1, R.streetDark);
   }
+}
+
+function drawTrashCan(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  px(ctx, x, floorY - 16, 14, 16, '#2a2820');
+  px(ctx, x + 1, floorY - 15, 12, 2, '#4a4838');
+  px(ctx, x + 2, floorY - 18, 10, 3, '#3a3830');
+  // Embers (base color; lighting overlay adds glow)
+  px(ctx, x + 4, floorY - 20, 2, 2, '#ff6820');
+  px(ctx, x + 7, floorY - 22, 2, 3, '#ff9030');
+  px(ctx, x + 5, floorY - 24, 1, 2, '#ffe080');
+}
+
+function drawCar(ctx: CanvasRenderingContext2D, c: StreetCar): void {
+  const x = Math.round(c.x);
+  const y = Math.round(c.y);
+  // Body
+  px(ctx, x - 18, y, 36, 12, c.body);
+  px(ctx, x - 14, y - 8, 28, 8, c.body);
+  px(ctx, x - 12, y - 7, 24, 2, c.bodyHi);
+  // Cabin glass
+  px(ctx, x - 8, y - 6, 10, 5, '#283848');
+  px(ctx, x + 2, y - 6, 8, 5, '#283848');
+  // Wheels
+  px(ctx, x - 12, y + 10, 6, 4, '#0c0c10');
+  px(ctx, x + 6, y + 10, 6, 4, '#0c0c10');
+  // Headlamp bulb
+  const lx = c.facing > 0 ? x + 17 : x - 20;
+  px(ctx, lx, y + 4, 4, 3, '#f8f0d0');
+  px(ctx, lx, y + 4, 4, 1, '#ffffff');
+  // Tail
+  const tx = c.facing > 0 ? x - 18 : x + 15;
+  px(ctx, tx, y + 4, 3, 2, '#a02828');
 }
 
 function drawStall(
@@ -414,31 +628,17 @@ function drawStall(
   if (label === 'FISH') {
     px(ctx, x + 8, floorY - 32, 12, 6, R.fish);
     px(ctx, x + 10, floorY - 33, 8, 2, R.fishHi);
-    px(ctx, x + 12, floorY - 30, 4, 1, R.fishDark);
     px(ctx, x + 24, floorY - 30, 14, 5, R.fish);
-    px(ctx, x + 26, floorY - 31, 10, 2, R.fishHi);
     px(ctx, x + 42, floorY - 32, 10, 6, R.fishDark);
-    px(ctx, x + 44, floorY - 33, 6, 2, R.fish);
-    px(ctx, x + 8, floorY - 26, 46, 2, R.snow);
-    px(ctx, x + 10, floorY - 25, 42, 1, R.snowHi);
   } else if (label === 'BREAD') {
     px(ctx, x + 10, floorY - 32, 10, 6, R.bread);
-    px(ctx, x + 12, floorY - 33, 6, 2, R.breadHi);
     px(ctx, x + 22, floorY - 34, 12, 8, R.breadHi);
-    px(ctx, x + 24, floorY - 36, 8, 2, R.bread);
     px(ctx, x + 36, floorY - 30, 10, 5, R.bread);
     px(ctx, x + 48, floorY - 33, 8, 7, R.breadDark);
-    px(ctx, x + 50, floorY - 34, 4, 2, R.bread);
-    px(ctx, x + 8, floorY - 26, 52, 2, R.woodDark);
   } else {
     px(ctx, x + 8, floorY - 34, 16, 10, R.fur);
-    px(ctx, x + 10, floorY - 36, 12, 3, R.furHi);
-    px(ctx, x + 12, floorY - 30, 8, 2, R.furDark);
     px(ctx, x + 28, floorY - 32, 14, 8, R.furDark);
-    px(ctx, x + 30, floorY - 34, 10, 3, R.fur);
     px(ctx, x + 44, floorY - 34, 12, 10, R.fur);
-    px(ctx, x + 46, floorY - 32, 8, 4, R.furHi);
-    px(ctx, x + 48, floorY - 28, 6, 2, R.furDark);
   }
 
   segaBox(ctx, x + 14, floorY - 68, 40, 12, R.uiBox, R.awningStripe, {
@@ -449,29 +649,27 @@ function drawStall(
 }
 
 function drawGate(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 474, FLOOR_Y - 68, 12, 68, R.gate);
-  px(ctx, 476, FLOOR_Y - 66, 2, 64, R.gateHi);
-  px(ctx, 498, FLOOR_Y - 68, 12, 68, R.gate);
-  px(ctx, 500, FLOOR_Y - 66, 2, 64, R.gateHi);
-  px(ctx, 474, FLOOR_Y - 74, 36, 10, R.wood);
-  px(ctx, 476, FLOOR_Y - 72, 32, 2, R.woodHi);
-  px(ctx, 484, FLOOR_Y - 48, 16, 4, R.woodDark);
-  px(ctx, 484, FLOOR_Y - 34, 16, 4, R.woodDark);
-  px(ctx, 472, FLOOR_Y - 76, 40, 3, R.snow);
-  px(ctx, 476, FLOOR_Y - 78, 12, 2, R.snowHi);
-  px(ctx, 494, FLOOR_Y - 78, 10, 2, R.snow);
+  px(ctx, 514, FLOOR_Y - 68, 12, 68, R.gate);
+  px(ctx, 516, FLOOR_Y - 66, 2, 64, R.gateHi);
+  px(ctx, 538, FLOOR_Y - 68, 12, 68, R.gate);
+  px(ctx, 540, FLOOR_Y - 66, 2, 64, R.gateHi);
+  px(ctx, 514, FLOOR_Y - 74, 36, 10, R.wood);
+  px(ctx, 516, FLOOR_Y - 72, 32, 2, R.woodHi);
+  px(ctx, 524, FLOOR_Y - 48, 16, 4, R.woodDark);
+  px(ctx, 524, FLOOR_Y - 34, 16, 4, R.woodDark);
+  px(ctx, 512, FLOOR_Y - 76, 40, 3, R.snow);
 }
 
 function drawSnowParticles(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  ox: number,
+  scroll: number,
 ): void {
   const t = performance.now() / 1000;
-  for (let i = 0; i < 36; i++) {
-    const sx = (i * 47 + Math.sin(t * 0.7 + i) * 12 + ox * 0.18) % width;
-    const sy = (i * 29 + t * (16 + (i % 7) * 6)) % height;
+  for (let i = 0; i < 48; i++) {
+    const sx = (i * 47 + Math.sin(t * 0.7 + i) * 12 + scroll * 0.35) % width;
+    const sy = (i * 29 + t * (18 + (i % 7) * 7)) % height;
     const big = i % 4 === 0;
     ctx.fillStyle = big ? R.snowHi : i % 3 === 0 ? R.snow : R.snowMid;
     ctx.fillRect(Math.round(sx), Math.round(sy), big ? 2 : 1, big ? 2 : 1);

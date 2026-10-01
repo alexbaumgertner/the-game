@@ -9,6 +9,8 @@ import type { HUD } from '@/ui/HUD';
 import { APT_PAL } from '@/art/segaPalette';
 import { ditherRect, fillPattern, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
+import { ParallaxStack } from '@/render/ParallaxLayer';
+import { applyLightingOverlay } from '@/render/LightingOverlay';
 
 const WIDTH = 320;
 const FLOOR_Y = 192;
@@ -44,6 +46,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let toastTimer = 0;
   let diaryCursor = 0;
   let prompt = 'EXPLORE THE APARTMENT';
+  let time = 0;
+  /** Subtle camera parallax from player X (apartment is mostly static depth). */
+  let depthCam = 0;
+  const stack = new ParallaxStack();
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
@@ -197,7 +203,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     },
 
     update(dt: number): void {
+      time += dt;
       player.update(dt);
+      // Soft parallax bias from walk position (room stays framed)
+      depthCam += ((player.x - WIDTH / 2) * 0.08 - depthCam) * Math.min(1, dt * 4);
 
       if (overlay === 'diary') {
         updateDiarySelect(dt);
@@ -232,9 +241,58 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       width: number,
       height: number,
     ): void {
-      drawApartment(ctx, width, height, states.flags.hasKey, states.flags.diaryUnlocked);
-      player.render(ctx, alpha);
-      drawHotspotHints(ctx, states);
+      stack.setLayers([
+        {
+          id: 'room',
+          speedRatio: 0,
+          zIndex: 0,
+          screenSpace: true,
+          draw: (c) =>
+            drawApartment(c, width, height, states.flags.hasKey, states.flags.diaryUnlocked, depthCam),
+        },
+        {
+          id: 'gameplay',
+          speedRatio: 0,
+          zIndex: 10,
+          screenSpace: true,
+          draw: (c) => {
+            player.render(c, alpha);
+            drawHotspotHints(c, states);
+          },
+        },
+        {
+          id: 'lighting',
+          speedRatio: 0,
+          zIndex: 20,
+          screenSpace: true,
+          draw: (c, _s, _cam, w, h) => {
+            applyLightingOverlay(c, 0, w, h, {
+              ambient: { color: 'rgba(12, 10, 28, 0.55)' },
+              points: [
+                {
+                  kind: 'point',
+                  x: 104,
+                  y: 100,
+                  radius: 52,
+                  color: '#ffc858',
+                  screenSpace: true,
+                },
+                {
+                  kind: 'point',
+                  x: 244,
+                  y: 70,
+                  radius: 36,
+                  color: '#6080c0',
+                  screenSpace: true,
+                },
+              ],
+              cones: [],
+              time,
+            });
+          },
+        },
+      ]);
+      stack.render(ctx, depthCam, width, height);
 
       const p = activePrompt() ?? (overlay === 'none' ? prompt : null);
       if (p && overlay === 'none') {
@@ -254,6 +312,7 @@ function drawApartment(
   height: number,
   hasKey: boolean,
   diaryUnlocked: boolean,
+  depthCam = 0,
 ): void {
   px(ctx, 0, 0, width, height, P.wallDeep);
 
@@ -267,7 +326,7 @@ function drawApartment(
   // Ceiling shadow band
   ditherRect(ctx, 0, 0, width, 10, P.wallDeep, P.wallDark);
 
-  drawWindow(ctx);
+  drawWindow(ctx, depthCam);
   drawFloor(ctx, width, height);
   drawBed(ctx);
   drawDeskAndDiary(ctx, diaryUnlocked);
@@ -277,7 +336,7 @@ function drawApartment(
   drawLamp(ctx);
   drawBaseboard(ctx, width);
 
-  // Warm lamp dither glow (no alpha wash)
+  // Warm lamp dither glow seeds (lighting overlay adds multiply/screen wash)
   ctx.fillStyle = P.lampGlow;
   const glowDots = [
     [88, 78], [96, 86], [104, 74], [112, 92], [120, 80],
@@ -293,7 +352,7 @@ function drawApartment(
   }
 }
 
-function drawWindow(ctx: CanvasRenderingContext2D): void {
+function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
   // Outer wood frame with bevel
   px(ctx, 200, 28, 92, 72, P.woodDark);
   px(ctx, 202, 30, 88, 68, P.wood);
@@ -306,22 +365,26 @@ function drawWindow(ctx: CanvasRenderingContext2D): void {
   ditherRect(ctx, 208, 38, 72, 8, P.nightSky, P.nightSkyMid);
   px(ctx, 208, 70, 72, 20, P.nightSkyMid);
 
-  // City skyline layers
-  px(ctx, 212, 62, 14, 28, P.city);
-  px(ctx, 214, 58, 10, 4, P.cityMid);
-  px(ctx, 228, 50, 18, 40, P.cityMid);
-  px(ctx, 230, 46, 14, 4, P.cityHi);
-  px(ctx, 248, 66, 12, 24, P.city);
-  px(ctx, 262, 54, 14, 36, P.cityMid);
-  px(ctx, 264, 50, 10, 4, P.cityHi);
+  // City skyline — subtle parallax vs room (depthCam)
+  const ox = Math.round(depthCam * 0.35);
+  px(ctx, 212 + ox, 62, 14, 28, P.city);
+  px(ctx, 214 + ox, 58, 10, 4, P.cityMid);
+  px(ctx, 228 + ox, 50, 18, 40, P.cityMid);
+  px(ctx, 230 + ox, 46, 14, 4, P.cityHi);
+  px(ctx, 248 + ox, 66, 12, 24, P.city);
+  px(ctx, 262 + ox, 54, 14, 36, P.cityMid);
+  px(ctx, 264 + ox, 50, 10, 4, P.cityHi);
+  // Distant Kremlin hint through glass
+  px(ctx, 240 + Math.round(depthCam * 0.15), 48, 8, 20, '#0a1018');
+  px(ctx, 242 + Math.round(depthCam * 0.15), 42, 4, 8, '#121820');
 
   const lights = [
     [216, 66], [220, 74], [232, 56], [238, 66], [242, 76],
     [252, 72], [266, 60], [270, 72], [274, 80],
   ] as const;
   for (const [lx, ly] of lights) {
-    px(ctx, lx, ly, 2, 2, P.windowLight);
-    px(ctx, lx, ly, 2, 1, P.windowLightDim);
+    px(ctx, lx + ox, ly, 2, 2, P.windowLight);
+    px(ctx, lx + ox, ly, 2, 1, P.windowLightDim);
   }
 
   // Mullion
