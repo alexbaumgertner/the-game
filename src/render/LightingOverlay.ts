@@ -130,8 +130,8 @@ function drawHeadlightCone(
   const dir = cone.facing;
 
   // Layered trapezoids approximating a cone (screen blend later).
-  // Kept subtle vs trash-fire blooms — cars read as dim beams, not blown-out white.
-  const bands = 6;
+  // Second dim pass: faintly visible beams, well below trash-fire blooms.
+  const bands = 5;
   for (let i = 0; i < bands; i++) {
     const t0 = i / bands;
     const t1 = (i + 1) / bands;
@@ -139,7 +139,7 @@ function drawHeadlightCone(
     const xB = x0 + Math.round(dir * len * t1);
     const halfA = Math.round(spread * t0 * 0.35 + 1);
     const halfB = Math.round(spread * t1);
-    const a = 0.20 * (1 - t0);
+    const a = 0.12 * (1 - t0);
     ctx.fillStyle = withAlpha(cone.color, a);
     const left = Math.min(xA, xB);
     const right = Math.max(xA, xB);
@@ -147,16 +147,16 @@ function drawHeadlightCone(
     const bot = y0 + Math.max(halfA, halfB);
     ctx.fillRect(left, top, Math.max(1, right - left), bot - top);
     // Taper edges
-    ctx.fillStyle = withAlpha(cone.color, a * 0.5);
+    ctx.fillStyle = withAlpha(cone.color, a * 0.4);
     ctx.fillRect(left, y0 - halfB, Math.max(1, right - left), 1);
     ctx.fillRect(left, y0 + halfB - 1, Math.max(1, right - left), 1);
   }
 
-  // Soft lamp tip (avoid blown-out white hotspot)
-  ctx.fillStyle = withAlpha('#ffffe8', 0.38);
-  ctx.fillRect(x0 + (dir > 0 ? 0 : -4), y0 - 2, 4, 4);
-  ctx.fillStyle = withAlpha('#e8ecff', 0.22);
-  ctx.fillRect(x0 + (dir > 0 ? 3 : -10), y0 - 1, 7, 2);
+  // Soft lamp tip (keep faintly visible, no hotspot)
+  ctx.fillStyle = withAlpha('#ffffe8', 0.22);
+  ctx.fillRect(x0 + (dir > 0 ? 0 : -3), y0 - 1, 3, 3);
+  ctx.fillStyle = withAlpha('#e8ecff', 0.12);
+  ctx.fillRect(x0 + (dir > 0 ? 2 : -8), y0 - 1, 6, 2);
 }
 
 /**
@@ -237,8 +237,8 @@ export function makeHeadlight(
   x: number,
   y: number,
   facing: 1 | -1,
-  length = 88,
-  spread = 14,
+  length = 80,
+  spread = 12,
 ): ConeLight {
   return {
     kind: 'headlight',
