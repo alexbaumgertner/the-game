@@ -15,44 +15,57 @@ export const SEGA = {
   midGray: '#686878',
 } as const;
 
-/** Adult 2026 — warm lamp / gold silhouette with bevels & highlights. */
+/**
+ * Adult 2026 — bald fair-skinned smile, navy crew sweatshirt
+ * (likeness from media/player-reference-photo.png).
+ */
 export const ADULT_PAL = {
   outline: SEGA.black,
-  skinHi: '#f8d0a0',
-  skin: '#e0b080',
-  skinMid: '#c89868',
-  skinShadow: '#9a7048',
-  hairHi: '#8a6048',
-  hair: '#5a4030',
-  hairDark: '#322018',
-  shirtHi: '#f0d078',
-  shirt: '#d4b048',
-  shirtMid: '#b09038',
-  shirtDark: '#786028',
+  skinHi: '#fce8d0',
+  skin: '#f0d0b0',
+  skinMid: '#d8b090',
+  skinShadow: '#b88868',
+  /** Kept for compat; bald — scalp uses skin ramp. */
+  hairHi: '#fce8d0',
+  hair: '#f0d0b0',
+  hairDark: '#d8b090',
+  /** Dark navy / charcoal crew sweatshirt. */
+  shirtHi: '#4a5870',
+  shirt: '#2a3850',
+  shirtMid: '#1c2838',
+  shirtDark: '#101820',
   pantsHi: '#6a7a98',
   pants: '#4a5a78',
   pantsDark: '#344058',
   pantsInk: '#1c2030',
   shoes: '#322820',
   shoesHi: '#5a4840',
-  belt: '#d4b050',
-  beltDark: '#7a6830',
+  belt: '#3a4858',
+  beltDark: '#1c2830',
+  /** Light chest tag on sweatshirt. */
+  tag: '#c8d0d8',
+  eye: '#d0dce8',
+  teeth: '#f8f4f0',
+  brow: '#a88870',
 } as const;
 
-/** Teen 1995 — cooler winter / cyan coat + red scarf. */
+/**
+ * Teen 1995 — same bald smile + navy sweatshirt, younger proportions.
+ * Scarf keys kept for HUD / gangster HP chrome (not worn by player).
+ */
 export const TEEN_PAL = {
   outline: SEGA.black,
-  skinHi: '#f8d8a8',
-  skin: '#f0d098',
-  skinMid: '#d0b078',
-  skinShadow: '#b09058',
-  hairHi: '#5a5870',
-  hair: '#383848',
-  hairDark: '#1c1c28',
-  shirtHi: '#88d0f0',
-  shirt: '#58a0c8',
-  shirtMid: '#4080b0',
-  shirtDark: '#285878',
+  skinHi: '#fcecd8',
+  skin: '#f4d8b8',
+  skinMid: '#dcc098',
+  skinShadow: '#c09870',
+  hairHi: '#fcecd8',
+  hair: '#f4d8b8',
+  hairDark: '#dcc098',
+  shirtHi: '#4a5870',
+  shirt: '#2a3850',
+  shirtMid: '#1c2838',
+  shirtDark: '#101820',
   pantsHi: '#687888',
   pants: '#4a5868',
   pantsDark: '#344050',
@@ -62,6 +75,10 @@ export const TEEN_PAL = {
   scarfHi: '#e87070',
   scarf: '#d04848',
   scarfDark: '#902028',
+  tag: '#c8d0d8',
+  eye: '#d8e0e8',
+  teeth: '#f8f4f0',
+  brow: '#b09078',
 } as const;
 
 /** 2026 Khrushchyovka apartment — wallpaper motifs, bevelled furniture. */
