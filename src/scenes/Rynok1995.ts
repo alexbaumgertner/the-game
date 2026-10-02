@@ -1,6 +1,7 @@
 /**
- * ERA_1995 — Level 1 “Novgorod Rynok, Winter 1995” (Neo-Noir 16-bit).
+ * ERA_1995 — Level 1 “Novgorod Центральный рынок, Winter 1995” (Neo-Noir 16-bit).
  * Wave 1 → mid-fight father-stall timed dialogue → Wave 2 tracksuits → mother’s coat.
+ * Midground = wavy blue-glass market hall; gameplay = kiosks / street / bus stop.
  * Parallax / lighting / Bazar / MF Game Over → apartment snap-back preserved.
  */
 
@@ -245,16 +246,27 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     viewH: number,
     alpha: number,
   ): void => {
-    drawBrickWall(ctx, WORLD_W);
+    drawMarketPlinth(ctx, WORLD_W);
     drawGround(ctx, WORLD_W, viewH);
+    drawBlueFence(ctx, 20, FLOOR_Y, 90);
+    drawBlueFence(ctx, 280, FLOOR_Y, 40);
+    drawSnowPile(ctx, 48, FLOOR_Y, 28);
+    drawSnowPile(ctx, 265, FLOOR_Y, 34);
+    drawSnowPile(ctx, 470, FLOOR_Y, 30);
     drawTrashCan(ctx, 62, FLOOR_Y);
     drawTrashCan(ctx, 242, FLOOR_Y);
     drawTrashCan(ctx, 392, FLOOR_Y);
     drawTrashCan(ctx, 502, FLOOR_Y);
-    drawStall(ctx, 100, FLOOR_Y, 'FISH', 'red');
-    drawStall(ctx, 210, FLOOR_Y, 'BREAD', 'blue');
-    drawStall(ctx, FATHER_STALL_X, FLOOR_Y, 'FURS', 'brown');
+    // Period corrugated kiosks (replaces generic FISH/BREAD strip)
+    drawKiosk(ctx, 96, FLOOR_Y, 'ХЛЕБ', 'tan');
+    drawKiosk(ctx, 200, FLOOR_Y, 'РЫБА', 'grey');
+    // Father’s МЕХА stall — same hotspot X as legacy FURS
+    drawFatherKiosk(ctx, FATHER_STALL_X, FLOOR_Y);
     drawFather(ctx, FATHER_STALL_X + 34, FLOOR_Y, fatherPanic);
+    drawCrates(ctx, 168, FLOOR_Y);
+    drawCrates(ctx, 410, FLOOR_Y);
+    drawBusStop(ctx, 440, FLOOR_Y);
+    drawStreetLamp(ctx, 300, FLOOR_Y);
     drawGate(ctx);
     for (const c of cars) drawCar(ctx, c);
     if (coat && !coat.taken) drawCoatPickup(ctx, coat.x, coat.y);
@@ -282,11 +294,11 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         draw: (ctx, scroll) => drawKremlinSilhouette(ctx, width, scroll),
       },
       {
-        id: 'khrushchyovka',
+        id: 'market_hall',
         speedRatio: 0.42,
         zIndex: 20,
         screenSpace: true,
-        draw: (ctx, scroll) => drawKhrushchyovkas(ctx, width, scroll),
+        draw: (ctx, scroll) => drawCentralMarketHall(ctx, width, scroll),
       },
       {
         id: 'gameplay',
@@ -536,7 +548,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           syncHud(
             alive === 1
               ? 'One thug - reach Father'
-              : `Wave 1 · Thugs ${alive} · Reach FURS`,
+              : `Wave 1 · Thugs ${alive} · Reach МЕХА`,
           );
         }
       } else if (phase === 'wave2') {
@@ -575,7 +587,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       ctx.restore();
 
-      const title = 'NOVGOROD RYNOK - WINTER 1995';
+      const title = 'ЦЕНТРАЛЬНЫЙ РЫНОК - 1995';
       const tw = measureNesText(title, 1, 1) + 16;
       segaBox(ctx, Math.round((width - tw) / 2), 6, tw, 16, R.uiBox, R.uiBorder, {
         borderDark: R.uiBorderDark,
@@ -768,72 +780,139 @@ function drawKremlinSilhouette(
   ditherRect(ctx, 0, baseY + 40, width, 4, '#243040', '#304858');
 }
 
-/** Midground panel-block Khrushchyovka row. */
-function drawKhrushchyovkas(
+/** Midground Центральный рынок — wavy arched roof + blue glass grid. */
+function drawCentralMarketHall(
   ctx: CanvasRenderingContext2D,
   width: number,
   scroll: number,
 ): void {
-  for (let i = -1; i < 8; i++) {
-    const bx = Math.round(i * 78 - (scroll % 78));
-    const h = 52 + (i % 3) * 8;
-    const top = 100 - (h - 52);
-    px(ctx, bx, top, 70, h, '#384860');
-    px(ctx, bx + 2, top + 2, 66, 2, '#4a5870');
-    px(ctx, bx, top, 2, h, '#243040');
-    px(ctx, bx + 68, top, 2, h, '#243040');
-    // Snow roof
-    px(ctx, bx - 2, top - 3, 74, 4, '#d0d8e0');
-    px(ctx, bx + 4, top - 5, 20, 2, '#e8f0f8');
-    // Window grid
-    for (let row = 0; row < 4; row++) {
-      for (let col = 0; col < 3; col++) {
-        const lit = (i + row + col) % 5 === 0;
-        px(
-          ctx,
-          bx + 10 + col * 18,
-          top + 10 + row * 10,
-          10,
-          7,
-          lit ? '#e0c060' : '#1c2430',
-        );
-        if (lit) px(ctx, bx + 10 + col * 18, top + 10 + row * 10, 10, 2, '#f8e088');
-      }
-    }
-    // Balcony rail
-    if (i % 2 === 0) {
-      px(ctx, bx + 40, top + 28, 22, 2, '#586878');
-      px(ctx, bx + 40, top + 28, 2, 8, '#586878');
-      px(ctx, bx + 60, top + 28, 2, 8, '#586878');
-    }
+  const baseY = 148;
+  const hallH = 78;
+  const topY = baseY - hallH;
+  // Wide repeating facade segments so parallax scrolls cleanly
+  const span = 220;
+  for (let i = -1; i < 4; i++) {
+    const bx = Math.round(i * span - (scroll % span));
+    drawMarketHallSegment(ctx, bx, topY, span - 4, hallH);
   }
-  // Soft ground fog under buildings
-  ditherRect(ctx, 0, 148, width, 6, '#344050', '#3c5068');
+  // Soft ground fog under hall
+  ditherRect(ctx, 0, baseY - 2, width, 6, '#344050', '#3c5068');
 }
 
-function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
+function drawMarketHallSegment(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  topY: number,
+  w: number,
+  h: number,
+): void {
+  // Concrete mass behind glass
+  px(ctx, x, topY + 18, w, h - 18, R.hallGlassDeep);
+  // Triple-arch / wavy roof silhouette
+  drawWavyRoof(ctx, x - 2, topY, w + 4);
+  // Blue metal frame + glass grid
+  const glassTop = topY + 20;
+  const glassH = h - 22;
+  px(ctx, x + 4, glassTop, w - 8, glassH, R.hallGlass);
+  // Vertical mullions
+  for (let col = 0; col < 10; col++) {
+    const mx = x + 6 + col * Math.floor((w - 12) / 10);
+    px(ctx, mx, glassTop, 2, glassH, R.hallFrame);
+    // Lit / cold panes
+    const lit = col % 3 === 1;
+    px(
+      ctx,
+      mx + 2,
+      glassTop + 4,
+      Math.max(4, Math.floor((w - 12) / 10) - 3),
+      glassH - 8,
+      lit ? R.hallGlassLit : R.hallGlassHi,
+    );
+    // Horizontal bars
+    for (let row = 0; row < 4; row++) {
+      px(ctx, mx + 2, glassTop + 6 + row * 14, Math.max(4, Math.floor((w - 12) / 10) - 3), 1, R.hallFrameDark);
+    }
+  }
+  // Outer frame rails
+  px(ctx, x + 2, glassTop, w - 4, 3, R.hallFrameHi);
+  px(ctx, x + 2, glassTop + glassH - 3, w - 4, 3, R.hallFrame);
+  px(ctx, x + 2, glassTop, 3, glassH, R.hallFrame);
+  px(ctx, x + w - 5, glassTop, 3, glassH, R.hallFrame);
+
+  // Entrance canopy (center of segment)
+  const cx = x + Math.floor(w / 2) - 48;
+  drawEntranceCanopy(ctx, cx, glassTop + glassH - 28);
+}
+
+function drawWavyRoof(ctx: CanvasRenderingContext2D, x: number, topY: number, w: number): void {
+  // Three concrete arches — recognizable Central Market silhouette
+  const archW = Math.floor(w / 3);
+  for (let a = 0; a < 3; a++) {
+    const ax = x + a * archW;
+    // Arch mass steps (pixel “wave”)
+    px(ctx, ax + 4, topY + 14, archW - 6, 8, R.hallRoofDark);
+    px(ctx, ax + 10, topY + 8, archW - 18, 8, R.hallRoof);
+    px(ctx, ax + 18, topY + 3, archW - 34, 8, R.hallRoofHi);
+    px(ctx, ax + 26, topY, archW - 50, 6, R.hallRoofHi);
+    // Snow cap
+    px(ctx, ax + 16, topY + 1, archW - 30, 2, R.snowMid);
+    px(ctx, ax + 24, topY - 1, Math.max(8, archW - 46), 2, R.snow);
+  }
+  // V-notches between arches
+  px(ctx, x + archW - 4, topY + 10, 8, 6, R.hallRoofDark);
+  px(ctx, x + archW * 2 - 4, topY + 10, 8, 6, R.hallRoofDark);
+}
+
+function drawEntranceCanopy(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  // Blue box canopy with ЦЕНТРАЛЬНЫЙ banner
+  px(ctx, x, y, 96, 22, R.hallBannerDark);
+  px(ctx, x + 2, y + 2, 92, 16, R.hallBanner);
+  px(ctx, x + 2, y + 2, 92, 2, R.hallBannerHi);
+  // Peaked lip
+  px(ctx, x + 8, y - 4, 80, 4, R.hallBanner);
+  px(ctx, x + 20, y - 7, 56, 3, R.hallBannerHi);
+  px(ctx, x + 16, y - 8, 20, 2, R.snow);
+  // Big Cyrillic sign
+  drawNesTextCentered(ctx, 'ЦЕНТРАЛЬНЫЙ', x + 48, y + 6, R.hallSign, 1, 0);
+  // Period-plausible invented shop strips (not modern trademarks)
+  px(ctx, x + 6, y + 18, 26, 5, '#2a6840');
+  drawNesText(ctx, 'ХЛЕБ', x + 9, y + 19, '#d0f0d0', 1, 0);
+  px(ctx, x + 36, y + 18, 24, 5, '#781828');
+  drawNesText(ctx, 'МЯСО', x + 39, y + 19, '#f0d0d0', 1, 0);
+  px(ctx, x + 64, y + 18, 26, 5, '#284878');
+  drawNesText(ctx, 'ЧАЙ', x + 70, y + 19, '#d0e0f0', 1, 0);
+  // Dark doors under canopy
+  px(ctx, x + 28, y + 24, 16, 10, '#141820');
+  px(ctx, x + 52, y + 24, 16, 10, '#141820');
+  px(ctx, x + 30, y + 26, 4, 4, '#3a5868');
+  px(ctx, x + 54, y + 26, 4, 4, '#3a5868');
+}
+
+/** Low plinth / asphalt apron under the hall (replaces full brick wall). */
+function drawMarketPlinth(ctx: CanvasRenderingContext2D, worldW: number): void {
+  // Hint of brick / concrete base behind kiosks
   fillBricks(
     ctx,
     0,
-    154,
+    168,
     worldW,
-    FLOOR_Y - 158,
-    R.brick,
+    FLOOR_Y - 172,
+    R.brickDark,
     R.mortar,
-    R.brickHi,
+    R.brick,
     16,
     8,
-    R.brickDark,
+    R.brickDeep,
   );
-  for (let x = 20; x < worldW; x += 48) {
-    px(ctx, x, 160, 14, 6, R.brickMid);
-    px(ctx, x + 24, 168, 14, 6, R.brickDeep);
-  }
   px(ctx, 0, FLOOR_Y - 14, worldW, 10, R.concrete);
   px(ctx, 0, FLOOR_Y - 14, worldW, 2, R.concreteHi);
   px(ctx, 0, FLOOR_Y - 6, worldW, 2, R.concreteDark);
   for (let x = 0; x < worldW; x += 18) {
     px(ctx, x, FLOOR_Y - 12, 1, 6, R.concreteDark);
+  }
+  // Tile/asphalt seam
+  for (let x = 0; x < worldW; x += 24) {
+    px(ctx, x, FLOOR_Y - 10, 20, 1, R.streetDark);
   }
 }
 
@@ -861,6 +940,25 @@ function drawGround(ctx: CanvasRenderingContext2D, worldW: number, height: numbe
     px(ctx, x, FLOOR_Y + 6, 18, 3, R.snowShadow);
     px(ctx, x + 2, FLOOR_Y + 7, 14, 1, R.streetDark);
   }
+}
+
+function drawBlueFence(ctx: CanvasRenderingContext2D, x: number, floorY: number, w: number): void {
+  px(ctx, x, floorY - 18, w, 2, R.fenceHi);
+  px(ctx, x, floorY - 4, w, 2, R.fence);
+  for (let i = 0; i < w; i += 6) {
+    px(ctx, x + i, floorY - 18, 2, 16, R.fence);
+    px(ctx, x + i, floorY - 18, 1, 16, R.fenceHi);
+  }
+  // Snow on rail
+  px(ctx, x, floorY - 19, w, 1, R.snowMid);
+}
+
+function drawSnowPile(ctx: CanvasRenderingContext2D, x: number, floorY: number, w: number): void {
+  px(ctx, x, floorY - 6, w, 6, R.snowMid);
+  px(ctx, x + 4, floorY - 10, w - 8, 6, R.snow);
+  px(ctx, x + 10, floorY - 13, Math.max(6, w - 20), 4, R.snowHi);
+  px(ctx, x + 2, floorY - 2, w - 4, 2, R.snowShadow);
+  px(ctx, x + 6, floorY - 4, 4, 1, R.streetDark);
 }
 
 function drawTrashCan(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
@@ -895,60 +993,135 @@ function drawCar(ctx: CanvasRenderingContext2D, c: StreetCar): void {
   px(ctx, tx, y + 4, 3, 2, '#a02828');
 }
 
-function drawStall(
+type KioskTheme = 'tan' | 'grey' | 'rust' | 'blue';
+
+function kioskColors(theme: KioskTheme): { body: string; hi: string; dark: string; roof: string } {
+  if (theme === 'tan') {
+    return { body: R.kioskTan, hi: R.kioskTanHi, dark: R.kioskTanDark, roof: R.kioskRust };
+  }
+  if (theme === 'rust') {
+    return { body: R.kioskRust, hi: R.kioskRustHi, dark: R.kioskRustDark, roof: R.kioskGreyDark };
+  }
+  if (theme === 'blue') {
+    return { body: R.kioskGrey, hi: R.kioskGreyHi, dark: R.kioskGreyDark, roof: R.kioskBlue };
+  }
+  return { body: R.kioskGrey, hi: R.kioskGreyHi, dark: R.kioskGreyDark, roof: R.kioskGreyDark };
+}
+
+/** Corrugated metal street kiosk (1990s rynok). */
+function drawKiosk(
   ctx: CanvasRenderingContext2D,
   x: number,
   floorY: number,
   label: string,
-  theme: 'red' | 'blue' | 'brown',
+  theme: KioskTheme,
 ): void {
-  const awning =
-    theme === 'red' ? R.awningRed : theme === 'blue' ? R.awningBlue : R.awningBrown;
-  const awningHi =
-    theme === 'red' ? R.awningRedHi : theme === 'blue' ? R.awningBlueHi : R.awningBrownHi;
-  const awningDark =
-    theme === 'red' ? R.awningDark : theme === 'blue' ? R.awningBlueDark : R.awningBrownDark;
-
-  px(ctx, x, floorY - 56, 68, 12, awning);
-  px(ctx, x, floorY - 56, 68, 2, R.awningStripe);
-  px(ctx, x, floorY - 54, 68, 1, awningHi);
-  for (let i = 0; i < 6; i++) {
-    px(ctx, x + 4 + i * 11, floorY - 52, 7, 7, i % 2 === 0 ? awning : awningDark);
+  const c = kioskColors(theme);
+  const w = 64;
+  const h = 44;
+  // Body
+  px(ctx, x, floorY - h, w, h, c.body);
+  // Corrugation stripes
+  for (let i = 0; i < w; i += 4) {
+    px(ctx, x + i, floorY - h, 2, h, c.hi);
   }
-  px(ctx, x + 8, floorY - 58, 12, 2, R.snow);
-  px(ctx, x + 40, floorY - 58, 10, 2, R.snow);
-
-  px(ctx, x + 4, floorY - 44, 4, 44, R.wood);
-  px(ctx, x + 5, floorY - 44, 1, 44, R.woodHi);
-  px(ctx, x + 60, floorY - 44, 4, 44, R.wood);
-  px(ctx, x + 61, floorY - 44, 1, 44, R.woodHi);
-
-  px(ctx, x + 2, floorY - 24, 64, 14, R.wood);
-  px(ctx, x + 2, floorY - 24, 64, 2, R.woodHi);
-  px(ctx, x + 2, floorY - 12, 64, 2, R.woodDark);
-  px(ctx, x + 2, floorY - 10, 64, 2, R.woodDeep);
-
-  if (label === 'FISH') {
-    px(ctx, x + 8, floorY - 32, 12, 6, R.fish);
-    px(ctx, x + 10, floorY - 33, 8, 2, R.fishHi);
-    px(ctx, x + 24, floorY - 30, 14, 5, R.fish);
-    px(ctx, x + 42, floorY - 32, 10, 6, R.fishDark);
-  } else if (label === 'BREAD') {
-    px(ctx, x + 10, floorY - 32, 10, 6, R.bread);
-    px(ctx, x + 22, floorY - 34, 12, 8, R.breadHi);
-    px(ctx, x + 36, floorY - 30, 10, 5, R.bread);
-    px(ctx, x + 48, floorY - 33, 8, 7, R.breadDark);
-  } else {
-    px(ctx, x + 8, floorY - 34, 16, 10, R.fur);
-    px(ctx, x + 28, floorY - 32, 14, 8, R.furDark);
-    px(ctx, x + 44, floorY - 34, 12, 10, R.fur);
-  }
-
-  segaBox(ctx, x + 14, floorY - 68, 40, 12, R.uiBox, R.awningStripe, {
+  px(ctx, x, floorY - h, w, 2, c.dark);
+  px(ctx, x, floorY - 2, w, 2, c.dark);
+  // Shed / corrugated roof
+  px(ctx, x - 2, floorY - h - 6, w + 4, 6, c.roof);
+  px(ctx, x - 2, floorY - h - 6, w + 4, 2, R.kioskBlueHi);
+  px(ctx, x + 4, floorY - h - 8, 18, 2, R.snow);
+  px(ctx, x + 36, floorY - h - 8, 12, 2, R.snowMid);
+  // Service window
+  px(ctx, x + 10, floorY - 34, 28, 16, '#1c2838');
+  px(ctx, x + 12, floorY - 32, 24, 4, '#3a5068');
+  px(ctx, x + 12, floorY - 26, 24, 6, '#283848');
+  // Counter ledge
+  px(ctx, x + 6, floorY - 18, 40, 4, R.wood);
+  px(ctx, x + 6, floorY - 18, 40, 1, R.woodHi);
+  // Sign
+  const sw = measureNesText(label, 1, 0) + 6;
+  segaBox(ctx, x + Math.floor((w - sw) / 2), floorY - h - 18, sw, 11, R.uiBox, R.awningStripe, {
     borderDark: R.woodDeep,
     inset: false,
   });
-  drawNesTextCentered(ctx, label, x + 34, floorY - 64, R.uiText, 1, 1);
+  drawNesTextCentered(ctx, label, x + w / 2, floorY - h - 15, R.uiText, 1, 0);
+}
+
+/** Father’s МЕХА / furs kiosk — keeps interact hotspot geometry. */
+function drawFatherKiosk(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  const w = FATHER_STALL_W;
+  const h = 48;
+  const c = kioskColors('rust');
+  px(ctx, x, floorY - h, w, h, c.body);
+  for (let i = 0; i < w; i += 4) {
+    px(ctx, x + i, floorY - h, 2, h, c.hi);
+  }
+  // Blue corrugated roof (entrance-ref kiosk cue)
+  px(ctx, x - 3, floorY - h - 7, w + 6, 7, R.kioskBlue);
+  px(ctx, x - 3, floorY - h - 7, w + 6, 2, R.kioskBlueHi);
+  px(ctx, x + 8, floorY - h - 9, 16, 2, R.snow);
+  px(ctx, x + 40, floorY - h - 9, 12, 2, R.snowMid);
+  // Open front with hanging furs
+  px(ctx, x + 6, floorY - 40, w - 12, 22, '#241818');
+  px(ctx, x + 10, floorY - 38, 14, 16, R.fur);
+  px(ctx, x + 12, floorY - 36, 10, 4, R.furHi);
+  px(ctx, x + 28, floorY - 36, 12, 14, R.furDark);
+  px(ctx, x + 44, floorY - 38, 10, 16, R.fur);
+  px(ctx, x + 46, floorY - 34, 6, 3, R.furHi);
+  // Counter
+  px(ctx, x + 4, floorY - 18, w - 8, 5, R.wood);
+  px(ctx, x + 4, floorY - 18, w - 8, 1, R.woodHi);
+  px(ctx, x + 4, floorY - 14, w - 8, 2, R.woodDark);
+  // МЕХА sign (furs) — same stall role as legacy FURS
+  segaBox(ctx, x + 14, floorY - h - 20, 40, 12, R.uiBox, R.awningBrownHi, {
+    borderDark: R.woodDeep,
+    inset: false,
+  });
+  drawNesTextCentered(ctx, 'МЕХА', x + w / 2, floorY - h - 16, R.uiText, 1, 1);
+}
+
+function drawCrates(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  // Stack of wooden + plastic crates (entrance clutter)
+  px(ctx, x, floorY - 10, 14, 10, R.crate);
+  px(ctx, x + 1, floorY - 9, 12, 2, R.crateHi);
+  px(ctx, x + 2, floorY - 6, 10, 1, R.crateDark);
+  px(ctx, x + 12, floorY - 8, 12, 8, R.crateDark);
+  px(ctx, x + 13, floorY - 7, 10, 1, R.crateHi);
+  px(ctx, x + 4, floorY - 16, 12, 8, R.crateOrange);
+  px(ctx, x + 5, floorY - 15, 10, 1, '#e08850');
+  px(ctx, x + 16, floorY - 14, 10, 6, '#2a3038');
+  px(ctx, x + 17, floorY - 13, 8, 1, '#485058');
+}
+
+function drawBusStop(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  // Period metal/glass shelter (heavier than modern glass cubes)
+  px(ctx, x, floorY - 36, 48, 3, R.kioskGreyDark);
+  px(ctx, x + 2, floorY - 38, 44, 2, R.kioskGrey);
+  px(ctx, x + 6, floorY - 40, 16, 2, R.snow);
+  // Posts
+  px(ctx, x + 2, floorY - 36, 3, 36, R.kioskGreyDark);
+  px(ctx, x + 43, floorY - 36, 3, 36, R.kioskGreyDark);
+  // Glass panes
+  px(ctx, x + 6, floorY - 32, 16, 20, '#284858');
+  px(ctx, x + 24, floorY - 32, 16, 20, '#304860');
+  px(ctx, x + 8, floorY - 30, 12, 4, '#486878');
+  // Bench
+  px(ctx, x + 8, floorY - 12, 32, 3, R.kioskGrey);
+  px(ctx, x + 8, floorY - 12, 32, 1, R.kioskGreyHi);
+  // Bus stop sign pole
+  px(ctx, x + 52, floorY - 44, 2, 44, R.concreteDark);
+  px(ctx, x + 48, floorY - 48, 10, 10, R.hallBanner);
+  px(ctx, x + 49, floorY - 47, 8, 2, R.hallBannerHi);
+  drawNesText(ctx, 'А', x + 51, floorY - 44, R.hallSign, 1, 0);
+}
+
+function drawStreetLamp(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  px(ctx, x, floorY - 70, 3, 70, R.concreteDark);
+  px(ctx, x - 1, floorY - 72, 5, 4, R.concrete);
+  px(ctx, x - 6, floorY - 76, 14, 5, R.kioskGreyDark);
+  px(ctx, x - 4, floorY - 74, 10, 3, '#f0e0a0');
+  px(ctx, x - 2, floorY - 73, 6, 1, '#fff8d0');
 }
 
 function drawFather(
@@ -1023,7 +1196,7 @@ function drawSnowParticles(
   scroll: number,
 ): void {
   const t = performance.now() / 1000;
-  for (let i = 0; i < 48; i++) {
+  for (let i = 0; i < 56; i++) {
     const sx = (i * 47 + Math.sin(t * 0.7 + i) * 12 + scroll * 0.35) % width;
     const sy = (i * 29 + t * (18 + (i % 7) * 7)) % height;
     const big = i % 4 === 0;

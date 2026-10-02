@@ -153,14 +153,30 @@ export const APT_PAL = {
   uiMuted: '#a0a0b8',
 } as const;
 
-/** 1995 winter rynok — brick depth, snow layers, stall goods. */
+/** 1995 winter rynok — Central Market glass hall, kiosks, snow. */
 export const RYNOK_PAL = {
-  // Winter night sky — slightly lifted horizon / mid bands for midtone contrast
+  // Winter dusk / neo-noir sky — cool mid bands for midtone contrast
   skyTop: '#141c30',
   skyHi: '#1c2840',
   skyMid: '#304860',
   skyLow: '#446078',
   skyHorizon: '#5a7888',
+  // Central Market hall
+  hallRoof: '#8a98a8',
+  hallRoofHi: '#c0c8d0',
+  hallRoofDark: '#5a6878',
+  hallFrame: '#2a5088',
+  hallFrameHi: '#3a70b0',
+  hallFrameDark: '#1a3860',
+  hallGlass: '#284868',
+  hallGlassHi: '#3a6888',
+  hallGlassLit: '#6898b8',
+  hallGlassDeep: '#183048',
+  hallBanner: '#1a4890',
+  hallBannerHi: '#2a68b8',
+  hallBannerDark: '#103068',
+  hallSign: '#f0f4f8',
+  // Low wall / street furniture
   brick: '#9a6050',
   brickHi: '#c88070',
   brickMid: '#aa6858',
@@ -170,6 +186,9 @@ export const RYNOK_PAL = {
   concrete: '#788088',
   concreteHi: '#98a0a8',
   concreteDark: '#586068',
+  fence: '#2a5898',
+  fenceHi: '#3a78c0',
+  fenceDark: '#1a3868',
   snow: '#f0f4f8',
   snowHi: '#ffffff',
   snowMid: '#d0d8e0',
@@ -179,6 +198,19 @@ export const RYNOK_PAL = {
   woodHi: '#aa8868',
   woodDark: '#5a4838',
   woodDeep: '#322820',
+  // Corrugated kiosks (period stalls)
+  kioskGrey: '#687078',
+  kioskGreyHi: '#889098',
+  kioskGreyDark: '#485058',
+  kioskTan: '#8a7860',
+  kioskTanHi: '#aa9878',
+  kioskTanDark: '#5a4838',
+  kioskRust: '#785040',
+  kioskRustHi: '#986858',
+  kioskRustDark: '#483028',
+  kioskBlue: '#3860a0',
+  kioskBlueHi: '#5880c0',
+  kioskBlueDark: '#204078',
   awningRed: '#c84848',
   awningRedHi: '#e87070',
   awningDark: '#781828',
@@ -200,6 +232,10 @@ export const RYNOK_PAL = {
   furDark: '#6a5040',
   greens: '#5a9858',
   greensHi: '#78b878',
+  crate: '#6a5840',
+  crateHi: '#8a7858',
+  crateDark: '#423028',
+  crateOrange: '#c06830',
   gate: '#5a4838',
   gateHi: '#7a6850',
   roof: '#3a4860',
