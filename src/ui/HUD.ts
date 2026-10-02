@@ -23,11 +23,11 @@ export interface HudSnapshot {
 
 export class HUD {
   private snapshot: HudSnapshot = {
-    hp: 100,
-    maxHp: 100,
+    hp: 3000,
+    maxHp: 3000,
     eraLabel: 'ADULT · 2026',
-    fortitude: 100,
-    maxFortitude: 100,
+    fortitude: 3000,
+    maxFortitude: 3000,
     swagger: 0,
     maxSwagger: 100,
     showSwagger: false,
@@ -80,8 +80,9 @@ export class HUD {
     ctx.fillStyle = APT_PAL.uiBorderDark;
     ctx.fillRect(barX, barY, barW, 1);
     const filled = Math.round((mf / Math.max(1, mfMax)) * barW);
-    const mfColor = mf <= 25 ? '#e04040' : mf <= 50 ? '#e0a040' : APT_PAL.brass;
-    const mfHi = mf <= 25 ? '#f08080' : mf <= 50 ? '#f0c070' : APT_PAL.brassHi;
+    const mfRatio = mf / Math.max(1, mfMax);
+    const mfColor = mfRatio <= 0.25 ? '#e04040' : mfRatio <= 0.5 ? '#e0a040' : APT_PAL.brass;
+    const mfHi = mfRatio <= 0.25 ? '#f08080' : mfRatio <= 0.5 ? '#f0c070' : APT_PAL.brassHi;
     ctx.fillStyle = mfColor;
     ctx.fillRect(barX, barY, filled, 5);
     ctx.fillStyle = mfHi;

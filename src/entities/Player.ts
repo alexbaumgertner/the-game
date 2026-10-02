@@ -166,7 +166,8 @@ export const ADULT_ANIM_MAP: AdultAnimMap = {
   adult_ko: { frames: ['adult_ko_0'], fps: 1, loop: false },
 };
 
-export const MAX_FORTITUDE = 100;
+/** Max Mental Fortitude — 30× Phase 3 baseline (100) so rynok fights stay durable. */
+export const MAX_FORTITUDE = 3000;
 export const MAX_SWAGGER = 100;
 export const BAZAR_COST = 40;
 

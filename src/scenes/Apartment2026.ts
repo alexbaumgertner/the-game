@@ -4,7 +4,7 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
-import type { Player } from '@/entities/Player';
+import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import { APT_PAL } from '@/art/segaPalette';
 import { ditherRect, fillPattern, px, segaBox } from '@/art/pixelDraw';
@@ -176,7 +176,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   return {
     enter(): void {
       player.setEra('adult');
-      player.resetCombatProgress({ fortitude: 100, swagger: 0 });
+      player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.setFloorY(FLOOR_Y);
       player.x = 100;
       player.y = FLOOR_Y;
@@ -188,7 +188,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       diaryCursor = 0;
       hud.set({
         hp: player.hp,
-        maxHp: 100,
+        maxHp: MAX_FORTITUDE,
+        maxFortitude: MAX_FORTITUDE,
         eraLabel: 'ADULT · 2026',
         fortitude: player.mentalFortitude,
         swagger: 0,
