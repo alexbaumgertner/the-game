@@ -2,7 +2,7 @@
  * Neo-Noir dynamic lighting — Canvas blend modes over the pixel buffer.
  *
  * Pipeline (after gameplay, before HUD):
- *   1. Ambient multiply wash (cold winter night)
+ *   1. Ambient multiply wash (cold winter night — higher floor / lower alpha for readable midtones)
  *   2. Trash-fire orange glows via `screen` / `lighter`
  *   3. Moving car headlight cones via `screen`
  *
@@ -194,9 +194,9 @@ export function applyLightingOverlay(
     const sx = p.screenSpace ? p.x : p.x - ox;
     const sy = p.y;
     const r = p.radius * (p.kind === 'fire' ? flicker : 1);
-    drawSoftDisc(buf, sx, sy, r, p.color, p.kind === 'fire' ? 0.95 : 0.75);
+    drawSoftDisc(buf, sx, sy, r, p.color, p.kind === 'fire' ? 1.0 : 0.8);
     if (p.kind === 'fire') {
-      drawSoftDisc(buf, sx, sy - 2, r * 0.45, '#ffe8a0', 0.7 * flicker);
+      drawSoftDisc(buf, sx, sy - 2, r * 0.45, '#ffe8a0', 0.78 * flicker);
     }
   }
 

@@ -267,7 +267,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
             applyLightingOverlay(c, 0, w, h, {
-              ambient: { color: 'rgba(12, 10, 28, 0.55)' },
+              // Softer multiply — warm lamp / walls readable, still night
+              ambient: { color: 'rgba(34, 30, 54, 0.40)' },
               points: [
                 {
                   kind: 'point',

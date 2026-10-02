@@ -300,7 +300,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         screenSpace: true,
         draw: (ctx, _s, cam, w, h) => {
           applyLightingOverlay(ctx, cam, w, h, {
-            ambient: { color: 'rgba(18, 22, 48, 0.72)' },
+            // Higher ambient floor + lower multiply strength — readable night, not crushed
+            ambient: { color: 'rgba(40, 44, 74, 0.52)' },
             points: fireSpots,
             cones: headlightCones(),
             time,
@@ -713,22 +714,22 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 /* ───────────────────── Environment draws ───────────────────── */
 
 function drawSky(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  // Darker Neo-Noir winter sky
+  // Neo-Noir winter sky — slightly brighter mid bands, still night
   fillSkyGradient(
     ctx,
     width,
     [
-      { y: 0, h: 40, color: '#080c18' },
-      { y: 40, h: 28, color: '#101828' },
-      { y: 68, h: 28, color: '#182438' },
-      { y: 96, h: 36, color: '#243048' },
-      { y: 132, h: height - 132, color: '#304058' },
+      { y: 0, h: 40, color: '#0c1424' },
+      { y: 40, h: 28, color: '#182438' },
+      { y: 68, h: 28, color: '#243048' },
+      { y: 96, h: 36, color: '#304860' },
+      { y: 132, h: height - 132, color: '#3c5068' },
     ],
     [
-      { y: 39, a: '#080c18', b: '#101828' },
-      { y: 67, a: '#101828', b: '#182438' },
-      { y: 95, a: '#182438', b: '#243048' },
-      { y: 131, a: '#243048', b: '#304058' },
+      { y: 39, a: '#0c1424', b: '#182438' },
+      { y: 67, a: '#182438', b: '#243048' },
+      { y: 95, a: '#243048', b: '#304860' },
+      { y: 131, a: '#304860', b: '#3c5068' },
     ],
   );
 }
@@ -742,28 +743,28 @@ function drawKremlinSilhouette(
   const baseY = 78;
   for (let i = -1; i < 6; i++) {
     const bx = Math.round(i * 110 - (scroll % 110));
-    // Wall mass
-    px(ctx, bx, baseY + 18, 100, 28, '#0c101c');
+    // Wall mass — silhouette kept dark; mid edges lifted for depth vs sky
+    px(ctx, bx, baseY + 18, 100, 28, '#141820');
     // Towers
-    px(ctx, bx + 8, baseY, 16, 46, '#0a0e18');
-    px(ctx, bx + 10, baseY - 8, 12, 10, '#121828');
+    px(ctx, bx + 8, baseY, 16, 46, '#12161e');
+    px(ctx, bx + 10, baseY - 8, 12, 10, '#1a2030');
     // Spire
-    px(ctx, bx + 14, baseY - 18, 4, 12, '#181e2c');
-    px(ctx, bx + 15, baseY - 22, 2, 6, '#202838');
-    px(ctx, bx + 48, baseY + 4, 22, 42, '#0a0e18');
-    px(ctx, bx + 52, baseY - 6, 14, 12, '#121828');
-    px(ctx, bx + 56, baseY - 14, 6, 10, '#181e2c');
+    px(ctx, bx + 14, baseY - 18, 4, 12, '#222838');
+    px(ctx, bx + 15, baseY - 22, 2, 6, '#2a3448');
+    px(ctx, bx + 48, baseY + 4, 22, 42, '#12161e');
+    px(ctx, bx + 52, baseY - 6, 14, 12, '#1a2030');
+    px(ctx, bx + 56, baseY - 14, 6, 10, '#222838');
     // Dome hint
-    px(ctx, bx + 78, baseY + 6, 18, 40, '#0c101c');
-    px(ctx, bx + 82, baseY - 2, 10, 10, '#1a2030');
+    px(ctx, bx + 78, baseY + 6, 18, 40, '#141820');
+    px(ctx, bx + 82, baseY - 2, 10, 10, '#222840');
     // Tiny lit windows
     if ((i + 3) % 2 === 0) {
-      px(ctx, bx + 14, baseY + 20, 2, 2, '#c8a040');
-      px(ctx, bx + 56, baseY + 24, 2, 2, '#a88830');
+      px(ctx, bx + 14, baseY + 20, 2, 2, '#d8b050');
+      px(ctx, bx + 56, baseY + 24, 2, 2, '#b89840');
     }
   }
   // Horizon mist band
-  ditherRect(ctx, 0, baseY + 40, width, 4, '#182030', '#243048');
+  ditherRect(ctx, 0, baseY + 40, width, 4, '#243040', '#304858');
 }
 
 /** Midground panel-block Khrushchyovka row. */
@@ -776,13 +777,13 @@ function drawKhrushchyovkas(
     const bx = Math.round(i * 78 - (scroll % 78));
     const h = 52 + (i % 3) * 8;
     const top = 100 - (h - 52);
-    px(ctx, bx, top, 70, h, '#2a3048');
-    px(ctx, bx + 2, top + 2, 66, 2, '#3a4860');
-    px(ctx, bx, top, 2, h, '#1a2030');
-    px(ctx, bx + 68, top, 2, h, '#1a2030');
+    px(ctx, bx, top, 70, h, '#384860');
+    px(ctx, bx + 2, top + 2, 66, 2, '#4a5870');
+    px(ctx, bx, top, 2, h, '#243040');
+    px(ctx, bx + 68, top, 2, h, '#243040');
     // Snow roof
-    px(ctx, bx - 2, top - 3, 74, 4, '#c8d0dc');
-    px(ctx, bx + 4, top - 5, 20, 2, '#e0e8f0');
+    px(ctx, bx - 2, top - 3, 74, 4, '#d0d8e0');
+    px(ctx, bx + 4, top - 5, 20, 2, '#e8f0f8');
     // Window grid
     for (let row = 0; row < 4; row++) {
       for (let col = 0; col < 3; col++) {
@@ -793,20 +794,20 @@ function drawKhrushchyovkas(
           top + 10 + row * 10,
           10,
           7,
-          lit ? '#d8b050' : '#141820',
+          lit ? '#e0c060' : '#1c2430',
         );
-        if (lit) px(ctx, bx + 10 + col * 18, top + 10 + row * 10, 10, 2, '#f0d878');
+        if (lit) px(ctx, bx + 10 + col * 18, top + 10 + row * 10, 10, 2, '#f8e088');
       }
     }
     // Balcony rail
     if (i % 2 === 0) {
-      px(ctx, bx + 40, top + 28, 22, 2, '#485068');
-      px(ctx, bx + 40, top + 28, 2, 8, '#485068');
-      px(ctx, bx + 60, top + 28, 2, 8, '#485068');
+      px(ctx, bx + 40, top + 28, 22, 2, '#586878');
+      px(ctx, bx + 40, top + 28, 2, 8, '#586878');
+      px(ctx, bx + 60, top + 28, 2, 8, '#586878');
     }
   }
   // Soft ground fog under buildings
-  ditherRect(ctx, 0, 148, width, 6, '#283040', '#304058');
+  ditherRect(ctx, 0, 148, width, 6, '#344050', '#3c5068');
 }
 
 function drawBrickWall(ctx: CanvasRenderingContext2D, worldW: number): void {
