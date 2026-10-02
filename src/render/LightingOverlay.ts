@@ -129,16 +129,17 @@ function drawHeadlightCone(
   const spread = cone.spread;
   const dir = cone.facing;
 
-  // Layered trapezoids approximating a cone (screen blend later)
-  const bands = 8;
+  // Layered trapezoids approximating a cone (screen blend later).
+  // Kept subtle vs trash-fire blooms — cars read as dim beams, not blown-out white.
+  const bands = 6;
   for (let i = 0; i < bands; i++) {
     const t0 = i / bands;
     const t1 = (i + 1) / bands;
     const xA = x0 + Math.round(dir * len * t0);
     const xB = x0 + Math.round(dir * len * t1);
-    const halfA = Math.round(spread * t0 * 0.35 + 2);
+    const halfA = Math.round(spread * t0 * 0.35 + 1);
     const halfB = Math.round(spread * t1);
-    const a = 0.38 * (1 - t0 * 0.85);
+    const a = 0.20 * (1 - t0);
     ctx.fillStyle = withAlpha(cone.color, a);
     const left = Math.min(xA, xB);
     const right = Math.max(xA, xB);
@@ -146,16 +147,16 @@ function drawHeadlightCone(
     const bot = y0 + Math.max(halfA, halfB);
     ctx.fillRect(left, top, Math.max(1, right - left), bot - top);
     // Taper edges
-    ctx.fillStyle = withAlpha(cone.color, a * 0.7);
-    ctx.fillRect(left, y0 - halfB, Math.max(1, right - left), 2);
-    ctx.fillRect(left, y0 + halfB - 2, Math.max(1, right - left), 2);
+    ctx.fillStyle = withAlpha(cone.color, a * 0.5);
+    ctx.fillRect(left, y0 - halfB, Math.max(1, right - left), 1);
+    ctx.fillRect(left, y0 + halfB - 1, Math.max(1, right - left), 1);
   }
 
-  // Hot core near lamp
-  ctx.fillStyle = withAlpha('#ffffff', 0.85);
-  ctx.fillRect(x0 + (dir > 0 ? 0 : -6), y0 - 3, 6, 6);
-  ctx.fillStyle = withAlpha('#ffffc8', 0.55);
-  ctx.fillRect(x0 + (dir > 0 ? 4 : -14), y0 - 2, 10, 4);
+  // Soft lamp tip (avoid blown-out white hotspot)
+  ctx.fillStyle = withAlpha('#ffffe8', 0.38);
+  ctx.fillRect(x0 + (dir > 0 ? 0 : -4), y0 - 2, 4, 4);
+  ctx.fillStyle = withAlpha('#e8ecff', 0.22);
+  ctx.fillRect(x0 + (dir > 0 ? 3 : -10), y0 - 1, 7, 2);
 }
 
 /**
@@ -236,8 +237,8 @@ export function makeHeadlight(
   x: number,
   y: number,
   facing: 1 | -1,
-  length = 90,
-  spread = 18,
+  length = 88,
+  spread = 14,
 ): ConeLight {
   return {
     kind: 'headlight',

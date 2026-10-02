@@ -230,8 +230,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         c.x + (c.facing > 0 ? 22 : -22),
         c.y + 6,
         c.facing,
-        120,
-        20,
+        100,
+        15,
       ),
     );
 
