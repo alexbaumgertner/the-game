@@ -162,6 +162,10 @@ function drawHeadlightCone(
 /**
  * Composite lighting onto the main canvas.
  * `camX` scrolls world-space lights; screenSpace lights ignore it.
+ *
+ * When `artScale` > 1 the light buffer is rendered at internal resolution
+ * (logical × artScale) and blitted with an identity-aware transform so
+ * Hi-DPI frames keep sharp fire/headlight edges.
  */
 export function applyLightingOverlay(
   ctx: CanvasRenderingContext2D,
@@ -169,24 +173,19 @@ export function applyLightingOverlay(
   viewW: number,
   viewH: number,
   frame: LightingFrame,
+  artScale = 1,
 ): void {
-  const buf = ensureBuffer(viewW, viewH);
+  const scale = Math.max(1, Math.round(artScale));
+  const bufW = viewW * scale;
+  const bufH = viewH * scale;
+  const buf = ensureBuffer(bufW, bufH);
+  buf.setTransform(scale, 0, 0, scale, 0, 0);
   buf.imageSmoothingEnabled = false;
-  buf.clearRect(0, 0, viewW, viewH);
-
-  // --- Ambient multiply base on buffer ---
-  buf.globalCompositeOperation = 'source-over';
-  buf.fillStyle = frame.ambient.color;
-  buf.fillRect(0, 0, viewW, viewH);
-
-  // Punch holes / add light with destination-out then we'll screen-blend adds
-  // Better Neo-Noir: start dark multiply on main, screen lights on top.
-  // Rebuild: clear buffer, paint lights only, then multiply ambient on main + screen lights.
   buf.clearRect(0, 0, viewW, viewH);
 
   const ox = Math.round(camX);
 
-  // Fire / point lights
+  // Fire / point lights (logical coordinates; buffer transform scales them)
   for (const p of frame.points) {
     const flicker =
       p.kind === 'fire'
@@ -207,15 +206,27 @@ export function applyLightingOverlay(
     drawHeadlightCone(buf, c, localOx);
   }
 
-  // 1) Ambient multiply on main scene
+  // Reset buffer transform before reading pixels for drawImage sizing.
+  buf.setTransform(1, 0, 0, 1, 0, 0);
+
+  // Snapshot current main transform so we can blit in buffer-pixel space.
+  const prev = ctx.getTransform();
+  const logicalToBuffer = prev.a; // uniform scale from configureDisplay
+  const bufferMult = scale > 0 ? logicalToBuffer / scale : logicalToBuffer;
+
+  // 1) Ambient multiply on main scene (logical space via existing transform)
   ctx.save();
+  ctx.setTransform(prev);
   ctx.imageSmoothingEnabled = false;
   ctx.globalCompositeOperation = 'multiply';
   ctx.fillStyle = frame.ambient.color;
   ctx.fillRect(0, 0, viewW, viewH);
 
-  // 2) Screen-blend additive lights from buffer
+  // 2) Screen-blend additive lights — blit in buffer-pixel space so a
+  //    hi-res light buffer is not double-scaled by the logical transform.
+  ctx.setTransform(bufferMult, 0, 0, bufferMult, 0, 0);
   ctx.globalCompositeOperation = 'screen';
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(lightBuf!, 0, 0);
   ctx.restore();
   ctx.globalCompositeOperation = 'source-over';

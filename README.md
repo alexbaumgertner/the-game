@@ -2,7 +2,7 @@
 
 TypeScript + Vite + HTML5 Canvas 2D arcade brawler/platformer.
 
-Pixel-crisp 320×224 Genesis-like internal resolution, modular entity/systems architecture.
+Pixel-crisp **640×448** internal buffer (2× logical Genesis **320×224**), DPR-aware Hi-DPI canvas, modular entity/systems architecture. See project doc `hi-dpi-display.md`.
 
 ## Quick start
 

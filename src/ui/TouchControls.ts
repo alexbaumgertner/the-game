@@ -239,6 +239,11 @@ export function injectTouchControlStyles(): void {
   --tc-safe-l: env(safe-area-inset-left, 0px);
   --tc-safe-r: env(safe-area-inset-right, 0px);
   --tc-safe-t: env(safe-area-inset-top, 0px);
+  /* Scale hit targets with the shorter viewport edge (phones + 2K). */
+  --tc-btn: clamp(52px, 9.5vmin, 76px);
+  --tc-gap: clamp(8px, 1.6vmin, 14px);
+  --tc-font: clamp(12px, 2.2vmin, 15px);
+  --tc-font-sm: clamp(8px, 1.5vmin, 11px);
 }
 #touch-controls.tc-visible .tc-pad,
 #touch-controls.tc-visible .tc-choices:not([hidden]) {
@@ -251,13 +256,13 @@ export function injectTouchControlStyles(): void {
   top: calc(8px + var(--tc-safe-t));
   left: calc(8px + var(--tc-safe-l));
   z-index: 45;
-  min-height: 36px;
-  min-width: 84px;
+  min-height: clamp(36px, 6.5vmin, 48px);
+  min-width: clamp(84px, 18vmin, 120px);
   padding: 6px 10px;
   border: 2px solid #c8b060;
   background: rgba(18, 16, 28, 0.72);
   color: #f0e8c8;
-  font: 700 11px/1 'Courier New', Courier, monospace;
+  font: 700 var(--tc-font-sm)/1 'Courier New', Courier, monospace;
   letter-spacing: 0.04em;
   border-radius: 4px;
   opacity: 0.55;
@@ -280,12 +285,12 @@ export function injectTouchControlStyles(): void {
   position: absolute;
   bottom: calc(12px + var(--tc-safe-b));
   display: grid;
-  gap: 10px;
+  gap: var(--tc-gap);
 }
 .tc-left {
   left: calc(10px + var(--tc-safe-l));
-  grid-template-columns: 64px 64px;
-  grid-template-rows: 56px 56px;
+  grid-template-columns: var(--tc-btn) var(--tc-btn);
+  grid-template-rows: var(--tc-btn) var(--tc-btn);
   grid-template-areas:
     "left right"
     "jump jump";
@@ -295,8 +300,8 @@ export function injectTouchControlStyles(): void {
 .tc-left .tc-btn[data-action="jump"] { grid-area: jump; }
 .tc-right {
   right: calc(10px + var(--tc-safe-r));
-  grid-template-columns: 64px 64px;
-  grid-template-rows: 64px 64px;
+  grid-template-columns: var(--tc-btn) var(--tc-btn);
+  grid-template-rows: var(--tc-btn) var(--tc-btn);
   grid-template-areas:
     "punch kick"
     "special interact";
@@ -307,12 +312,12 @@ export function injectTouchControlStyles(): void {
 .tc-right .tc-btn[data-action="interact"] { grid-area: interact; }
 .tc-btn {
   pointer-events: auto;
-  min-width: 56px;
-  min-height: 56px;
+  min-width: var(--tc-btn);
+  min-height: var(--tc-btn);
   border: 2px solid #a89048;
   background: rgba(24, 20, 36, 0.58);
   color: #f4ecd0;
-  font: 700 13px/1.1 'Courier New', Courier, monospace;
+  font: 700 var(--tc-font)/1.1 'Courier New', Courier, monospace;
   border-radius: 10px;
   box-shadow: inset 0 0 0 1px rgba(80, 64, 32, 0.6);
   touch-action: none;
@@ -324,7 +329,7 @@ export function injectTouchControlStyles(): void {
 .tc-btn span {
   display: block;
   margin-top: 2px;
-  font-size: 9px;
+  font-size: var(--tc-font-sm);
   letter-spacing: 0.06em;
   opacity: 0.85;
 }
@@ -335,7 +340,7 @@ export function injectTouchControlStyles(): void {
   color: #fff8e0;
 }
 .tc-jump {
-  font-size: 12px;
+  font-size: var(--tc-font);
   letter-spacing: 0.08em;
 }
 .tc-special {
@@ -349,22 +354,22 @@ export function injectTouchControlStyles(): void {
   position: absolute;
   top: calc(8px + var(--tc-safe-t));
   right: calc(8px + var(--tc-safe-r));
-  min-width: 44px;
-  min-height: 44px;
+  min-width: clamp(44px, 8vmin, 56px);
+  min-height: clamp(44px, 8vmin, 56px);
   border-radius: 8px;
   opacity: 0.7;
-  font-size: 14px;
+  font-size: var(--tc-font);
   letter-spacing: 0.12em;
 }
 .tc-choices {
   pointer-events: auto;
   position: absolute;
   left: 50%;
-  bottom: calc(148px + var(--tc-safe-b));
+  bottom: calc(12px + var(--tc-safe-b) + (var(--tc-btn) * 2 + var(--tc-gap) + 24px));
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--tc-gap);
   width: min(420px, calc(100vw - 24px));
   z-index: 46;
   opacity: 0;
@@ -375,7 +380,7 @@ export function injectTouchControlStyles(): void {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 48px;
+  min-height: clamp(48px, 8.5vmin, 64px);
   padding: 8px 12px;
   text-align: left;
   background: rgba(10, 12, 22, 0.82);
@@ -390,10 +395,10 @@ export function injectTouchControlStyles(): void {
   justify-content: center;
   border: 1px solid #e8c56a;
   background: #201828;
-  font-size: 14px;
+  font-size: var(--tc-font);
 }
 .tc-choice-label {
-  font-size: 12px;
+  font-size: var(--tc-font-sm);
   letter-spacing: 0.03em;
   white-space: nowrap;
   overflow: hidden;
@@ -403,9 +408,11 @@ export function injectTouchControlStyles(): void {
   opacity: 0.35;
 }
 @media (orientation: landscape) and (max-height: 500px) {
-  .tc-cluster { bottom: calc(6px + var(--tc-safe-b)); gap: 6px; }
-  .tc-left, .tc-right { transform: scale(0.88); transform-origin: bottom center; }
-  .tc-choices { bottom: calc(110px + var(--tc-safe-b)); }
+  #touch-controls {
+    --tc-btn: clamp(44px, 12vmin, 64px);
+    --tc-gap: 6px;
+  }
+  .tc-cluster { bottom: calc(6px + var(--tc-safe-b)); }
 }
 @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
   .tc-toggle { opacity: 0.35; }

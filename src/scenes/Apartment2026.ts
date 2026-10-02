@@ -4,6 +4,7 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import { APT_PAL } from '@/art/segaPalette';
@@ -12,7 +13,7 @@ import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont'
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import { applyLightingOverlay } from '@/render/LightingOverlay';
 
-const WIDTH = 320;
+const WIDTH = LOGICAL_WIDTH;
 const FLOOR_Y = 192;
 const PROMPT_Y = 210;
 const P = APT_PAL;
@@ -290,7 +291,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
               ],
               cones: [],
               time,
-            });
+            }, ART_SCALE);
           },
         },
       ]);

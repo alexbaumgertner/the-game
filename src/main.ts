@@ -1,43 +1,22 @@
 import { GameLoop } from './core/GameLoop';
 import { Input } from './core/Input';
 import { StateManager } from './core/StateManager';
+import {
+  ART_SCALE,
+  assertCrispTransform,
+  clientToLogical,
+  configureDisplay,
+  getDisplayMetrics,
+  INTERNAL_HEIGHT,
+  INTERNAL_WIDTH,
+  LOGICAL_HEIGHT,
+  LOGICAL_WIDTH,
+} from './core/Display';
 import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
-
-/** Internal pixel resolution — Genesis-like 320×224, CSS-scaled to fit. */
-const WIDTH = 320;
-const HEIGHT = 224;
-
-/**
- * Scale canvas to fit the viewport (portrait + landscape).
- * Fractional scale is OK — `image-rendering: pixelated` keeps crisps.
- * Letterbox/pillarbox comes from #app filling the leftover dark space.
- */
-function fitCanvas(canvas: HTMLCanvasElement): void {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  const scale = Math.min(vw / WIDTH, vh / HEIGHT);
-  const cssW = Math.max(1, Math.floor(WIDTH * scale));
-  const cssH = Math.max(1, Math.floor(HEIGHT * scale));
-  canvas.style.width = `${cssW}px`;
-  canvas.style.height = `${cssH}px`;
-}
-
-/** Map a client pointer into internal canvas pixel space. */
-function clientToCanvas(
-  canvas: HTMLCanvasElement,
-  clientX: number,
-  clientY: number,
-): { x: number; y: number } | null {
-  const rect = canvas.getBoundingClientRect();
-  if (rect.width <= 0 || rect.height <= 0) return null;
-  const x = ((clientX - rect.left) / rect.width) * WIDTH;
-  const y = ((clientY - rect.top) / rect.height) * HEIGHT;
-  return { x, y };
-}
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -45,22 +24,23 @@ function bootstrap(): void {
     throw new Error('Missing #game-canvas element');
   }
 
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
-  fitCanvas(canvas);
-  window.addEventListener('resize', () => fitCanvas(canvas));
-  window.addEventListener('orientationchange', () => {
-    // iOS often reports stale innerWidth until after orientation settles.
-    window.setTimeout(() => fitCanvas(canvas), 50);
-  });
-
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     throw new Error('Canvas 2D context unavailable');
   }
 
-  // Crisp pixels — never let the browser smooth our low-res buffer.
+  // Crisp pixels — never let the browser smooth our buffer.
   ctx.imageSmoothingEnabled = false;
+  configureDisplay(canvas, ctx);
+
+  const onResize = (): void => {
+    configureDisplay(canvas, ctx);
+  };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', () => {
+    // iOS often reports stale innerWidth until after orientation settles.
+    window.setTimeout(onResize, 50);
+  });
 
   const input = new Input();
   const states = new StateManager();
@@ -89,13 +69,15 @@ function bootstrap(): void {
       });
     },
     render(alpha) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, WIDTH, HEIGHT);
+      assertCrispTransform(ctx);
+      ctx.clearRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
       // Scenes own their full backdrop; fade paints last so HUD is covered too.
-      states.render(ctx, alpha, WIDTH, HEIGHT);
-      hud.render(ctx, WIDTH, HEIGHT);
-      states.renderFade(ctx, WIDTH, HEIGHT);
+      states.render(ctx, alpha, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      assertCrispTransform(ctx);
+      hud.render(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      assertCrispTransform(ctx);
+      states.renderFade(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     },
   });
 
@@ -131,9 +113,9 @@ function bootstrap(): void {
     if (states.current.scene !== 'rynok_1995') return;
     const d = rynok.getDialogue();
     if (!d.isOpen) return;
-    const pt = clientToCanvas(canvas, e.clientX, e.clientY);
+    const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
-    const hit = d.hitTest(pt.x, pt.y, WIDTH, HEIGHT);
+    const hit = d.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     if (hit === null) return;
     e.preventDefault();
     if (hit === 'advance') {
@@ -153,7 +135,6 @@ function bootstrap(): void {
   document.body.addEventListener(
     'touchmove',
     (e) => {
-      // Only block when the touch is not on a form control (we have none).
       e.preventDefault();
     },
     { passive: false },
@@ -170,6 +151,14 @@ function bootstrap(): void {
     rynok,
     touch,
     canvas,
+    display: {
+      LOGICAL_WIDTH,
+      LOGICAL_HEIGHT,
+      INTERNAL_WIDTH,
+      INTERNAL_HEIGHT,
+      ART_SCALE,
+      getMetrics: getDisplayMetrics,
+    },
     /** Debug: jump straight into rynok Level 1. */
     gotoRynok: () => states.goto('rynok_1995', { era: 'ERA_1995', fadeSeconds: 0.15 }),
     captureCanvas: () => canvas.toDataURL('image/png'),

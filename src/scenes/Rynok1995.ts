@@ -5,6 +5,7 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
 import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import { BazarBubble } from '@/entities/BazarBubble';
@@ -305,7 +306,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
             points: fireSpots,
             cones: headlightCones(),
             time,
-          });
+          }, ART_SCALE);
         },
       },
       {
@@ -399,7 +400,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         const target = player.x - 140;
         camX += (target - camX) * Math.min(1, dt * 6);
         if (camX < 0) camX = 0;
-        if (camX > WORLD_W - 320) camX = WORLD_W - 320;
+        if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
         return;
       }
 
@@ -553,7 +554,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       const target = player.x - 140;
       camX += (target - camX) * Math.min(1, dt * 6);
       if (camX < 0) camX = 0;
-      if (camX > WORLD_W - 320) camX = WORLD_W - 320;
+      if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
     },
 
     render(
