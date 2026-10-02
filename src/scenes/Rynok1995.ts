@@ -1,8 +1,7 @@
 /**
- * ERA_1995 — Novgorod Rynok combat strip (Neo-Noir 16-bit).
- * Parallax: Kremlin → Khrushchyovkas → gameplay → lighting → weather.
- * Teen arcade brawler: move / jump / punch / kick / Bazar stun.
- * Mental Fortitude → 0 triggers Game Over → snap back to 2026 apartment.
+ * ERA_1995 — Level 1 “Novgorod Rynok, Winter 1995” (Neo-Noir 16-bit).
+ * Wave 1 → mid-fight father-stall timed dialogue → Wave 2 tracksuits → mother’s coat.
+ * Parallax / lighting / Bazar / MF Game Over → apartment snap-back preserved.
  */
 
 import type { StateManager } from '@/core/StateManager';
@@ -22,10 +21,32 @@ import {
   type ConeLight,
   type PointLight,
 } from '@/render/LightingOverlay';
+import {
+  DialogueSystem,
+  FATHER_STALL_SCRIPT,
+  type DialogueEffect,
+} from '@/systems/DialogueSystem';
 
 const FLOOR_Y = 188;
 const R = RYNOK_PAL;
 const WORLD_W = 560;
+/** Father’s FURS stall X (awning left edge). */
+const FATHER_STALL_X = 330;
+const FATHER_STALL_W = 68;
+const WRONG_REASSURE_MF_DRAIN = 22;
+
+type LevelPhase =
+  | 'wave1'
+  | 'dialogue'
+  | 'wave2'
+  | 'cleared'
+  | 'gameover';
+
+interface CoatPickup {
+  x: number;
+  y: number;
+  taken: boolean;
+}
 
 interface StreetCar {
   x: number;
@@ -48,13 +69,19 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   let camX = 0;
   let gangsters: Gangster[] = [];
   let bubbles: BazarBubble[] = [];
-  let gameOver = false;
+  let phase: LevelPhase = 'wave1';
   let gameOverTimer = 0;
   let toast = '';
   let toastTimer = 0;
   let time = 0;
   let shake = 0;
   let cars: StreetCar[] = [];
+  let fatherPanic = 1; // 0 calm … 1 panicked
+  let hasCoat = false;
+  let coat: CoatPickup | null = null;
+  let winTimer = 0;
+  let dialogueStarted = false;
+  const dialogue = new DialogueSystem();
 
   const fireSpots: PointLight[] = [
     makeTrashFire(70, FLOOR_Y - 8, 0.2),
@@ -71,12 +98,56 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     ];
   };
 
-  const spawnWave = (): void => {
+  const spawnWave1 = (): void => {
     gangsters = [
-      new Gangster({ x: 220, y: FLOOR_Y, hp: 36 }),
-      new Gangster({ x: 340, y: FLOOR_Y, hp: 32 }),
-      new Gangster({ x: 420, y: FLOOR_Y, hp: 40 }),
+      new Gangster({ x: 200, y: FLOOR_Y, hp: 34 }),
+      new Gangster({ x: 280, y: FLOOR_Y, hp: 30 }),
+      new Gangster({ x: 380, y: FLOOR_Y, hp: 36 }),
     ];
+  };
+
+  const spawnWave2 = (): void => {
+    const speedMul = fatherPanic < 0.4 ? 0.82 : fatherPanic > 0.8 ? 1.15 : 1;
+    const hpBonus = fatherPanic > 0.8 ? 6 : 0;
+    gangsters = [
+      new Gangster({
+        x: 300,
+        y: FLOOR_Y,
+        hp: 38 + hpBonus,
+        variant: 'tracksuit',
+        carriesCoat: true,
+      }),
+      new Gangster({
+        x: 380,
+        y: FLOOR_Y,
+        hp: 34 + hpBonus,
+        variant: 'tracksuit',
+      }),
+      new Gangster({
+        x: 460,
+        y: FLOOR_Y,
+        hp: 40 + hpBonus,
+        variant: 'tracksuit',
+      }),
+      new Gangster({
+        x: 520,
+        y: FLOOR_Y,
+        hp: 32 + hpBonus,
+        variant: 'tracksuit',
+      }),
+    ];
+    for (const g of gangsters) g.speedMul = speedMul;
+  };
+
+  const objectiveForPhase = (): string => {
+    if (phase === 'wave1') return 'Protect father stall';
+    if (phase === 'dialogue') return 'Talk to Father - timed';
+    if (phase === 'wave2') {
+      if (!hasCoat) return 'Get mother coat + clear wave';
+      return 'Coat secured - finish thugs';
+    }
+    if (phase === 'cleared') return 'LEVEL 1 CLEAR';
+    return 'GAME OVER';
   };
 
   const syncHud = (objective?: string): void => {
@@ -89,17 +160,68 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       maxSwagger: MAX_SWAGGER,
       showSwagger: true,
       eraLabel: 'TEEN · 1995',
-      objective: objective ?? 'Clear the rynok thugs',
+      objective: objective ?? objectiveForPhase(),
     });
   };
 
   const clearCombatAndReturn = (): void => {
     gangsters = [];
     bubbles = [];
-    gameOver = false;
+    coat = null;
+    hasCoat = false;
+    phase = 'gameover';
     gameOverTimer = 0;
+    if (dialogue.isOpen) dialogue.close();
     player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
     states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
+  };
+
+  const nearFatherStall = (): boolean => {
+    const cx = FATHER_STALL_X + FATHER_STALL_W / 2;
+    return Math.abs(player.x - cx) < 55;
+  };
+
+  const beginFatherDialogue = (): void => {
+    if (dialogueStarted || dialogue.isOpen) return;
+    dialogueStarted = true;
+    phase = 'dialogue';
+    // Freeze remaining wave-1 thugs by clearing — mid-fight cut to stall talk
+    gangsters = [];
+    bubbles = [];
+    player.vx = 0;
+    toast = 'FATHER NEEDS YOU';
+    toastTimer = 1.2;
+    dialogue.open(FATHER_STALL_SCRIPT, (_id, result) => {
+      applyDialogueResult(result.effect, result.timedOut);
+    });
+    syncHud();
+  };
+
+  const applyDialogueResult = (effect: DialogueEffect, timedOut: boolean): void => {
+    if (effect === 'calm_father') {
+      fatherPanic = 0.25;
+      toast = 'FATHER STEADIES';
+      toastTimer = 1.4;
+    } else if (effect === 'wrong_reassure' || timedOut) {
+      fatherPanic = 1;
+      player.takeDamage(WRONG_REASSURE_MF_DRAIN, -1);
+      player.vx = 0;
+      toast = timedOut ? 'TOO SLOW - PANIC SPIKES' : 'EMPTY WORDS - MF DRAIN';
+      toastTimer = 1.6;
+    } else {
+      fatherPanic = 0.7;
+    }
+
+    if (player.isKo) {
+      phase = 'gameover';
+      gameOverTimer = 1.8;
+      syncHud('GAME OVER');
+      return;
+    }
+
+    phase = 'wave2';
+    spawnWave2();
+    syncHud();
   };
 
   const headlightCones = (): ConeLight[] =>
@@ -130,9 +252,11 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     drawTrashCan(ctx, 502, FLOOR_Y);
     drawStall(ctx, 100, FLOOR_Y, 'FISH', 'red');
     drawStall(ctx, 210, FLOOR_Y, 'BREAD', 'blue');
-    drawStall(ctx, 330, FLOOR_Y, 'FURS', 'brown');
+    drawStall(ctx, FATHER_STALL_X, FLOOR_Y, 'FURS', 'brown');
+    drawFather(ctx, FATHER_STALL_X + 34, FLOOR_Y, fatherPanic);
     drawGate(ctx);
     for (const c of cars) drawCar(ctx, c);
+    if (coat && !coat.taken) drawCoatPickup(ctx, coat.x, coat.y);
     for (const g of gangsters) g.render(ctx, alpha);
     for (const b of bubbles) b.render(ctx);
     player.render(ctx, alpha);
@@ -204,21 +328,29 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       player.walkSpeed = 60;
       camX = 0;
       bubbles = [];
-      gameOver = false;
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
       time = 0;
       shake = 0;
-      spawnWave();
+      fatherPanic = 1;
+      hasCoat = false;
+      coat = null;
+      winTimer = 0;
+      dialogueStarted = false;
+      dialogue.resetSilent();
+      spawnWave1();
       spawnCars();
-      syncHud('Punch thugs - fill Swagger');
+      syncHud('Protect father stall');
     },
 
     exit(): void {
       gangsters = [];
       bubbles = [];
       cars = [];
+      coat = null;
+      dialogue.resetSilent();
       hud.set({ showSwagger: false });
     },
 
@@ -234,20 +366,61 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         if (toastTimer <= 0) toast = '';
       }
 
-      // Moving cars along the strip (behind combat Y-ish but drawn in gameplay)
       for (const c of cars) {
         c.x += c.facing * c.speed * dt;
         if (c.facing > 0 && c.x > WORLD_W + 80) c.x = -60;
         if (c.facing < 0 && c.x < -80) c.x = WORLD_W + 60;
       }
 
-      if (gameOver) {
+      // ── Dialogue modal: pause combat sim, feed input to DialogueSystem ──
+      if (phase === 'dialogue' && dialogue.isOpen) {
+        dialogue.update(dt);
+        player.update(dt);
+        const input = states.input;
+        if (input) {
+          if (dialogue.hasChoices) {
+            if (input.justPressed('choice1') || input.justPressed('punch')) {
+              dialogue.selectChoice(0);
+            } else if (input.justPressed('choice2') || input.justPressed('kick')) {
+              dialogue.selectChoice(1);
+            }
+          } else if (
+            input.justPressed('confirm') ||
+            input.justPressed('punch') ||
+            input.justPressed('interact')
+          ) {
+            dialogue.advance();
+          }
+        }
+        // Slow panic bob while talking
+        fatherPanic = Math.min(1, fatherPanic + dt * 0.02);
+        syncHud();
+        const target = player.x - 140;
+        camX += (target - camX) * Math.min(1, dt * 6);
+        if (camX < 0) camX = 0;
+        if (camX > WORLD_W - 320) camX = WORLD_W - 320;
+        return;
+      }
+
+      if (phase === 'gameover') {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) {
           clearCombatAndReturn();
         }
         syncHud('GAME OVER');
+        return;
+      }
+
+      if (phase === 'cleared') {
+        winTimer -= dt;
+        player.update(dt);
+        syncHud('LEVEL 1 CLEAR');
+        if (winTimer <= 0) {
+          // Soft return to apartment with progress kept (combat meters reset)
+          player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
+          states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.65 });
+        }
         return;
       }
 
@@ -312,26 +485,68 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       for (const g of gangsters) {
         g.update(dt, player.x, player.y, FLOOR_Y, 30, WORLD_W - 30);
+        const drop = g.consumeCoatDrop();
+        if (drop && !coat) {
+          coat = { x: drop.x, y: drop.y, taken: false };
+          toast = 'COAT DROPPED!';
+          toastTimer = 1.2;
+        }
         if (player.invuln > 0 || player.isKo || g.isKo) continue;
         const ah = g.attackHitbox();
         if (ah && aabbOverlap(ah, player.body())) {
           const dmg = g.consumeAttackHit();
-          if (dmg > 0) player.takeDamage(dmg, g.facing);
+          if (dmg > 0) {
+            const scaled = fatherPanic > 0.8 ? dmg + 3 : dmg;
+            player.takeDamage(scaled, g.facing);
+          }
         }
       }
 
-      if (player.isKo && !gameOver) {
-        gameOver = true;
+      // Pick up mother's coat
+      if (coat && !coat.taken && !hasCoat) {
+        const dx = Math.abs(player.x - coat.x);
+        const dy = Math.abs(player.y - coat.y);
+        if (dx < 18 && dy < 24) {
+          coat.taken = true;
+          hasCoat = true;
+          toast = 'MOTHER COAT SECURED';
+          toastTimer = 1.5;
+          fatherPanic = Math.max(0.15, fatherPanic - 0.35);
+        }
+      }
+
+      if (player.isKo) {
+        phase = 'gameover';
         gameOverTimer = 1.8;
         toast = 'MENTAL FORTITUDE BROKEN';
         toastTimer = 1.8;
       }
 
       const alive = gangsters.filter((g) => !g.isKo).length;
-      if (alive === 0 && !gameOver) {
-        syncHud('Wave clear - walk on');
-      } else {
-        syncHud(alive === 1 ? 'One thug left' : `Thugs: ${alive}`);
+
+      // Mid-fight: reach father stall with ≥1 KO, or clear wave 1 entirely
+      if (phase === 'wave1' && !dialogueStarted) {
+        const anyKo = gangsters.some((g) => g.isKo);
+        if ((nearFatherStall() && anyKo) || alive === 0) {
+          // Nudge player toward stall feel
+          beginFatherDialogue();
+        } else {
+          syncHud(
+            alive === 1
+              ? 'One thug - reach Father'
+              : `Wave 1 · Thugs ${alive} · Reach FURS`,
+          );
+        }
+      } else if (phase === 'wave2') {
+        if (alive === 0 && hasCoat) {
+          phase = 'cleared';
+          winTimer = 2.4;
+          toast = 'STALL SAFE · COAT RECOVERED';
+          toastTimer = 2.4;
+          syncHud('LEVEL 1 CLEAR');
+        } else {
+          syncHud();
+        }
       }
 
       const target = player.x - 140;
@@ -366,12 +581,33 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       });
       drawNesTextCentered(ctx, title, width / 2, 11, R.uiText, 1, 1);
 
-      const hint = 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
-      const hw = measureNesText(hint, 1, 1) + 10;
-      segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, R.uiBox, R.uiBorderDark, {
-        inset: false,
-      });
-      drawNesText(ctx, hint, 8, height - 12, R.uiBorder, 1, 1);
+      if (phase === 'dialogue' && dialogue.isOpen) {
+        dialogue.render(ctx, width, height);
+      } else {
+        const hint =
+          phase === 'wave2' && !hasCoat
+            ? 'J PUNCH  K KICK  L BAZAR  GET COAT'
+            : 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
+        const hw = measureNesText(hint, 1, 1) + 10;
+        segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, R.uiBox, R.uiBorderDark, {
+          inset: false,
+        });
+        drawNesText(ctx, hint, 8, height - 12, R.uiBorder, 1, 1);
+      }
+
+      // Coat / panic status chips (non-hero clutter avoided — single status line)
+      if (phase === 'wave2' || phase === 'cleared') {
+        const status = hasCoat
+          ? 'COAT: YES'
+          : coat
+            ? 'COAT: DROP'
+            : 'COAT: STOLEN';
+        const sw = measureNesText(status, 1, 1) + 10;
+        segaBox(ctx, width - sw - 4, 24, sw, 12, '#181028', hasCoat ? '#40c878' : '#e07040', {
+          inset: false,
+        });
+        drawNesText(ctx, status, width - sw, 28, hasCoat ? '#a0f0c0' : '#f0c0a0', 1, 1);
+      }
 
       if (toast) {
         const tw2 = measureNesText(toast, 1, 1) + 14;
@@ -388,7 +624,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         drawNesTextCentered(ctx, toast, width / 2, 32, '#f8f0d0', 1, 1);
       }
 
-      if (gameOver) {
+      if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
         const gw = measureNesText('GAME OVER', 2, 1) + 24;
@@ -405,6 +641,66 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         drawNesTextCentered(ctx, 'GAME OVER', width / 2, height / 2 - 16, '#f08080', 2, 1);
         drawNesTextCentered(ctx, 'BACK TO 2026...', width / 2, height / 2 + 2, R.uiBorder, 1, 1);
       }
+
+      if (phase === 'cleared') {
+        ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
+        ctx.fillRect(0, 0, width, height);
+        const gw = measureNesText('LEVEL 1 CLEAR', 2, 1) + 24;
+        segaBox(
+          ctx,
+          Math.round((width - gw) / 2),
+          Math.round(height / 2 - 28),
+          gw,
+          44,
+          R.uiBox,
+          '#40c878',
+          { borderDark: '#206040', fillHi: '#102818' },
+        );
+        drawNesTextCentered(ctx, 'LEVEL 1 CLEAR', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
+        drawNesTextCentered(ctx, 'COAT + STALL SAFE', width / 2, height / 2 + 4, R.uiBorder, 1, 1);
+      }
+    },
+
+    /** Dev / capture helpers (wired via main `__novgorod.rynok`). */
+    __debug: {
+      getPhase: () => phase,
+      forceDialogue: () => beginFatherDialogue(),
+      forceWave2Calm: () => {
+        dialogue.resetSilent();
+        fatherPanic = 0.25;
+        hasCoat = false;
+        coat = null;
+        phase = 'wave2';
+        spawnWave2();
+        player.x = 280;
+        syncHud();
+      },
+      forceCoatDrop: () => {
+        coat = { x: player.x + 30, y: FLOOR_Y - 6, taken: false };
+        hasCoat = false;
+        toast = 'COAT DROPPED!';
+        toastTimer = 1.2;
+      },
+      pickCoat: () => {
+        if (coat) coat.taken = true;
+        hasCoat = true;
+        toast = 'MOTHER COAT SECURED';
+        toastTimer = 1.2;
+      },
+      chooseSteady: () => {
+        if (dialogue.isOpen) {
+          if (!dialogue.revealComplete) dialogue.advance();
+          dialogue.selectChoice(0);
+        }
+      },
+      advanceDialogue: () => dialogue.advance(),
+      skipToChoices: () => {
+        if (!dialogue.isOpen) beginFatherDialogue();
+        // Advance through intro typewriter + line
+        dialogue.advance();
+        dialogue.advance();
+        dialogue.advance();
+      },
     },
   };
 }
@@ -646,6 +942,59 @@ function drawStall(
     inset: false,
   });
   drawNesTextCentered(ctx, label, x + 34, floorY - 64, R.uiText, 1, 1);
+}
+
+function drawFather(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  floorY: number,
+  panic: number,
+): void {
+  const ox = Math.round(x);
+  const oy = Math.round(floorY);
+  // Body
+  px(ctx, ox - 5, oy - 28, 10, 16, '#3a3048');
+  px(ctx, ox - 4, oy - 26, 3, 4, '#5a4868');
+  // Head
+  px(ctx, ox - 4, oy - 36, 8, 8, '#c89870');
+  px(ctx, ox - 3, oy - 38, 6, 3, '#2a2030');
+  // Eyes — wider when panicked
+  px(ctx, ox - 2, oy - 33, 2, 2, '#181018');
+  px(ctx, ox + 1, oy - 33, 2, 2, '#181018');
+  if (panic > 0.5) {
+    px(ctx, ox - 3, oy - 34, 1, 1, '#f0e0c0');
+    px(ctx, ox + 3, oy - 34, 1, 1, '#f0e0c0');
+  }
+  // Arms — clutch counter when calm, flail when panic
+  if (panic > 0.55) {
+    px(ctx, ox - 9, oy - 24, 4, 3, '#c89870');
+    px(ctx, ox + 5, oy - 26, 4, 3, '#c89870');
+  } else {
+    px(ctx, ox - 8, oy - 20, 3, 6, '#c89870');
+    px(ctx, ox + 5, oy - 20, 3, 6, '#c89870');
+  }
+  // Legs
+  px(ctx, ox - 4, oy - 12, 3, 12, '#2a2838');
+  px(ctx, ox + 1, oy - 12, 3, 12, '#2a2838');
+  // Panic sweat / label
+  if (panic > 0.6) {
+    px(ctx, ox + 5, oy - 36, 1, 2, '#80c0e0');
+    drawNesText(ctx, '!', ox + 7, oy - 40, '#e04040', 1, 1);
+  }
+}
+
+function drawCoatPickup(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const ox = Math.round(x);
+  const oy = Math.round(y);
+  // Folded fur coat on snow
+  px(ctx, ox - 8, oy - 4, 16, 6, '#6a4838');
+  px(ctx, ox - 7, oy - 5, 14, 2, '#8a6850');
+  px(ctx, ox - 6, oy - 2, 12, 2, '#4a3028');
+  px(ctx, ox - 4, oy - 6, 4, 2, '#c8a070'); // collar
+  // Blink sparkle
+  if (Math.floor(performance.now() / 200) % 2 === 0) {
+    px(ctx, ox + 6, oy - 7, 2, 2, '#f0e080');
+  }
 }
 
 function drawGate(ctx: CanvasRenderingContext2D): void {

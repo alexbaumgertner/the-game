@@ -13,7 +13,9 @@ export type InputAction =
   | 'kick'
   | 'special'
   | 'interact'
-  | 'confirm';
+  | 'confirm'
+  | 'choice1'
+  | 'choice2';
 
 const BINDINGS: Record<InputAction, readonly string[]> = {
   left: ['ArrowLeft', 'KeyA'],
@@ -26,6 +28,8 @@ const BINDINGS: Record<InputAction, readonly string[]> = {
   special: ['KeyL', 'KeyC', 'KeyF'],
   interact: ['KeyE'],
   confirm: ['Enter'],
+  choice1: ['Digit1', 'Numpad1'],
+  choice2: ['Digit2', 'Numpad2'],
 };
 
 export class Input {
@@ -101,7 +105,9 @@ export class Input {
       e.code === 'KeyZ' ||
       e.code === 'KeyX' ||
       e.code === 'KeyC' ||
-      e.code === 'KeyF'
+      e.code === 'KeyF' ||
+      e.code === 'Digit1' ||
+      e.code === 'Digit2'
     ) {
       e.preventDefault();
     }

@@ -88,6 +88,10 @@ function bootstrap(): void {
     player,
     input,
     hud,
+    rynok,
+    /** Debug: jump straight into rynok Level 1. */
+    gotoRynok: () => states.goto('rynok_1995', { era: 'ERA_1995', fadeSeconds: 0.15 }),
+    captureCanvas: () => canvas.toDataURL('image/png'),
   };
 }
 

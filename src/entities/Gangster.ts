@@ -15,10 +15,16 @@ export type GangsterAiState =
   | 'stun'
   | 'ko';
 
+export type GangsterVariant = 'thug' | 'tracksuit';
+
 export interface GangsterConfig {
   x?: number;
   y?: number;
   hp?: number;
+  /** Wave-2 track-suit extortionists. */
+  variant?: GangsterVariant;
+  /** Drops mother's stolen coat on KO. */
+  carriesCoat?: boolean;
 }
 
 const GW = 14;
@@ -26,7 +32,12 @@ const GH = 22;
 
 type Cell = string | null;
 
-function gangsterFrame(facingIdle: boolean, punch: boolean, hurt: boolean): Cell[] {
+function gangsterFrame(
+  facingIdle: boolean,
+  punch: boolean,
+  hurt: boolean,
+  variant: GangsterVariant = 'thug',
+): Cell[] {
   const g: Cell[] = Array(GW * GH).fill(null);
   const set = (x: number, y: number, c: Cell) => {
     if (x < 0 || x >= GW || y < 0 || y >= GH) return;
@@ -35,13 +46,15 @@ function gangsterFrame(facingIdle: boolean, punch: boolean, hurt: boolean): Cell
   const o = SEGA.ink;
   const skin = '#c89870';
   const skinD = '#906048';
-  const coat = '#5a3038';
-  const coatH = '#784850';
-  const coatD = '#381820';
-  const pants = '#2a2838';
-  const pantsH = '#3a3850';
+  const track = variant === 'tracksuit';
+  const coat = track ? '#2a5888' : '#5a3038';
+  const coatH = track ? '#3a78b0' : '#784850';
+  const coatD = track ? '#183858' : '#381820';
+  const pants = track ? '#1a4068' : '#2a2838';
+  const pantsH = track ? '#2a5888' : '#3a3850';
   const shoes = '#18141c';
   const hair = '#1a1420';
+  const stripe = '#f0d040';
 
   // Hair
   for (let x = 4; x <= 9; x++) set(x, 0, hair);
@@ -58,7 +71,7 @@ function gangsterFrame(facingIdle: boolean, punch: boolean, hurt: boolean): Cell
     set(5, 4, '#e04040');
     set(8, 4, '#e04040');
   }
-  // Coat
+  // Coat / tracksuit top
   for (let y = 7; y <= 14; y++) {
     for (let x = 3; x <= 10; x++) set(x, y, coat);
   }
@@ -66,6 +79,15 @@ function gangsterFrame(facingIdle: boolean, punch: boolean, hurt: boolean): Cell
   set(5, 8, coatH);
   set(3, 10, coatD);
   set(10, 10, coatD);
+  if (track) {
+    // Adidas-ish side stripe
+    set(3, 8, stripe);
+    set(3, 9, stripe);
+    set(3, 11, stripe);
+    set(3, 12, stripe);
+    set(10, 8, stripe);
+    set(10, 9, stripe);
+  }
   // Arms
   if (punch) {
     for (let x = 11; x <= 13; x++) {
@@ -111,6 +133,12 @@ export class Gangster {
   hp: number;
   maxHp: number;
   ai: GangsterAiState = 'idle';
+  variant: GangsterVariant;
+  carriesCoat: boolean;
+  /** Set true once when KO if they carried the coat. */
+  droppedCoat = false;
+  /** Chase speed multiplier (calm father → slightly slower wave 2). */
+  speedMul = 1;
   readonly width = GW;
   readonly height = GH;
 
@@ -118,14 +146,16 @@ export class Gangster {
   private hurtTimer = 0;
   private stunTimer = 0;
   private attackHitDone = false;
-  private animTime = 0;
   private koTimer = 0;
+  private animTime = 0;
 
   constructor(config: GangsterConfig = {}) {
     this.x = config.x ?? 200;
     this.y = config.y ?? 120;
     this.hp = config.hp ?? 36;
     this.maxHp = this.hp;
+    this.variant = config.variant ?? 'thug';
+    this.carriesCoat = config.carriesCoat ?? false;
   }
 
   get alive(): boolean {
@@ -174,6 +204,7 @@ export class Gangster {
       this.ai = 'ko';
       this.koTimer = 1.4;
       this.vx = knockFacing * 80;
+      this.markCoatDrop();
     }
   }
 
@@ -189,6 +220,21 @@ export class Gangster {
       this.hp = 0;
       this.ai = 'ko';
       this.koTimer = 1.4;
+      this.markCoatDrop();
+    }
+  }
+
+  /** Returns coat drop world pos once when first KO'd while carrying. */
+  consumeCoatDrop(): { x: number; y: number } | null {
+    if (!this.droppedCoat) return null;
+    this.droppedCoat = false;
+    this.carriesCoat = false;
+    return { x: this.x, y: this.y - 8 };
+  }
+
+  private markCoatDrop(): void {
+    if (this.carriesCoat && !this.droppedCoat) {
+      this.droppedCoat = true;
     }
   }
 
@@ -252,7 +298,7 @@ export class Gangster {
     if (dist < aggro || this.ai === 'chase') {
       this.ai = 'chase';
       if (dist > melee) {
-        const speed = 42;
+        const speed = 42 * this.speedMul;
         this.vx = this.facing * speed;
         this.x += this.vx * dt;
       } else {
@@ -279,7 +325,7 @@ export class Gangster {
     const punch = this.ai === 'attack' && this.attackTimer < 0.28;
     const hurt = this.ai === 'hurt' || this.ai === 'stun';
     const walkBob = this.ai === 'chase' && Math.floor(this.animTime * 8) % 2 === 0;
-    const cells = gangsterFrame(!walkBob, punch, hurt);
+    const cells = gangsterFrame(!walkBob, punch, hurt, this.variant);
     const ox = Math.round(this.x);
     const oy = Math.round(this.y);
     const flash = this.ai === 'stun' && Math.floor(this.animTime * 14) % 2 === 0;
