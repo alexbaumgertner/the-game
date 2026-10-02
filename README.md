@@ -21,8 +21,13 @@ Open the URL Vite prints (default `http://localhost:5173`).
 |-------------------|----------------------------------|
 | `npm run dev`     | Vite dev server with HMR         |
 | `npm run build`   | Typecheck + production bundle    |
+| `npm run build:gh` | Production build with `base: /novgorod-1995/` (GitHub project Pages) |
 | `npm run preview` | Serve the production build       |
 | `npm run typecheck` | TypeScript only (`tsc --noEmit`) |
+
+## GitHub Pages
+
+Push `main` to GitHub, then set **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for the full checklist (`VITE_BASE`, URL patterns).
 
 ## Layout
 

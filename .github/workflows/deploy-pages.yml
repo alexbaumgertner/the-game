@@ -1,0 +1,63 @@
+# Deploy Novgorod 1995 to GitHub Pages from `main`.
+# Repo Settings → Pages → Source: GitHub Actions (required once).
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        env:
+          REPO_NAME: ${{ github.event.repository.name }}
+          # Optional repo Actions variable — e.g. "/" for user/org Pages or custom domain.
+          VITE_BASE_OVERRIDE: ${{ vars.VITE_BASE }}
+        run: |
+          if [ -n "$VITE_BASE_OVERRIDE" ]; then
+            export VITE_BASE="$VITE_BASE_OVERRIDE"
+          else
+            export VITE_BASE="/${REPO_NAME}/"
+          fi
+          echo "Building with VITE_BASE=${VITE_BASE}"
+          npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
