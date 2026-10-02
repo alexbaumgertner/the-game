@@ -77,6 +77,50 @@ export class DialogueSystem {
     return this.choiceTimer;
   }
 
+  /** Short labels for on-screen choice buttons (touch UI). */
+  get choiceLabels(): [string, string] | null {
+    const line = this.currentLine;
+    if (!line?.choices || line.choices.length < 2 || !this.revealComplete) return null;
+    return [line.choices[0]!.label, line.choices[1]!.label];
+  }
+
+  /**
+   * Hit-test a canvas-space point against choice rows / advance hint.
+   * Returns choice index, `'advance'`, or null.
+   */
+  hitTest(
+    x: number,
+    y: number,
+    canvasWidth: number,
+    canvasHeight: number,
+  ): number | 'advance' | null {
+    const line = this.currentLine;
+    if (!line || !this.active) return null;
+
+    const hasChoices = !!(line.choices && line.choices.length > 0);
+    const boxH = hasChoices && this.revealComplete ? 84 : 44;
+    const pad = 4;
+    const boxY = canvasHeight - boxH - pad;
+    const boxX = pad;
+    const boxW = canvasWidth - pad * 2;
+
+    if (x < boxX || x > boxX + boxW || y < boxY || y > boxY + boxH) return null;
+
+    if (!this.revealComplete) return 'advance';
+
+    if (hasChoices && line.choices) {
+      // Thumb-friendly rows (taller than drawn text).
+      for (let i = 0; i < line.choices.length; i++) {
+        const rowTop = boxY + 40 + i * 18;
+        const rowBottom = rowTop + 18;
+        if (y >= rowTop && y <= rowBottom) return i;
+      }
+      return null;
+    }
+
+    return 'advance';
+  }
+
   /** Begin a script. Closes any previous dialogue first. */
   open(script: DialogueScript, onClose?: DialogueCloseCallback): void {
     this.active = script;
@@ -192,7 +236,7 @@ export class DialogueSystem {
     if (!line) return;
 
     const hasChoices = !!(line.choices && line.choices.length > 0);
-    const boxH = hasChoices && this.revealComplete ? 78 : 44;
+    const boxH = hasChoices && this.revealComplete ? 84 : 44;
     const pad = 4;
     const y = canvasHeight - boxH - pad;
 
@@ -229,7 +273,8 @@ export class DialogueSystem {
       }
 
       line.choices.forEach((c, i) => {
-        const cy = y + 44 + i * 12;
+        // Slightly taller rows so they match touch hit targets.
+        const cy = y + 44 + i * 14;
         const key = String(i + 1);
         segaBox(ctx, pad + 6, cy - 2, 12, 10, '#201828', '#e8c56a', { inset: false });
         drawNesText(ctx, key, pad + 9, cy, '#f8f0d0', 1, 1);

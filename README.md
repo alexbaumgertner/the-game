@@ -34,11 +34,11 @@ Push `main` to GitHub, then set **Settings → Pages → Source: GitHub Actions*
 ```
 src/
   art/        Palettes, sprites, pixel helpers, bitmap font
-  core/       GameLoop, StateManager, Input
+  core/       GameLoop, StateManager, Input (+ virtual/touch)
   entities/   Player, Gangster, BazarBubble
   scenes/     Apartment2026, Rynok1995
   systems/    DialogueSystem, CombatMath
-  ui/         HUD
+  ui/         HUD, TouchControls
   main.ts     Bootstrap — GameLoop → StateManager
 ```
 
@@ -55,5 +55,8 @@ src/
 | L / C / F | Bazar special |
 | E | Interact |
 | Enter | Confirm |
+| 1 / 2 | Dialogue choices |
 | P / Esc | Pause |
+
+**Mobile / touch:** on-screen D-pad + action buttons appear on coarse-pointer / touch / narrow screens (or tap **SHOW PAD**). See project doc `mobile-controls.md`.
 

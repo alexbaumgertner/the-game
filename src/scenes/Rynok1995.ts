@@ -661,6 +661,11 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       }
     },
 
+    /** Shared with TouchControls / canvas pointer hit-tests. */
+    getDialogue(): DialogueSystem {
+      return dialogue;
+    },
+
     /** Dev / capture helpers (wired via main `__novgorod.rynok`). */
     __debug: {
       getPhase: () => phase,

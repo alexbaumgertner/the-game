@@ -2,7 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Pin scale during play so double-tap / accidental pinch don't zoom the canvas.
+      Accessibility: browsers that honor user zoom prefs may still allow page zoom
+      via OS settings; in-game we rely on touch-action rather than user-scalable=no.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Novgorod 1995</title>
     <style>
       *,
@@ -18,9 +29,17 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
+        overscroll-behavior: none;
+        touch-action: none;
+        position: fixed;
+        inset: 0;
         background: #0a0a0c;
         color: #e8e4d8;
         font-family: 'Courier New', Courier, monospace;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent;
       }
 
       #app {
@@ -29,6 +48,10 @@
         justify-content: center;
         width: 100%;
         height: 100%;
+        /* Letterbox / pillarbox fills the leftover viewport around the canvas. */
+        background:
+          radial-gradient(ellipse at center, #14141c 0%, #0a0a0c 70%);
+        touch-action: none;
       }
 
       #game-canvas {
@@ -37,8 +60,12 @@
         image-rendering: crisp-edges;
         background: #1a1a22;
         box-shadow: 0 0 0 2px #3a3a48;
+        /* Sized in JS to fit portrait + landscape; keep aspect 320×224. */
         max-width: 100vw;
         max-height: 100vh;
+        max-width: 100dvw;
+        max-height: 100dvh;
+        touch-action: none;
       }
     </style>
   </head>
