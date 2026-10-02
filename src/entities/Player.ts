@@ -411,17 +411,69 @@ export class Player {
     }
   }
 
-  /** Integrate jump gravity; call after applyWalk each frame in combat scenes. */
-  applyPhysics(dt: number, minX: number, maxX: number): void {
+  /**
+   * Integrate jump gravity; call after applyWalk each frame in combat scenes.
+   * Optional solid platforms (feet land on top when falling through their top).
+   */
+  applyPhysics(
+    dt: number,
+    minX: number,
+    maxX: number,
+    platforms?: readonly { x: number; y: number; w: number }[],
+  ): void {
+    const prevY = this.y;
+
     if (!this.grounded || this.vy !== 0) {
       this.vy += this.gravity * dt;
       this.y += this.vy * dt;
-      if (this.y >= this.floorY) {
-        this.y = this.floorY;
+
+      let landed = false;
+      let landY = this.floorY;
+
+      if (platforms && platforms.length > 0 && this.vy >= 0) {
+        for (const p of platforms) {
+          if (this.x < p.x || this.x > p.x + p.w) continue;
+          // Crossed / resting on platform top this frame
+          if (prevY <= p.y + 2 && this.y >= p.y) {
+            if (!landed || p.y < landY) {
+              landY = p.y;
+              landed = true;
+            }
+          }
+        }
+      }
+
+      if (!landed && this.y >= this.floorY) {
+        landY = this.floorY;
+        landed = true;
+      }
+
+      if (landed) {
+        this.y = landY;
         this.vy = 0;
         this.grounded = true;
+        this.floorY = landY;
       } else {
         this.grounded = false;
+      }
+    } else if (platforms && platforms.length > 0) {
+      // Walk off edges — drop if no platform under feet
+      let support = false;
+      let supportY = this.floorY;
+      for (const p of platforms) {
+        if (this.x < p.x || this.x > p.x + p.w) continue;
+        if (Math.abs(this.y - p.y) <= 3) {
+          support = true;
+          supportY = p.y;
+          break;
+        }
+      }
+      if (support) {
+        this.y = supportY;
+        this.floorY = supportY;
+      } else {
+        this.grounded = false;
+        this.vy = 20;
       }
     } else {
       this.y = this.floorY;

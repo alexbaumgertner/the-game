@@ -431,6 +431,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         player.update(dt);
         syncHud('LEVEL 1 CLEAR');
         if (winTimer <= 0) {
+          states.setFlag('level1Cleared', true);
           // Soft return to apartment with progress kept (combat meters reset)
           player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
           states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.65 });

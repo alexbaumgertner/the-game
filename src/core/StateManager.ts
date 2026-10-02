@@ -11,7 +11,7 @@ import type { Input } from './Input';
 export type GameEra = 'ERA_2026' | 'ERA_1995';
 
 /** Named gameplay / UI scenes. */
-export type SceneId = 'apartment_2026' | 'rynok_1995';
+export type SceneId = 'apartment_2026' | 'rynok_1995' | 'podezd_1995';
 
 export interface SceneContext {
   era: GameEra;
@@ -47,6 +47,11 @@ export interface ProgressFlags {
   seenPhoto: boolean;
   diaryUnlocked: boolean;
   level1Selected: boolean;
+  /** Set when Level 1 rynok is cleared — unlocks diary Level 2. */
+  level1Cleared: boolean;
+  level2Selected: boolean;
+  /** Set when Level 2 подъезд is cleared. */
+  level2Cleared: boolean;
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
@@ -54,6 +59,9 @@ const DEFAULT_FLAGS: ProgressFlags = {
   seenPhoto: false,
   diaryUnlocked: false,
   level1Selected: false,
+  level1Cleared: false,
+  level2Selected: false,
+  level2Cleared: false,
 };
 
 export class StateManager {

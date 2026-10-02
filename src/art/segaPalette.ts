@@ -252,5 +252,47 @@ export const RYNOK_PAL = {
   uiText: '#e8eef4',
 } as const;
 
+/** 1995 Khrushchyovka entrance / stairwell — peeling paint, dim bulbs. */
+export const PODEZD_PAL = {
+  wall: '#6a6058',
+  wallHi: '#8a8070',
+  wallDark: '#4a4038',
+  wallPeel: '#9a8870',
+  plaster: '#a09888',
+  plasterDark: '#787060',
+  brick: '#8a5848',
+  brickHi: '#aa7060',
+  brickDark: '#5a3830',
+  mortar: '#5a5048',
+  floor: '#4a4840',
+  floorHi: '#686860',
+  floorDark: '#2a2820',
+  stair: '#5a5848',
+  stairHi: '#7a7868',
+  stairDark: '#3a3830',
+  rail: '#3a4048',
+  railHi: '#687078',
+  railDark: '#1a2028',
+  mailbox: '#4a5860',
+  mailboxHi: '#6a7880',
+  mailboxDark: '#2a3840',
+  door: '#5a4030',
+  doorHi: '#7a5840',
+  doorDark: '#3a2818',
+  doorNum: '#c8a050',
+  bulb: '#f0e0a0',
+  bulbDim: '#c8a868',
+  smoke: '#787870',
+  snow: '#e8ecf0',
+  snowMid: '#c8d0d8',
+  night: '#101820',
+  nightMid: '#1a2838',
+  uiBox: '#081018',
+  uiBoxHi: '#182838',
+  uiBorder: '#d0a858',
+  uiBorderDark: '#806028',
+  uiText: '#f0e8d8',
+} as const;
+
 /** Back-compat aliases used by older import sites. */
 export const NES = SEGA;

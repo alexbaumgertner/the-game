@@ -6,7 +6,11 @@
 import { drawNesText, measureNesText } from '@/art/nesFont';
 import { segaBox } from '@/art/pixelDraw';
 
-export type DialogueEffect = 'calm_father' | 'wrong_reassure' | 'none';
+export type DialogueEffect =
+  | 'calm_father'
+  | 'calm_mother'
+  | 'wrong_reassure'
+  | 'none';
 
 export interface DialogueChoice {
   id: string;
@@ -374,6 +378,54 @@ export const FATHER_STALL_SCRIPT: DialogueScript = {
     panic_worse: {
       speaker: 'Father',
       text: 'Empty words! They come back harder - MOVE!',
+      next: null,
+    },
+  },
+};
+
+/** Level 2 mid-stair thug / mother timed branch (крыша shakedown). */
+export const PODEZD_LANDING_SCRIPT: DialogueScript = {
+  id: 'podezd_landing_midfight',
+  start: 'thug_intro',
+  lines: {
+    thug_intro: {
+      speaker: 'Thug',
+      text: 'Podiezd sem. Kryusha money. Mama stays until you pay.',
+      next: 'mother_line',
+    },
+    mother_line: {
+      speaker: 'Mother',
+      text: 'Sasha - carefully. Speak true. Timer is short.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'You',
+      text: 'What do you say?',
+      choiceTimeLimit: 7,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Back off. She is with me.',
+          effect: 'calm_mother',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'We have nothing...',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Mother',
+      text: 'Good. Hold my hand - we climb. Eyes on the landings.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Thug',
+      text: 'Empty pockets? Then fists. Upper floor - GO!',
       next: null,
     },
   },

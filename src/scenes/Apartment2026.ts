@@ -76,6 +76,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     } else if (!states.flags.diaryUnlocked) {
       prompt = 'THE DIARY ANSWERS THE KEY';
       hud.set({ objective: 'Unlock the Diary' });
+    } else if (states.flags.level1Cleared && !states.flags.level2Cleared) {
+      prompt = 'OPEN THE DIARY - LEVEL 2 READY';
+      hud.set({ objective: 'Open Diary - Level 2' });
+    } else if (states.flags.level2Cleared) {
+      prompt = 'DIARY - MEMORIES CLEARED';
+      hud.set({ objective: 'Open Diary - replay' });
     } else {
       prompt = 'OPEN THE DIARY - LEVEL SELECT';
       hud.set({ objective: 'Open Diary - Level 1' });
@@ -141,7 +147,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (near('diary') && states.flags.diaryUnlocked) {
       player.beginInspect(0.35);
       overlay = 'diary';
-      diaryCursor = 0;
+      // Prefer Level 2 cursor once unlocked and not yet cleared
+      diaryCursor =
+        states.flags.level1Cleared && !states.flags.level2Cleared ? 1 : 0;
       hud.set({ objective: 'Choose a memory' });
       return;
     }
@@ -155,22 +163,34 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     }
   };
 
+  const level2Unlocked = (): boolean => states.flags.level1Cleared;
+
   const updateDiarySelect = (dt: number): void => {
     void dt;
     const input = states.input;
     if (!input) return;
 
+    const maxCursor = level2Unlocked() ? 1 : 0;
+
     if (input.justPressed('up') || input.justPressed('left')) {
-      diaryCursor = 0;
+      diaryCursor = Math.max(0, diaryCursor - 1);
     }
     if (input.justPressed('down') || input.justPressed('right')) {
-      diaryCursor = 0;
+      diaryCursor = Math.min(maxCursor, diaryCursor + 1);
     }
 
     if (input.justPressed('confirm') || input.justPressed('interact')) {
-      states.setFlag('level1Selected', true);
-      overlay = 'none';
-      states.goto('rynok_1995', { era: 'ERA_1995', data: { level: 1 }, fadeSeconds: 0.55 });
+      if (diaryCursor === 0) {
+        states.setFlag('level1Selected', true);
+        overlay = 'none';
+        states.goto('rynok_1995', { era: 'ERA_1995', data: { level: 1 }, fadeSeconds: 0.55 });
+        return;
+      }
+      if (diaryCursor === 1 && level2Unlocked()) {
+        states.setFlag('level2Selected', true);
+        overlay = 'none';
+        states.goto('podezd_1995', { era: 'ERA_1995', data: { level: 2 }, fadeSeconds: 0.55 });
+      }
     }
   };
 
@@ -304,7 +324,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
       if (overlay === 'photo') drawPhotoOverlay(ctx, width, height);
       if (overlay === 'toast') drawToast(ctx, width, height, toast);
-      if (overlay === 'diary') drawDiarySelect(ctx, width, height, diaryCursor);
+      if (overlay === 'diary') {
+        drawDiarySelect(ctx, width, height, diaryCursor, {
+          level1Cleared: states.flags.level1Cleared,
+          level2Cleared: states.flags.level2Cleared,
+        });
+      }
     },
   };
 }
@@ -669,6 +694,7 @@ function drawDiarySelect(
   width: number,
   height: number,
   cursor: number,
+  progress: { level1Cleared: boolean; level2Cleared: boolean },
 ): void {
   ctx.fillStyle = 'rgba(6, 4, 10, 0.9)';
   ctx.fillRect(0, 0, width, height);
@@ -685,8 +711,20 @@ function drawDiarySelect(
   px(ctx, bx + 16, by + 28, bw - 32, 1, '#8a6a48');
 
   const levels = [
-    { title: 'LEVEL 1 - NOVGOROD RYNOK', sub: 'WINTER 1995', locked: false },
-    { title: 'LEVEL 2 - ???', sub: 'LOCKED', locked: true },
+    {
+      title: 'LEVEL 1 - NOVGOROD RYNOK',
+      sub: progress.level1Cleared ? 'CLEARED - REPLAY' : 'WINTER 1995',
+      locked: false,
+    },
+    {
+      title: progress.level1Cleared ? 'LEVEL 2 - ПОДЪЕЗД №7' : 'LEVEL 2 - ???',
+      sub: !progress.level1Cleared
+        ? 'LOCKED - CLEAR LEVEL 1'
+        : progress.level2Cleared
+          ? 'CLEARED - REPLAY'
+          : 'WINTER 1995',
+      locked: !progress.level1Cleared,
+    },
   ];
 
   levels.forEach((lvl, i) => {
@@ -703,5 +741,9 @@ function drawDiarySelect(
     drawNesText(ctx, lvl.sub, bx + 28, ly + 12, lvl.locked ? '#5a4a40' : '#a09080', 1, 1);
   });
 
-  drawNesTextCentered(ctx, 'ENTER / E - BEGIN LEVEL 1', width / 2, by + bh - 16, P.uiText, 1, 1);
+  const hint =
+    cursor === 1 && progress.level1Cleared
+      ? 'ENTER / E - BEGIN LEVEL 2'
+      : 'ENTER / E - BEGIN LEVEL 1';
+  drawNesTextCentered(ctx, hint, width / 2, by + bh - 16, P.uiText, 1, 1);
 }

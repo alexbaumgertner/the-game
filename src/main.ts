@@ -17,6 +17,7 @@ import { HUD } from './ui/HUD';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
+import { createPodezd1995Scene } from './scenes/Podezd1995';
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -51,9 +52,11 @@ function bootstrap(): void {
 
   const apartment = createApartment2026Scene({ states, player, hud });
   const rynok = createRynok1995Scene({ states, player, hud });
+  const podezd = createPodezd1995Scene({ states, player, hud });
 
   states.register('apartment_2026', apartment);
   states.register('rynok_1995', rynok);
+  states.register('podezd_1995', podezd);
   states.boot('apartment_2026', { era: 'ERA_2026' });
 
   const loop = new GameLoop({
@@ -99,9 +102,14 @@ function bootstrap(): void {
     root: document.body,
     onPause: togglePause,
     getDialogueChoices: () => {
-      if (states.current.scene !== 'rynok_1995') return { active: false };
-      const d = rynok.getDialogue();
-      if (!d.isOpen || !d.hasChoices) return { active: false };
+      const scene = states.current.scene;
+      const d =
+        scene === 'rynok_1995'
+          ? rynok.getDialogue()
+          : scene === 'podezd_1995'
+            ? podezd.getDialogue()
+            : null;
+      if (!d || !d.isOpen || !d.hasChoices) return { active: false };
       const labels = d.choiceLabels;
       return { active: true, labels: labels ?? undefined };
     },
@@ -110,9 +118,14 @@ function bootstrap(): void {
   // Tap dialogue box / choice rows directly on the canvas (in addition to pad).
   const onCanvasPointer = (e: PointerEvent): void => {
     if (e.button !== undefined && e.button !== 0) return;
-    if (states.current.scene !== 'rynok_1995') return;
-    const d = rynok.getDialogue();
-    if (!d.isOpen) return;
+    const scene = states.current.scene;
+    const d =
+      scene === 'rynok_1995'
+        ? rynok.getDialogue()
+        : scene === 'podezd_1995'
+          ? podezd.getDialogue()
+          : null;
+    if (!d || !d.isOpen) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
     const hit = d.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
@@ -149,6 +162,7 @@ function bootstrap(): void {
     input,
     hud,
     rynok,
+    podezd,
     touch,
     canvas,
     display: {
@@ -161,6 +175,11 @@ function bootstrap(): void {
     },
     /** Debug: jump straight into rynok Level 1. */
     gotoRynok: () => states.goto('rynok_1995', { era: 'ERA_1995', fadeSeconds: 0.15 }),
+    /** Debug: jump straight into подъезд Level 2. */
+    gotoPodezd: () => {
+      states.setFlag('level1Cleared', true);
+      states.goto('podezd_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
     captureCanvas: () => canvas.toDataURL('image/png'),
   };
 }
