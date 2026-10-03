@@ -35,11 +35,11 @@ export function preloadAerialsPoster(): void {
 export function drawAerialsPoster(ctx: CanvasRenderingContext2D): void {
   preloadAerialsPoster();
 
-  // Landscape frame matching source ~2.15:1; clear of HUD corners & window.
-  const x = 124;
-  const y = 12;
-  const w = 74;
-  const h = 40;
+  // Landscape frame ~2.15:1 — half of prior 74×40 so family frame / window read.
+  const x = 132;
+  const y = 14;
+  const w = 37;
+  const h = 20;
 
   // Drop shadow + black frame + mat (hi-detail room style)
   px(ctx, x + 3, y + 3, w, h, '#2a2018');

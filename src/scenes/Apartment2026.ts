@@ -12,9 +12,14 @@ import type { BeerSystem } from '@/systems/BeerSystem';
 import { APT_PAL, CAT_PAL } from '@/art/segaPalette';
 import { drawAerialsPoster, preloadAerialsPoster } from '@/art/aerialsPoster';
 import {
+  drawFamilyPhotoFace,
+  drawTiledWallpaper,
+  drawWallFamilyFrame,
+  drawWindowParade,
+  preloadApartmentPhotos,
+} from '@/art/apartmentPhotos';
+import {
   ditherRect,
-  fillPattern,
-  greaseStain,
   px,
   segaBox,
   speckles,
@@ -337,6 +342,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   return {
     enter(ctx: SceneContext): void {
       preloadAerialsPoster();
+      preloadApartmentPhotos();
       beer.resetForApartment();
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -450,7 +456,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           speedRatio: 0,
           zIndex: 0,
           screenSpace: true,
-          draw: (c) => drawApartment(c, width, height, depthCam, beerCans),
+          draw: (c) => drawApartment(c, width, height, depthCam, beerCans, time),
         },
         {
           id: 'gameplay',
@@ -484,9 +490,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
                 },
                 {
                   kind: 'point',
-                  x: 244,
-                  y: 70,
-                  radius: 28,
+                  // Cool spill from enlarged night window
+                  x: 250,
+                  y: 72,
+                  radius: 36,
                   color: '#7090c8',
                   screenSpace: true,
                 },
@@ -542,30 +549,19 @@ function drawApartment(
   height: number,
   depthCam: number,
   beerCans: BeerCan[],
+  time: number,
 ): void {
   px(ctx, 0, 0, width, height, P.wallDeep);
 
-  // Wallpaper base + floral motif (drawn midtones, not chunky checks)
-  fillPattern(ctx, 0, 0, width, FLOOR_Y - 10, P.wallBase, P.wallpaperMotif, 8, 'diamonds');
-  speckles(ctx, 0, 0, width, FLOOR_Y - 10, P.wallpaperDot, 5, 3);
-  speckles(ctx, 0, 8, width, FLOOR_Y - 20, P.wallFloral, 11, 7);
-  speckles(ctx, 4, 12, width - 8, FLOOR_Y - 28, P.wallFloralLeaf, 13, 2);
-  // Vertical seam strips
-  for (let x = 28; x < width; x += 44) {
-    px(ctx, x, 8, 2, FLOOR_Y - 22, P.wallpaperShadow);
-    px(ctx, x + 1, 8, 1, FLOOR_Y - 22, P.wallpaper);
-    ditherRect(ctx, x - 1, 20, 1, FLOOR_Y - 40, P.wallDark, P.wallpaperShadow);
-  }
-  // Nuanced grease / nicotine stains
-  greaseStain(ctx, 14, 36, 48, 56, P.wallStainDeep, P.wallStainMid, P.wallStainEdge);
-  greaseStain(ctx, 150, 16, 58, 42, P.wallStainDeep, P.wallStainMid, P.wallDark);
-  greaseStain(ctx, 248, 44, 44, 48, P.wallpaperShadow, P.wallStainMid, P.wallStainEdge);
-  greaseStain(ctx, 70, 70, 30, 28, P.wallStainMid, P.wallStainEdge, P.wallBase);
-  ditherRect(ctx, 0, 0, width, 10, P.wallDeep, P.wallDark);
+  // Photo damask wallpaper (cream + brown) — clean, no stains/blotches
+  drawTiledWallpaper(ctx, 0, 0, width, FLOOR_Y - 10);
+  // Soft ceiling shadow only
+  ditherRect(ctx, 0, 0, width, 8, 'rgba(40, 32, 28, 0.35)', 'rgba(40, 32, 28, 0.05)');
 
-  drawWindow(ctx, depthCam);
+  drawWindow(ctx, depthCam, time);
   drawRedDoor(ctx);
   drawAerialsPoster(ctx);
+  drawWallFamilyFrame(ctx);
   drawFloor(ctx, width, height);
   drawBed(ctx);
   drawDeskAndPc(ctx);
@@ -715,26 +711,40 @@ function drawBeerCan(ctx: CanvasRenderingContext2D, x: number, y: number): void 
   px(ctx, x - 1, y - 3, 2, 1, '#e06060');
 }
 
-function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
-  woodGrain(ctx, 200, 28, 92, 72, P.woodDark, P.woodHi, P.wood, P.woodDeep, false);
-  px(ctx, 202, 30, 88, 68, P.wood);
-  px(ctx, 204, 32, 84, 2, P.woodHi);
-  px(ctx, 204, 32, 2, 64, P.woodHi);
-  px(ctx, 204, 34, 80, 60, P.woodDeep);
+/** Window frame + glass — ~1.3× prior 92×72 so parade reads. */
+function drawWindow(
+  ctx: CanvasRenderingContext2D,
+  depthCam = 0,
+  time = 0,
+): void {
+  // Prior: 200,28 / 92×72 → ×1.3 ≈ 120×94; pin right edge near 320
+  const fx = 196;
+  const fy = 22;
+  const fw = 120;
+  const fh = 94;
+  const gx = fx + 10;
+  const gy = fy + 12;
+  const gw = fw - 20;
+  const gh = fh - 22;
 
-  px(ctx, 208, 38, 72, 52, P.nightSky);
-  ditherRect(ctx, 208, 38, 72, 10, P.nightSky, P.nightSkyMid);
-  px(ctx, 208, 68, 72, 22, P.nightSkyMid);
-  // Distant glow haze
-  ditherRect(ctx, 220, 58, 40, 12, P.nightSkyMid, P.cityHi);
+  woodGrain(ctx, fx, fy, fw, fh, P.woodDark, P.woodHi, P.wood, P.woodDeep, false);
+  px(ctx, fx + 2, fy + 2, fw - 4, fh - 4, P.wood);
+  px(ctx, fx + 4, fy + 4, fw - 8, 2, P.woodHi);
+  px(ctx, fx + 4, fy + 4, 2, fh - 10, P.woodHi);
+  px(ctx, fx + 4, fy + 6, fw - 8, fh - 12, P.woodDeep);
+
+  px(ctx, gx, gy, gw, gh, P.nightSky);
+  ditherRect(ctx, gx, gy, gw, 12, P.nightSky, P.nightSkyMid);
+  px(ctx, gx, gy + Math.floor(gh * 0.55), gw, gh - Math.floor(gh * 0.55), P.nightSkyMid);
+  ditherRect(ctx, gx + 16, gy + 22, 48, 14, P.nightSkyMid, P.cityHi);
 
   const ox = Math.round(depthCam * 0.35);
-  // City blocks with window grids
+  // Distant city blocks behind parade
   const blocks = [
-    [212, 58, 14, 32, P.city, P.cityMid],
-    [228, 46, 18, 44, P.cityMid, P.cityHi],
-    [248, 62, 12, 28, P.city, P.cityMid],
-    [262, 50, 14, 40, P.cityMid, P.cityHi],
+    [gx + 4, gy + 24, 16, 40, P.city, P.cityMid],
+    [gx + 24, gy + 10, 22, 54, P.cityMid, P.cityHi],
+    [gx + 50, gy + 28, 14, 34, P.city, P.cityMid],
+    [gx + 68, gy + 14, 18, 48, P.cityMid, P.cityHi],
   ] as const;
   for (const [bx, by, bw, bh, c0, c1] of blocks) {
     px(ctx, bx + ox, by, bw, bh, c0);
@@ -746,27 +756,25 @@ function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
     }
   }
 
-  const lights = [
-    [216, 66], [220, 74], [232, 56], [238, 66], [242, 76],
-    [252, 72], [266, 60], [270, 72], [274, 80],
-  ] as const;
-  for (const [lx, ly] of lights) {
-    px(ctx, lx + ox, ly, 2, 2, P.windowLight);
-  }
+  // Park parade floats past glass (monument · moose · caption)
+  drawWindowParade(ctx, { x: gx, y: gy, w: gw, h: gh }, time, depthCam);
 
-  px(ctx, 242, 38, 3, 52, P.woodMid);
-  px(ctx, 243, 38, 1, 52, P.woodHi);
-  px(ctx, 208, 62, 72, 3, P.woodMid);
-  // Curtains with folds
-  px(ctx, 206, 36, 14, 58, P.curtain);
-  px(ctx, 208, 40, 3, 50, P.curtainHi);
-  px(ctx, 211, 42, 2, 46, P.curtainFold);
-  px(ctx, 214, 44, 2, 44, P.curtainDark);
-  px(ctx, 278, 36, 14, 58, P.curtain);
-  px(ctx, 280, 40, 3, 50, P.curtainHi);
-  px(ctx, 283, 42, 2, 46, P.curtainFold);
-  px(ctx, 286, 44, 2, 44, P.curtainDark);
-  px(ctx, 204, 34, 84, 3, P.woodHi);
+  // Mullion + sash
+  px(ctx, gx + Math.floor(gw / 2) - 1, gy, 3, gh, P.woodMid);
+  px(ctx, gx + Math.floor(gw / 2), gy, 1, gh, P.woodHi);
+  px(ctx, gx, gy + Math.floor(gh / 2) - 1, gw, 3, P.woodMid);
+
+  // Curtains with folds — scaled with frame
+  const cw = 16;
+  px(ctx, fx + 6, fy + 8, cw, fh - 18, P.curtain);
+  px(ctx, fx + 8, fy + 12, 3, fh - 26, P.curtainHi);
+  px(ctx, fx + 11, fy + 14, 2, fh - 30, P.curtainFold);
+  px(ctx, fx + 14, fy + 16, 2, fh - 34, P.curtainDark);
+  px(ctx, fx + fw - cw - 6, fy + 8, cw, fh - 18, P.curtain);
+  px(ctx, fx + fw - cw - 4, fy + 12, 3, fh - 26, P.curtainHi);
+  px(ctx, fx + fw - cw + 1, fy + 14, 2, fh - 30, P.curtainFold);
+  px(ctx, fx + fw - cw + 4, fy + 16, 2, fh - 34, P.curtainDark);
+  px(ctx, fx + 4, fy + 6, fw - 8, 3, P.woodHi);
 }
 
 function drawBaseboard(ctx: CanvasRenderingContext2D, width: number): void {
@@ -958,43 +966,32 @@ function drawPromptBar(ctx: CanvasRenderingContext2D, width: number, text: strin
   drawUiTextCentered(ctx, text, width / 2, PROMPT_Y - 8, P.uiText, 7, 550);
 }
 
-/** Family photo frame — young happy family, 1995. */
+/** Family photo frame — photo-quality счастливая семья. */
 function drawPhotoOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   ctx.fillStyle = 'rgba(6, 6, 12, 0.88)';
   ctx.fillRect(0, 0, width, height);
 
-  const bx = 52;
-  const by = 28;
-  const bw = 216;
-  const bh = 128;
+  const bx = 48;
+  const by = 18;
+  const bw = 224;
+  const bh = 148;
   segaBox(ctx, bx - 4, by - 4, bw + 8, bh + 8, P.frame, P.frameDark, {
     borderDark: P.woodDeep,
     inset: false,
   });
-  // Warm outdoor / park feel
-  px(ctx, bx, by, bw, bh, '#88b070');
-  ditherRect(ctx, bx, by, bw, 40, '#a0c888', '#88b070');
-  px(ctx, bx, by + 70, bw, 40, '#70a058');
+  px(ctx, bx, by, bw, bh, '#1a1410');
 
-  // Family silhouettes — parents + child, joyful
-  // Father
-  px(ctx, bx + 60, by + 48, 14, 28, '#3a4860');
-  px(ctx, bx + 63, by + 40, 8, 10, '#e8c898');
-  // Mother
-  px(ctx, bx + 90, by + 50, 14, 26, '#a04860');
-  px(ctx, bx + 93, by + 42, 8, 10, '#e8c898');
-  px(ctx, bx + 92, by + 40, 10, 4, '#603040');
-  // Child (young Zuich)
-  px(ctx, bx + 78, by + 62, 10, 16, '#406080');
-  px(ctx, bx + 80, by + 56, 6, 7, '#f0d0b0');
-  // Hearts / love sparkles
-  px(ctx, bx + 120, by + 36, 3, 3, '#e06070');
-  px(ctx, bx + 140, by + 48, 2, 2, '#e08090');
-  px(ctx, bx + 50, by + 44, 2, 2, '#e08090');
+  const photoH = bh - 28;
+  const drawn = drawFamilyPhotoFace(ctx, bx + 2, by + 2, bw - 4, photoH - 2);
+  if (!drawn) {
+    // Fallback silhouette while loading
+    px(ctx, bx + 2, by + 2, bw - 4, photoH - 2, '#88b070');
+  }
 
-  px(ctx, bx, by + bh - 22, bw, 22, '#b09870');
-  drawUiTextCentered(ctx, 'Год 1995, мы счастливы', width / 2, by + bh - 14, '#3a2a18', 8, 650);
-  drawUiTextCentered(ctx, 'E / Enter — дальше', width / 2, height - 16, P.uiText, 7, 550);
+  px(ctx, bx, by + bh - 26, bw, 26, '#b09870');
+  drawUiTextCentered(ctx, 'Счастливая семья', width / 2, by + bh - 18, '#3a2a18', 8, 650);
+  drawUiTextCentered(ctx, 'Год 1995 — мы были вместе', width / 2, by + bh - 8, '#4a3828', 6, 550);
+  drawUiTextCentered(ctx, 'E / Enter — дальше', width / 2, height - 14, P.uiText, 7, 550);
 }
 
 function drawToast(
@@ -1040,7 +1037,17 @@ function drawDiarySelect(
   px(ctx, bx + 6, by + 6, bw - 12, 2, '#7a5a38');
 
   drawUiTextCentered(ctx, 'Дневник — уровни', width / 2, by + 8, P.diaryPages, 8, 650);
-  px(ctx, bx + 14, by + 20, bw - 28, 1, '#8a6a48');
+
+  // Tiny счастливая семья portrait on diary cover
+  const thumbX = bx + bw - 40;
+  const thumbY = by + 6;
+  px(ctx, thumbX, thumbY, 26, 20, P.frameDark);
+  px(ctx, thumbX + 1, thumbY + 1, 24, 18, P.frame);
+  if (!drawFamilyPhotoFace(ctx, thumbX + 2, thumbY + 2, 22, 16)) {
+    px(ctx, thumbX + 2, thumbY + 2, 22, 16, '#88b070');
+  }
+
+  px(ctx, bx + 14, by + 28, bw - 28, 1, '#8a6a48');
 
   const levels = [
     {
@@ -1113,9 +1120,9 @@ function drawDiarySelect(
     },
   ];
 
-  const rowH = 20;
+  const rowH = 19;
   levels.forEach((lvl, i) => {
-    const ly = by + 26 + i * rowH;
+    const ly = by + 32 + i * rowH;
     const selected = !lvl.locked && i === cursor;
     if (selected) {
       segaBox(ctx, bx + 8, ly - 2, bw - 16, 18, '#3a2818', P.brass, {

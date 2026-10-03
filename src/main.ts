@@ -17,6 +17,7 @@ import { HUD } from './ui/HUD';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { BeerSystem } from './systems/BeerSystem';
 import { preloadAerialsPoster } from './art/aerialsPoster';
+import { preloadApartmentPhotos } from './art/apartmentPhotos';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
 import { createPodezd1995Scene } from './scenes/Podezd1995';
@@ -43,6 +44,7 @@ function bootstrap(): void {
   ctx.imageSmoothingEnabled = false;
   configureDisplay(canvas, ctx);
   preloadAerialsPoster();
+  preloadApartmentPhotos();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);
