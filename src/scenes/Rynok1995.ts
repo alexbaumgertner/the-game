@@ -20,6 +20,7 @@ import {
 } from '@/art/uiFont';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { drawBusBridgeParallax, preloadBusBridgeViews } from '@/art/busBridgeViews';
+import { drawRynokBenchCouple, preloadRynokBenchCouple } from '@/art/rynokBenchCouple';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -277,7 +278,9 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     drawCrates(ctx, 168, FLOOR_Y);
     drawCrates(ctx, 478, FLOOR_Y);
     drawBusStop(ctx, BUS_STOP_X, FLOOR_Y);
-    drawScheduleBoard(ctx, BUS_STOP_X + 52, FLOOR_Y);
+    // «Вокзал для двоих» — photo couple on the stop bench (always when stop drawn)
+    drawRynokBenchCouple(ctx, BUS_STOP_X, FLOOR_Y);
+    drawScheduleBoard(ctx, BUS_STOP_X + 62, FLOOR_Y);
     drawStreetLamp(ctx, 300, FLOOR_Y);
     drawGate(ctx);
     for (const d of dogs) drawDog(ctx, d, time);
@@ -346,6 +349,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       beer.pauseForFlashback();
       preloadFamilyFaces();
       preloadBusBridgeViews();
+      preloadRynokBenchCouple();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 350;
@@ -1118,20 +1122,21 @@ function drawCrates(ctx: CanvasRenderingContext2D, x: number, floorY: number): v
 }
 
 function drawBusStop(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
-  px(ctx, x, floorY - 36, 48, 3, R.kioskGreyDark);
-  px(ctx, x + 2, floorY - 38, 44, 2, R.kioskGrey);
-  px(ctx, x + 6, floorY - 40, 16, 2, R.snow);
+  // Wider shelter so the photo couple sits under the glass bay
+  px(ctx, x, floorY - 36, 56, 3, R.kioskGreyDark);
+  px(ctx, x + 2, floorY - 38, 52, 2, R.kioskGrey);
+  px(ctx, x + 6, floorY - 40, 18, 2, R.snow);
   px(ctx, x + 2, floorY - 36, 3, 36, R.kioskGreyDark);
-  px(ctx, x + 43, floorY - 36, 3, 36, R.kioskGreyDark);
-  px(ctx, x + 6, floorY - 32, 16, 20, '#284858');
-  px(ctx, x + 24, floorY - 32, 16, 20, '#304860');
-  px(ctx, x + 8, floorY - 30, 12, 4, '#486878');
-  px(ctx, x + 8, floorY - 12, 32, 3, R.kioskGrey);
-  px(ctx, x + 8, floorY - 12, 32, 1, R.kioskGreyHi);
-  px(ctx, x + 52, floorY - 44, 2, 44, R.concreteDark);
-  px(ctx, x + 48, floorY - 48, 10, 10, R.hallBanner);
-  px(ctx, x + 49, floorY - 47, 8, 2, R.hallBannerHi);
-  drawNesText(ctx, 'А', x + 51, floorY - 44, R.hallSign, 1, 0);
+  px(ctx, x + 51, floorY - 36, 3, 36, R.kioskGreyDark);
+  px(ctx, x + 6, floorY - 32, 20, 20, '#284858');
+  px(ctx, x + 28, floorY - 32, 20, 20, '#304860');
+  px(ctx, x + 8, floorY - 30, 14, 4, '#486878');
+  px(ctx, x + 8, floorY - 12, 40, 3, R.kioskGrey);
+  px(ctx, x + 8, floorY - 12, 40, 1, R.kioskGreyHi);
+  px(ctx, x + 60, floorY - 44, 2, 44, R.concreteDark);
+  px(ctx, x + 56, floorY - 48, 10, 10, R.hallBanner);
+  px(ctx, x + 57, floorY - 47, 8, 2, R.hallBannerHi);
+  drawNesText(ctx, 'А', x + 59, floorY - 44, R.hallSign, 1, 0);
 }
 
 function drawStreetLamp(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
