@@ -19,6 +19,7 @@ import {
   uiPanel,
 } from '@/art/uiFont';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
+import { drawBusBridgeParallax, preloadBusBridgeViews } from '@/art/busBridgeViews';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -344,6 +345,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     enter(): void {
       beer.pauseForFlashback();
       preloadFamilyFaces();
+      preloadBusBridgeViews();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 350;
@@ -509,7 +511,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       height: number,
     ): void {
       if (phase === 'bus_ride' || (phase === 'cleared' && busRideProgress > 0.99)) {
-        drawBusRideView(ctx, width, height, Math.min(1, busRideProgress));
+        drawBusBridgeParallax(ctx, width, height, Math.min(1, busRideProgress), time);
         if (hasSister) drawSister(ctx, width * 0.38, height - 42, time);
         const savedX = player.x;
         const savedY = player.y;
@@ -1196,49 +1198,3 @@ function drawScheduleBoard(ctx: CanvasRenderingContext2D, x: number, floorY: num
   drawNesText(ctx, '12→ВКЗ', x + 2, floorY - 22, '#603020', 1, 0);
 }
 
-/** Bus-ride cinematic: bridge + Kremlin + Sophia. */
-function drawBusRideView(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  progress: number,
-): void {
-  fillSkyGradient(
-    ctx,
-    width,
-    [
-      { y: 0, h: 50, color: '#142038' },
-      { y: 50, h: 40, color: '#243858' },
-      { y: 90, h: height - 90, color: '#3a5068' },
-    ],
-    [
-      { y: 49, a: '#142038', b: '#243858' },
-      { y: 89, a: '#243858', b: '#3a5068' },
-    ],
-  );
-  const scroll = progress * 220;
-  // Volkhov ice
-  px(ctx, 0, 120, width, height - 120, '#6a8098');
-  ditherRect(ctx, 0, 118, width, 8, '#8aa0b8', '#6a8098');
-  // Bridge deck
-  px(ctx, 0, 110, width, 12, '#4a4850');
-  px(ctx, 0, 110, width, 2, '#6a6870');
-  for (let x = -((scroll * 0.5) % 40); x < width; x += 40) {
-    px(ctx, Math.round(x), 100, 3, 12, '#3a3840');
-  }
-  // Kremlin / Sophia drifting past
-  const kx = Math.round(width * 0.55 - scroll * 0.35);
-  px(ctx, kx, 48, 50, 62, '#1a2030');
-  px(ctx, kx + 8, 30, 14, 40, '#222838');
-  px(ctx, kx + 12, 18, 6, 14, '#d8b050'); // Sophia dome gold
-  px(ctx, kx + 28, 36, 16, 36, '#1a2030');
-  px(ctx, kx + 32, 24, 8, 14, '#c0a040');
-  drawNesText(ctx, 'КРЕМЛЬ', kx - 4, 42, '#c8b878', 1, 0);
-  // Bus interior frame
-  px(ctx, 0, 0, 10, height, '#2a2420');
-  px(ctx, width - 10, 0, 10, height, '#2a2420');
-  px(ctx, 0, 0, width, 8, '#3a3428');
-  px(ctx, 0, height - 36, width, 36, '#3a3830');
-  drawUiTextCentered(ctx, 'Автобус №7 · мост А. Невского', width / 2, height - 28, '#e8d8a0', 7, 600);
-  drawUiTextCentered(ctx, 'Вид: Кремль и Софийский собор', width / 2, height - 16, '#a0b8d0', 6.5, 500);
-}

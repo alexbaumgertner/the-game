@@ -30,6 +30,7 @@ import { createDetinets1995Scene } from './scenes/Detinets1995';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
+import { preloadBusBridgeViews } from './art/busBridgeViews';
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -48,6 +49,7 @@ function bootstrap(): void {
   preloadAerialsPoster();
   preloadApartmentPhotos();
   preloadFamilyFaces();
+  preloadBusBridgeViews();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);
