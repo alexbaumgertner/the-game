@@ -15,6 +15,12 @@ import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, fillSkyGradient, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
+import {
+  drawUiText,
+  drawUiTextCentered,
+  measureUiText,
+  uiPanel,
+} from '@/art/uiFont';
 import { aabbOverlap } from '@/systems/CombatMath';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
@@ -164,6 +170,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       maxSwagger: MAX_SWAGGER,
       showSwagger: true,
       eraLabel: 'ЗУИЧ · 1995',
+      levelTitle: 'Центральный рынок',
       objective: objective ?? objectiveForPhase(),
     });
   };
@@ -591,91 +598,85 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       ctx.restore();
 
-      const title = 'ЦЕНТРАЛЬНЫЙ РЫНОК - 1995';
-      const tw = measureNesText(title, 1, 1) + 16;
-      segaBox(ctx, Math.round((width - tw) / 2), 6, tw, 16, R.uiBox, R.uiBorder, {
-        borderDark: R.uiBorderDark,
-        fillHi: R.uiBoxHi,
-      });
-      drawNesTextCentered(ctx, title, width / 2, 11, R.uiText, 1, 1);
+      // Level title in HUD top-right — avoid center-panel overlap
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
       } else {
         const hint =
           phase === 'wave2' && !hasCoat
-            ? 'J УДАР  K НОГА  L БАЗАР  ЗАБЕРИ ШУБУ'
-            : 'J УДАР  K НОГА  L БАЗАР  ПРОБЕЛ ПРЫЖОК';
-        const hw = measureNesText(hint, 1, 1) + 10;
-        segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, R.uiBox, R.uiBorderDark, {
-          inset: false,
-        });
-        drawNesText(ctx, hint, 8, height - 12, R.uiBorder, 1, 1);
+            ? 'J удар · K нога · L базар · Забери шубу'
+            : 'J удар · K нога · L базар · Пробел — прыжок';
+        const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
+        uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(120,100,60,0.45)');
+        drawUiText(ctx, hint, 8, height - 11, R.uiBorder, 6.5, 500);
       }
 
-      // Coat / panic status chips (non-hero clutter avoided — single status line)
       if (phase === 'wave2' || phase === 'cleared') {
         const status = hasCoat
-          ? 'ШУБА: ДА'
+          ? 'Шуба: да'
           : coat
-            ? 'ШУБА: НА ЗЕМЛЕ'
-            : 'ШУБА: УКРАДЕНА';
-        const sw = measureNesText(status, 1, 1) + 10;
-        segaBox(ctx, width - sw - 4, 24, sw, 12, '#181028', hasCoat ? '#40c878' : '#e07040', {
-          inset: false,
-        });
-        drawNesText(ctx, status, width - sw, 28, hasCoat ? '#a0f0c0' : '#f0c0a0', 1, 1);
+            ? 'Шуба: на земле'
+            : 'Шуба: украдена';
+        const sw = measureUiText(ctx, status, 6.5, 550) + 10;
+        uiPanel(
+          ctx,
+          width - sw - 4,
+          36,
+          sw,
+          11,
+          'rgba(16,12,28,0.85)',
+          hasCoat ? 'rgba(64,200,120,0.7)' : 'rgba(224,112,64,0.7)',
+        );
+        drawUiText(ctx, status, width - sw, 38, hasCoat ? '#a0f0c0' : '#f0c0a0', 6.5, 550);
       }
 
       if (toast) {
-        const tw2 = measureNesText(toast, 1, 1) + 14;
-        segaBox(
+        const tw2 = measureUiText(ctx, toast, 7, 600) + 14;
+        uiPanel(
           ctx,
           Math.round((width - tw2) / 2),
-          28,
+          36,
           tw2,
-          14,
-          '#201018',
-          '#f0c040',
-          { borderDark: '#a05020', inset: false },
+          13,
+          'rgba(32,16,24,0.88)',
+          'rgba(240,192,64,0.7)',
         );
-        drawNesTextCentered(ctx, toast, width / 2, 32, '#f8f0d0', 1, 1);
+        drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
       }
 
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('КОНЕЦ ИГРЫ', 2, 1) + 24;
-        segaBox(
+        const gw = measureUiText(ctx, 'Конец игры', 12, 700) + 24;
+        uiPanel(
           ctx,
           Math.round((width - gw) / 2),
-          Math.round(height / 2 - 28),
+          Math.round(height / 2 - 24),
           gw,
           40,
-          R.uiBox,
-          '#e04040',
-          { borderDark: '#802020', fillHi: '#281018' },
+          'rgba(20,10,14,0.92)',
+          'rgba(224,64,64,0.8)',
         );
-        drawNesTextCentered(ctx, 'КОНЕЦ ИГРЫ', width / 2, height / 2 - 16, '#f08080', 2, 1);
-        drawNesTextCentered(ctx, 'НАЗАД В 2026...', width / 2, height / 2 + 2, R.uiBorder, 1, 1);
+        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, R.uiBorder, 7, 500);
       }
 
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('УР. 1 ПРОЙДЕН', 2, 1) + 24;
-        segaBox(
+        const gw = measureUiText(ctx, 'Ур. 1 пройден', 12, 700) + 24;
+        uiPanel(
           ctx,
           Math.round((width - gw) / 2),
-          Math.round(height / 2 - 28),
+          Math.round(height / 2 - 24),
           gw,
           44,
-          R.uiBox,
-          '#40c878',
-          { borderDark: '#206040', fillHi: '#102818' },
+          'rgba(8,20,14,0.92)',
+          'rgba(64,200,120,0.8)',
         );
-        drawNesTextCentered(ctx, 'УР. 1 ПРОЙДЕН', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
-        drawNesTextCentered(ctx, 'ШУБА + ЛОТОК ЦЕЛЫ', width / 2, height / 2 + 4, R.uiBorder, 1, 1);
+        drawUiTextCentered(ctx, 'Ур. 1 пройден', width / 2, height / 2 - 16, '#a0f0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Шуба + лоток целы', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
       }
     },
 
@@ -904,8 +905,8 @@ function drawMarketPlinth(ctx: CanvasRenderingContext2D, worldW: number): void {
     R.brickDark,
     R.mortar,
     R.brick,
-    16,
-    8,
+    10,
+    5,
     R.brickDeep,
   );
   px(ctx, 0, FLOOR_Y - 14, worldW, 10, R.concrete);

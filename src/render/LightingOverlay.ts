@@ -70,7 +70,7 @@ function ensureBuffer(w: number, h: number): CanvasRenderingContext2D {
   return lightCtx!;
 }
 
-/** Soft radial disc via concentric filled rect rings (pixel-friendly). */
+/** Soft radial bloom — more midtone rings + circular falloff (hi-bit). */
 function drawSoftDisc(
   ctx: CanvasRenderingContext2D,
   cx: number,
@@ -79,18 +79,19 @@ function drawSoftDisc(
   color: string,
   strength = 1,
 ): void {
-  const steps = Math.max(4, Math.min(14, Math.floor(radius / 3)));
+  const steps = Math.max(10, Math.min(28, Math.floor(radius / 1.4)));
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
   for (let i = steps; i >= 1; i--) {
     const t = i / steps;
-    const r = Math.round(radius * t);
-    const a = strength * (1 - t) * (1 - t);
+    const r = radius * t;
+    const a = strength * Math.pow(1 - t, 1.85) * 0.85;
     ctx.fillStyle = withAlpha(color, a);
-    // Diamond-ish soft blob (cheaper than arc, reads retro)
-    const ix = Math.round(cx) - r;
-    const iy = Math.round(cy) - r;
-    ctx.fillRect(ix + Math.floor(r * 0.25), iy, r * 2 - Math.floor(r * 0.5), r * 2);
-    ctx.fillRect(ix, iy + Math.floor(r * 0.25), r * 2, r * 2 - Math.floor(r * 0.5));
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
   }
+  ctx.restore();
 }
 
 function withAlpha(hexOrRgba: string, alpha: number): string {
@@ -153,9 +154,11 @@ function drawHeadlightCone(
   }
 
   // Soft lamp tip (keep faintly visible, no hotspot)
-  ctx.fillStyle = withAlpha('#ffffe8', 0.22);
-  ctx.fillRect(x0 + (dir > 0 ? 0 : -3), y0 - 1, 3, 3);
-  ctx.fillStyle = withAlpha('#e8ecff', 0.12);
+  ctx.fillStyle = withAlpha('#ffffe8', 0.18);
+  ctx.beginPath();
+  ctx.arc(x0 + (dir > 0 ? 1 : -1), y0, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = withAlpha('#e8ecff', 0.1);
   ctx.fillRect(x0 + (dir > 0 ? 2 : -8), y0 - 1, 6, 2);
 }
 
@@ -180,7 +183,7 @@ export function applyLightingOverlay(
   const bufH = viewH * scale;
   const buf = ensureBuffer(bufW, bufH);
   buf.setTransform(scale, 0, 0, scale, 0, 0);
-  buf.imageSmoothingEnabled = false;
+  buf.imageSmoothingEnabled = true;
   buf.clearRect(0, 0, viewW, viewH);
 
   const ox = Math.round(camX);
@@ -222,14 +225,14 @@ export function applyLightingOverlay(
   ctx.fillStyle = frame.ambient.color;
   ctx.fillRect(0, 0, viewW, viewH);
 
-  // 2) Screen-blend additive lights — blit in buffer-pixel space so a
-  //    hi-res light buffer is not double-scaled by the logical transform.
+  // 2) Screen-blend additive lights — soft blit so blooms aren't stair-stepped
   ctx.setTransform(bufferMult, 0, 0, bufferMult, 0, 0);
   ctx.globalCompositeOperation = 'screen';
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   ctx.drawImage(lightBuf!, 0, 0);
   ctx.restore();
   ctx.globalCompositeOperation = 'source-over';
+  ctx.imageSmoothingEnabled = false;
 }
 
 /** Helpers to spawn rynok trash fires / cars. */

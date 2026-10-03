@@ -1,9 +1,9 @@
 /**
- * HUD — Genesis-style Mental Fortitude + Street Swagger panels (RU).
+ * HUD — compact vitals (top-left) + identity/level (top-right).
+ * Clear modern sans UI; no overlapping scene title panels.
  */
 
-import { segaBox } from '@/art/pixelDraw';
-import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
+import { drawUiText, drawUiTextCentered, fitUiText, measureUiText, uiPanel } from '@/art/uiFont';
 import { SEGA, APT_PAL, TEEN_PAL } from '@/art/segaPalette';
 
 export interface HudSnapshot {
@@ -11,6 +11,8 @@ export interface HudSnapshot {
   hp: number;
   maxHp: number;
   eraLabel: string;
+  /** Level / location subtitle under era (top-right). */
+  levelTitle?: string;
   objective?: string;
   paused?: boolean;
   fortitude?: number;
@@ -38,12 +40,13 @@ export class HUD {
   }
 
   update(_dt: number): void {
-    // Bar flash hooks reserved for polish
+    // reserved
   }
 
   render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     const {
       eraLabel,
+      levelTitle,
       objective,
       paused,
       fortitude,
@@ -61,81 +64,78 @@ export class HUD {
     const swMax = maxSwagger ?? 100;
 
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
 
-    const boxW = 148;
-    const boxH = showSwagger ? (objective ? 52 : 42) : objective ? 42 : 32;
-    segaBox(ctx, 2, 2, boxW, boxH, APT_PAL.uiBox, APT_PAL.uiBorder, {
-      borderDark: APT_PAL.uiBorderDark,
-      fillHi: APT_PAL.uiBoxHi,
-    });
+    // —— Top-left: vitals only (compact) ——
+    const leftW = 96;
+    const barW = 84;
+    const leftH = showSwagger ? 26 : 16;
+    uiPanel(ctx, 2, 2, leftW, leftH, 'rgba(8,10,16,0.82)', 'rgba(200,168,80,0.7)');
 
-    drawNesText(ctx, `СД ${Math.round(mf)}/${mfMax}`, 7, 7, SEGA.white, 1, 1);
-
-    const barX = 7;
-    const barY = 17;
-    const barW = 134;
-    ctx.fillStyle = '#2a2a38';
-    ctx.fillRect(barX, barY, barW, 5);
-    ctx.fillStyle = APT_PAL.uiBorderDark;
-    ctx.fillRect(barX, barY, barW, 1);
+    drawUiText(ctx, `СД ${Math.round(mf)}/${mfMax}`, 5, 3, SEGA.white, 6.5, 650);
+    const barX = 5;
+    const barY = 12;
+    ctx.fillStyle = '#222230';
+    ctx.fillRect(barX, barY, barW, 2.5);
     const filled = Math.round((mf / Math.max(1, mfMax)) * barW);
     const mfRatio = mf / Math.max(1, mfMax);
     const mfColor = mfRatio <= 0.25 ? '#e04040' : mfRatio <= 0.5 ? '#e0a040' : APT_PAL.brass;
-    const mfHi = mfRatio <= 0.25 ? '#f08080' : mfRatio <= 0.5 ? '#f0c070' : APT_PAL.brassHi;
     ctx.fillStyle = mfColor;
-    ctx.fillRect(barX, barY, filled, 5);
-    ctx.fillStyle = mfHi;
-    ctx.fillRect(barX, barY, filled, 2);
-    ctx.fillStyle = APT_PAL.uiBorderDark;
-    ctx.fillRect(barX, barY + 4, filled, 1);
+    ctx.fillRect(barX, barY, filled, 2.5);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.fillRect(barX, barY, filled, 1);
 
-    let nextY = 25;
     if (showSwagger) {
-      drawNesText(ctx, `ПОНТ ${Math.round(sw)}`, 7, nextY, TEEN_PAL.scarfHi, 1, 1);
-      nextY = 33;
-      const sBarY = nextY;
+      drawUiText(ctx, `ПОНТ ${Math.round(sw)}`, 5, 15.5, TEEN_PAL.scarfHi, 6.5, 650);
+      const sBarY = 23.5;
       ctx.fillStyle = '#1a1828';
-      ctx.fillRect(barX, sBarY, barW, 4);
+      ctx.fillRect(barX, sBarY, barW, 2);
       const sFilled = Math.round((sw / Math.max(1, swMax)) * barW);
       ctx.fillStyle = TEEN_PAL.scarf;
-      ctx.fillRect(barX, sBarY, sFilled, 4);
-      ctx.fillStyle = TEEN_PAL.scarfHi;
-      ctx.fillRect(barX, sBarY, sFilled, 1);
-      nextY = 40;
+      ctx.fillRect(barX, sBarY, sFilled, 2);
     }
 
+    // Objective strip directly under vitals (never overlaps center/right)
     if (objective) {
-      let obj = objective.toUpperCase();
-      while (measureNesText(obj, 1, 1) > boxW - 10 && obj.length > 3) {
-        obj = `${obj.slice(0, -2)}.`;
-      }
-      drawNesText(ctx, obj, 7, showSwagger ? nextY : 34, '#70d0ff', 1, 1);
+      const objY = 2 + leftH + 2;
+      const obj = fitUiText(ctx, objective, leftW - 6, 6, 550);
+      const ow = measureUiText(ctx, obj, 6, 550) + 8;
+      uiPanel(ctx, 2, objY, Math.min(leftW, ow), 10, 'rgba(8,14,22,0.78)', 'rgba(80,160,220,0.55)');
+      drawUiText(ctx, obj, 5, objY + 1.5, '#90d8ff', 6, 550);
     }
 
-    const era = eraLabel.toUpperCase().replace('·', '-');
-    const eraW = measureNesText(era, 1, 1) + 12;
-    segaBox(ctx, canvasWidth - eraW - 2, 2, eraW, 14, '#081018', '#70d0ff', {
-      borderDark: '#2870a0',
-      fillHi: '#182838',
-    });
-    drawNesText(ctx, era, canvasWidth - eraW + 4, 6, SEGA.softWhite, 1, 1);
+    // —— Top-right: identity + level ——
+    const era = eraLabel.replace('·', '·');
+    const rightLines = [era];
+    if (levelTitle) rightLines.push(levelTitle);
+    const rightPad = 5;
+    let rightInner = 0;
+    for (const line of rightLines) {
+      rightInner = Math.max(rightInner, measureUiText(ctx, line, 6.5, 650));
+    }
+    const rightW = Math.ceil(rightInner + rightPad * 2);
+    const rightH = rightLines.length * 9 + 3;
+    const rightX = canvasWidth - rightW - 2;
+    uiPanel(ctx, rightX, 2, rightW, rightH, 'rgba(6,12,20,0.82)', 'rgba(96,180,220,0.65)');
+    drawUiText(ctx, era, rightX + rightPad, 3.5, SEGA.softWhite, 6.5, 650);
+    if (levelTitle) {
+      drawUiText(ctx, levelTitle, rightX + rightPad, 12.5, '#70d0ff', 6, 550);
+    }
 
     if (paused) {
       ctx.fillStyle = 'rgba(8, 8, 14, 0.72)';
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-      const pw = measureNesText('ПАУЗА', 2, 1) + 20;
-      segaBox(
+      const label = 'ПАУЗА';
+      const pw = measureUiText(ctx, label, 14, 700) + 24;
+      uiPanel(
         ctx,
         Math.round((canvasWidth - pw) / 2),
         Math.round(canvasHeight / 2 - 16),
         pw,
         28,
-        APT_PAL.uiBox,
-        APT_PAL.uiBorder,
-        { borderDark: APT_PAL.uiBorderDark },
+        'rgba(12,14,20,0.92)',
+        'rgba(200,168,80,0.85)',
       );
-      drawNesTextCentered(ctx, 'ПАУЗА', canvasWidth / 2, canvasHeight / 2 - 4, SEGA.white, 2, 1);
+      drawUiTextCentered(ctx, label, canvasWidth / 2, canvasHeight / 2 - 6, SEGA.white, 14, 700);
     }
 
     ctx.restore();

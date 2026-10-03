@@ -3,9 +3,7 @@
  * Phase 4: father-stall mid-fight choices that drain MF or calm panic.
  */
 
-import { drawNesText, measureNesText } from '@/art/nesFont';
-import { segaBox } from '@/art/pixelDraw';
-
+import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 export type DialogueEffect =
   | 'calm_father'
   | 'calm_mother'
@@ -253,18 +251,17 @@ export class DialogueSystem {
     ctx.strokeStyle = '#604820';
     ctx.strokeRect(pad + 2.5, y + 2.5, canvasWidth - pad * 2 - 5, boxH - 5);
 
-    drawNesText(ctx, line.speaker.toUpperCase(), pad + 6, y + 8, '#e8c56a', 1, 1);
+    drawUiText(ctx, line.speaker, pad + 6, y + 6, '#e8c56a', 8, 650);
 
     const shown = line.text.slice(0, Math.floor(this.visibleChars));
-    this.drawWrapped(ctx, shown, pad + 6, y + 20, canvasWidth - pad * 2 - 12, '#e8e4d8');
+    this.drawWrapped(ctx, shown, pad + 6, y + 18, canvasWidth - pad * 2 - 12, '#e8e4d8');
 
     if (!this.revealComplete) {
-      drawNesText(ctx, 'ENTER', canvasWidth - 42, y + boxH - 10, '#887848', 1, 1);
+      drawUiText(ctx, 'Enter', canvasWidth - 36, y + boxH - 11, '#887848', 6.5, 500);
       return;
     }
 
     if (hasChoices && line.choices) {
-      // Timer bar
       if (this.choiceLimit > 0) {
         const barW = canvasWidth - pad * 2 - 12;
         const pct = Math.max(0, this.choiceTimer / this.choiceLimit);
@@ -273,19 +270,18 @@ export class DialogueSystem {
         ctx.fillStyle = pct < 0.33 ? '#e04040' : pct < 0.6 ? '#f0c040' : '#40c878';
         ctx.fillRect(pad + 6, y + 34, Math.round(barW * pct), 4);
         const sec = Math.ceil(Math.max(0, this.choiceTimer));
-        drawNesText(ctx, `${sec}С`, pad + 6 + barW - 16, y + 34, '#f0e8c8', 1, 1);
+        drawUiText(ctx, `${sec}с`, pad + 6 + barW - 14, y + 32, '#f0e8c8', 6.5, 600);
       }
 
       line.choices.forEach((c, i) => {
-        // Slightly taller rows so they match touch hit targets.
         const cy = y + 44 + i * 14;
         const key = String(i + 1);
-        segaBox(ctx, pad + 6, cy - 2, 12, 10, '#201828', '#e8c56a', { inset: false });
-        drawNesText(ctx, key, pad + 9, cy, '#f8f0d0', 1, 1);
-        drawNesText(ctx, c.label.toUpperCase(), pad + 22, cy, '#d8d0c0', 1, 1);
+        uiPanel(ctx, pad + 6, cy - 2, 12, 11, 'rgba(32,24,40,0.9)', 'rgba(232,197,106,0.8)');
+        drawUiText(ctx, key, pad + 9, cy, '#f8f0d0', 7, 700);
+        drawUiText(ctx, c.label, pad + 22, cy, '#d8d0c0', 7, 550);
       });
     } else {
-      drawNesText(ctx, 'ENTER', canvasWidth - 42, y + boxH - 10, '#887848', 1, 1);
+      drawUiText(ctx, 'Enter', canvasWidth - 36, y + boxH - 11, '#887848', 6.5, 500);
     }
   }
 
@@ -328,15 +324,15 @@ export class DialogueSystem {
     let yy = y;
     for (const w of words) {
       const trial = line ? `${line} ${w}` : w;
-      if (measureNesText(trial, 1, 1) > maxW && line) {
-        drawNesText(ctx, line, x, yy, color, 1, 1);
+      if (measureUiText(ctx, trial, 7.5, 500) > maxW && line) {
+        drawUiText(ctx, line, x, yy, color, 7.5, 500);
         line = w;
-        yy += 9;
+        yy += 10;
       } else {
         line = trial;
       }
     }
-    if (line) drawNesText(ctx, line, x, yy, color, 1, 1);
+    if (line) drawUiText(ctx, line, x, yy, color, 7.5, 500);
   }
 }
 

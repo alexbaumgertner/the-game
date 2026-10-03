@@ -12,7 +12,12 @@ import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { PODEZD_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, segaBox } from '@/art/pixelDraw';
-import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
+import {
+  drawUiText,
+  drawUiTextCentered,
+  measureUiText,
+  uiPanel,
+} from '@/art/uiFont';
 import { aabbOverlap } from '@/systems/CombatMath';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
@@ -149,6 +154,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       maxSwagger: MAX_SWAGGER,
       showSwagger: true,
       eraLabel: 'ЗУИЧ · 1995',
+      levelTitle: 'Подъезд №7',
       objective: objective ?? objectiveForPhase(),
     });
   };
@@ -598,77 +604,66 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       stack.render(ctx, camX, width, height);
       ctx.restore();
 
-      const title = 'ПОДЪЕЗД №7 - 1995';
-      const tw = measureNesText(title, 1, 1) + 16;
-      segaBox(ctx, Math.round((width - tw) / 2), 6, tw, 16, P.uiBox, P.uiBorder, {
-        borderDark: P.uiBorderDark,
-        fillHi: P.uiBoxHi,
-      });
-      drawNesTextCentered(ctx, title, width / 2, 11, P.uiText, 1, 1);
+      // Level title lives in HUD top-right — no overlapping center panel
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
       } else {
         const hint =
           phase === 'wave2' && wave2Cleared
-            ? 'К ДВЕРИ  ПРОБЕЛ ПРЫЖОК'
-            : 'J УДАР  K НОГА  L БАЗАР  ПРОБЕЛ ПРЫЖОК';
-        const hw = measureNesText(hint, 1, 1) + 10;
-        segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, P.uiBox, P.uiBorderDark, {
-          inset: false,
-        });
-        drawNesText(ctx, hint, 8, height - 12, P.uiBorder, 1, 1);
+            ? 'К двери · Пробел — прыжок'
+            : 'J удар · K нога · L базар · Пробел — прыжок';
+        const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
+        uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(120,100,60,0.45)');
+        drawUiText(ctx, hint, 8, height - 11, P.uiBorder, 6.5, 500);
       }
 
       if (toast) {
-        const tw2 = measureNesText(toast, 1, 1) + 14;
-        segaBox(
+        const tw2 = measureUiText(ctx, toast, 7, 600) + 14;
+        uiPanel(
           ctx,
           Math.round((width - tw2) / 2),
-          28,
+          36,
           tw2,
-          14,
-          '#201018',
-          '#f0c040',
-          { borderDark: '#a05020', inset: false },
+          13,
+          'rgba(32,16,24,0.88)',
+          'rgba(240,192,64,0.7)',
         );
-        drawNesTextCentered(ctx, toast, width / 2, 32, '#f8f0d0', 1, 1);
+        drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
       }
 
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('КОНЕЦ ИГРЫ', 2, 1) + 24;
-        segaBox(
+        const gw = measureUiText(ctx, 'Конец игры', 12, 700) + 24;
+        uiPanel(
           ctx,
           Math.round((width - gw) / 2),
-          Math.round(height / 2 - 28),
+          Math.round(height / 2 - 24),
           gw,
           40,
-          P.uiBox,
-          '#e04040',
-          { borderDark: '#802020', fillHi: '#281018' },
+          'rgba(20,10,14,0.92)',
+          'rgba(224,64,64,0.8)',
         );
-        drawNesTextCentered(ctx, 'КОНЕЦ ИГРЫ', width / 2, height / 2 - 16, '#f08080', 2, 1);
-        drawNesTextCentered(ctx, 'НАЗАД В 2026...', width / 2, height / 2 + 2, P.uiBorder, 1, 1);
+        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiBorder, 7, 500);
       }
 
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('УР. 2 ПРОЙДЕН', 2, 1) + 24;
-        segaBox(
+        const gw = measureUiText(ctx, 'Ур. 2 пройден', 12, 700) + 24;
+        uiPanel(
           ctx,
           Math.round((width - gw) / 2),
-          Math.round(height / 2 - 28),
+          Math.round(height / 2 - 24),
           gw,
           44,
-          P.uiBox,
-          '#40c878',
-          { borderDark: '#206040', fillHi: '#102818' },
+          'rgba(8,20,14,0.92)',
+          'rgba(64,200,120,0.8)',
         );
-        drawNesTextCentered(ctx, 'УР. 2 ПРОЙДЕН', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
-        drawNesTextCentered(ctx, 'МАМА ДОМА В БЕЗОПАСНОСТИ', width / 2, height / 2 + 4, P.uiBorder, 1, 1);
+        drawUiTextCentered(ctx, 'Ур. 2 пройден', width / 2, height / 2 - 16, '#a0f0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Мама дома в безопасности', width / 2, height / 2 + 4, P.uiBorder, 7, 500);
       }
     },
 
@@ -754,7 +749,7 @@ function drawStairwellInterior(
 ): void {
   // Inner wall mass (covers exterior behind platforms)
   px(ctx, 0, 0, worldW, height, P.wallDark);
-  fillBricks(ctx, 0, 0, worldW, height, P.brickDark, P.mortar, P.brick, 18, 10, P.brickHi);
+  fillBricks(ctx, 0, 0, worldW, height, P.brickDark, P.mortar, P.brick, 11, 6, P.brickHi);
   // Peeling plaster patches
   for (const patch of [
     [40, 40, 50, 36],
@@ -785,56 +780,61 @@ function drawEntranceDoor(ctx: CanvasRenderingContext2D): void {
   px(ctx, 48, GROUND_Y - 50, 3, 8, P.doorNum);
   // Number plate
   segaBox(ctx, 18, GROUND_Y - 92, 28, 12, P.doorDark, P.doorNum, { inset: false });
-  drawNesText(ctx, '№7', 24, GROUND_Y - 88, P.doorNum, 1, 1);
+  drawUiText(ctx, '№7', 24, GROUND_Y - 89, P.doorNum, 7, 700);
 }
 
 function drawMailboxes(ctx: CanvasRenderingContext2D): void {
   const bx = 55;
   const by = GROUND_Y - 52;
   px(ctx, bx, by, 48, 36, P.mailboxDark);
+  px(ctx, bx + 1, by + 1, 46, 1, P.mailboxHi);
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const x = bx + 3 + col * 15;
       const y = by + 3 + row * 11;
       px(ctx, x, y, 13, 9, P.mailbox);
-      px(ctx, x + 1, y + 1, 11, 2, P.mailboxHi);
+      px(ctx, x + 1, y + 1, 11, 1, P.mailboxHi);
+      px(ctx, x + 1, y + 2, 11, 1, 'rgba(255,255,255,0.06)');
       px(ctx, x + 9, y + 4, 2, 3, P.doorNum);
+      px(ctx, x + 2, y + 5, 5, 1, P.mailboxDark);
     }
   }
 }
 
 function drawStairsAndLandings(ctx: CanvasRenderingContext2D): void {
   for (const p of PLATFORMS) {
-    // Landing slab
+    // Landing slab with midtone bevel
     px(ctx, p.x, p.y - 4, p.w, 6, P.stair);
-    px(ctx, p.x, p.y - 4, p.w, 2, P.stairHi);
+    px(ctx, p.x, p.y - 4, p.w, 1, P.stairHi);
+    px(ctx, p.x, p.y - 3, p.w, 1, 'rgba(255,255,255,0.08)');
     px(ctx, p.x, p.y + 1, p.w, 3, P.stairDark);
-    // Floor fill under landing (thin)
     px(ctx, p.x, p.y, p.w, 2, P.floorHi);
+    // Fine edge wear
+    for (let sx = p.x + 4; sx < p.x + p.w - 4; sx += 8) {
+      px(ctx, sx, p.y - 2, 2, 1, P.stairDark);
+    }
   }
-  // Stair rail along climb
   px(ctx, 170, 70, 2, 130, P.railDark);
   px(ctx, 168, 68, 6, 3, P.rail);
   for (let y = 80; y < 200; y += 14) {
     px(ctx, 170, y, 18, 2, P.rail);
+    px(ctx, 171, y, 16, 1, P.railHi);
     px(ctx, 186, y, 2, 8, P.railHi);
   }
-  // Mid landing rail
   px(ctx, 240, MID_LANDING_Y - 28, 2, 28, P.rail);
   px(ctx, 240, MID_LANDING_Y - 28, 130, 2, P.railHi);
-  // Upper rail
   px(ctx, 400, UPPER_Y - 24, 2, 24, P.rail);
   px(ctx, 400, UPPER_Y - 24, 100, 2, P.railHi);
 
-  // Dim hanging bulbs
   for (const [bx, by] of [
     [70, 100],
     [280, 55],
     [440, 18],
   ] as const) {
     px(ctx, bx, by - 14, 1, 14, P.railDark);
-    px(ctx, bx - 3, by, 7, 5, P.bulbDim);
-    px(ctx, bx - 2, by + 1, 5, 3, P.bulb);
+    px(ctx, bx - 4, by - 1, 9, 7, P.bulbDim);
+    px(ctx, bx - 3, by, 7, 5, P.bulb);
+    px(ctx, bx - 2, by + 1, 5, 2, '#fff0c0');
   }
 }
 
@@ -846,7 +846,7 @@ function drawApartmentDoor(ctx: CanvasRenderingContext2D): void {
   px(ctx, x + 2, y - 40, 2, 38, P.doorHi);
   px(ctx, x + DOOR_W - 8, y - 24, 3, 6, P.doorNum);
   segaBox(ctx, x + 4, y - 48, 20, 8, P.doorDark, P.doorNum, { inset: false });
-  drawNesText(ctx, '42', x + 8, y - 46, P.doorNum, 1, 0);
+  drawUiText(ctx, '42', x + 8, y - 46, P.doorNum, 6.5, 700);
   // Peephole
   px(ctx, x + 12, y - 28, 3, 3, '#1a1810');
 }
@@ -869,7 +869,7 @@ function drawMother(
   px(ctx, ox + 1, oy - 35, 2, 2, '#181018');
   if (fear > 0.55) {
     px(ctx, ox + 5, oy - 38, 1, 2, '#80c0e0');
-    drawNesText(ctx, '!', ox + 7, oy - 42, '#e04040', 1, 1);
+    drawUiText(ctx, '!', ox + 7, oy - 42, '#e04040', 8, 700);
   }
   // Arms / legs
   px(ctx, ox - 8, oy - 26, 3, 6, '#c89870');

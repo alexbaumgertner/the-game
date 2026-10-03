@@ -4,9 +4,7 @@
  * Disabled / paused during 1995 flashback levels.
  */
 
-import { drawNesText, measureNesText } from '@/art/nesFont';
-import { segaBox } from '@/art/pixelDraw';
-import { APT_PAL } from '@/art/segaPalette';
+import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 
 /** Seconds between drinks. */
 export const BEER_THIRST_SECONDS = 120;
@@ -46,7 +44,6 @@ export class BeerSystem {
 
   resetForApartment(): void {
     this.enabled = true;
-    // Keep cans / hint state across flashbacks; top up thirst gently if mid-crisis
     if (this.thirst <= 0) this.thirst = Math.min(30, BEER_THIRST_SECONDS);
   }
 
@@ -80,7 +77,6 @@ export class BeerSystem {
       return;
     }
 
-    // Frozen — cycle existential mutterings
     this.crisisCooldown -= dt;
     if (this.crisisCooldown <= 0) {
       this.crisisLine = CRISIS_LINES[this.crisisIndex % CRISIS_LINES.length]!;
@@ -90,44 +86,38 @@ export class BeerSystem {
   }
 
   /**
-   * HUD chrome: long hint once, then beer icon + can count + thirst bar.
-   * Drawn top-right under era label.
+   * Compact beer chrome under the top-right identity panel (no overlap).
    */
   renderHud(ctx: CanvasRenderingContext2D, canvasWidth: number): void {
     if (!this.enabled) return;
 
-    const P = APT_PAL;
-    const top = 20;
+    // Sit below era+level panel
+    const top = 26;
 
     if (this.showLongHint) {
-      const label = BEER_HINT_LONG;
-      // Wrap into two short lines for the narrow HUD
-      const line1 = 'B - ПРИМЕНИТЬ БУХЛО';
-      const line2 = 'ПИВО РАЗ В ~2 МИН';
-      const tw = Math.max(measureNesText(line1, 1, 1), measureNesText(line2, 1, 1)) + 14;
+      const line1 = 'B — применить бухло';
+      const line2 = 'Пиво раз в ~2 мин';
+      const tw = Math.max(measureUiText(ctx, line1, 6.5, 550), measureUiText(ctx, line2, 6.5, 500)) + 10;
       const bx = canvasWidth - tw - 2;
-      segaBox(ctx, bx, top, tw, 28, P.uiBox, '#c8a048', { borderDark: P.uiBorderDark });
-      drawNesText(ctx, line1, bx + 5, top + 5, '#f0d878', 1, 1);
-      drawNesText(ctx, line2, bx + 5, top + 15, '#c0b090', 1, 1);
-      void label;
+      uiPanel(ctx, bx, top, tw, 22, 'rgba(12,10,8,0.82)', 'rgba(200,160,72,0.7)');
+      drawUiText(ctx, line1, bx + 5, top + 3, '#f0d878', 6.5, 550);
+      drawUiText(ctx, line2, bx + 5, top + 12, '#c0b090', 6.5, 500);
+      void BEER_HINT_LONG;
       return;
     }
 
-    // Compact icon + count + thirst pip
-    const bw = 52;
+    const bw = 48;
     const bx = canvasWidth - bw - 2;
-    segaBox(ctx, bx, top, bw, 18, P.uiBox, '#c8a048', { borderDark: P.uiBorderDark });
-    // Can icon
+    uiPanel(ctx, bx, top, bw, 16, 'rgba(12,10,8,0.82)', 'rgba(200,160,72,0.7)');
     ctx.fillStyle = '#d8a040';
-    ctx.fillRect(bx + 5, top + 4, 6, 10);
+    ctx.fillRect(bx + 5, top + 3, 5, 8);
     ctx.fillStyle = '#f0c868';
-    ctx.fillRect(bx + 6, top + 5, 4, 2);
+    ctx.fillRect(bx + 6, top + 4, 3, 2);
     ctx.fillStyle = '#808890';
-    ctx.fillRect(bx + 6, top + 3, 4, 2);
-    drawNesText(ctx, `x${this.cans}`, bx + 14, top + 6, '#f0e8c8', 1, 1);
-    // Thirst bar
+    ctx.fillRect(bx + 6, top + 2, 3, 2);
+    drawUiText(ctx, `×${this.cans}`, bx + 13, top + 3, '#f0e8c8', 7, 650);
     const barX = bx + 5;
-    const barY = top + 14;
+    const barY = top + 12;
     const barW = bw - 10;
     ctx.fillStyle = '#2a2030';
     ctx.fillRect(barX, barY, barW, 2);
@@ -138,10 +128,10 @@ export class BeerSystem {
 
   renderCrisis(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
     if (!this.isFrozen || !this.crisisLine) return;
-    const tw = measureNesText(this.crisisLine, 1, 1) + 20;
+    const tw = measureUiText(ctx, this.crisisLine, 8, 600) + 18;
     const bx = Math.round((canvasWidth - tw) / 2);
     const by = Math.round(canvasHeight / 2 - 20);
-    segaBox(ctx, bx, by, tw, 22, '#1a1018', '#e04040', { borderDark: '#802028' });
-    drawNesText(ctx, this.crisisLine, bx + 10, by + 8, '#f0c0c0', 1, 1);
+    uiPanel(ctx, bx, by, tw, 18, 'rgba(20,8,12,0.88)', 'rgba(224,64,64,0.75)');
+    drawUiText(ctx, this.crisisLine, bx + 9, by + 5, '#f0c0c0', 8, 600);
   }
 }

@@ -81,7 +81,7 @@ export function blitGrid(
   }
 }
 
-/** Checker / wallpaper / motif fill over a rect. */
+/** Checker / wallpaper / motif fill over a rect — finer hi-bit midtones. */
 export function fillPattern(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -102,24 +102,33 @@ export function fillPattern(
 
   ctx.fillStyle = accent;
   if (mode === 'checks') {
-    for (let py = iy; py < iy + ih; py += period) {
-      for (let px_ = ix; px_ < ix + iw; px_ += period) {
-        if (((px_ - ix) / period + (py - iy) / period) % 2 < 1) {
-          ctx.fillRect(px_, py, Math.min(period, ix + iw - px_), Math.min(period, iy + ih - py));
+    const p = Math.max(3, Math.floor(period / 2) * 2 || period);
+    for (let py = iy; py < iy + ih; py += p) {
+      for (let px_ = ix; px_ < ix + iw; px_ += p) {
+        if (((px_ - ix) / p + (py - iy) / p) % 2 < 1) {
+          ctx.fillRect(px_, py, Math.min(p, ix + iw - px_), Math.min(p, iy + ih - py));
         }
       }
     }
   } else if (mode === 'stripes') {
     for (let py = iy; py < iy + ih; py += period * 2) {
-      ctx.fillRect(ix, py, iw, period);
+      ctx.fillRect(ix, py, iw, Math.max(1, Math.floor(period / 2)));
     }
   } else if (mode === 'diamonds') {
-    for (let py = iy + 3; py < iy + ih; py += period) {
-      for (let px_ = ix + 3; px_ < ix + iw; px_ += period) {
-        ctx.fillRect(px_, py, 1, 1);
-        ctx.fillRect(px_ + 1, py + 1, 1, 1);
-        ctx.fillRect(px_, py + 2, 1, 1);
-        ctx.fillRect(px_ - 1, py + 1, 1, 1);
+    // Denser wallpaper motif with soft midtone flecks
+    const step = Math.max(6, Math.floor(period * 0.75));
+    for (let py = iy + 2; py < iy + ih; py += step) {
+      for (let px_ = ix + 2; px_ < ix + iw; px_ += step) {
+        ctx.fillStyle = accent;
+        ctx.fillRect(px_, py + 1, 1, 1);
+        ctx.fillRect(px_ + 1, py, 1, 1);
+        ctx.fillRect(px_ + 1, py + 2, 1, 1);
+        ctx.fillRect(px_ + 2, py + 1, 1, 1);
+        // Midtone secondary fleck
+        if (((px_ + py) / step) % 2 < 1) {
+          ctx.fillStyle = 'rgba(255,255,255,0.06)';
+          ctx.fillRect(px_ + 3, py + 3, 1, 1);
+        }
       }
     }
   } else if (mode === 'cross') {
@@ -133,6 +142,7 @@ export function fillPattern(
     for (let py = iy + 2; py < iy + ih; py += period) {
       for (let px_ = ix + 2; px_ < ix + iw; px_ += period) {
         ctx.fillRect(px_, py, 1, 1);
+        if (((px_ + py) & 3) === 0) ctx.fillRect(px_ + 2, py + 1, 1, 1);
       }
     }
   }
@@ -182,7 +192,10 @@ export function fillSkyGradient(
   }
 }
 
-/** Brick row pattern with highlight + shadow bevels. */
+/**
+ * Brick row pattern with midtones + soft bevels (hi-bit, less chunky).
+ * Smaller default bricks, mortar hairlines, speckled variation.
+ */
 export function fillBricks(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -192,8 +205,8 @@ export function fillBricks(
   brick: string,
   mortar: string,
   light: string,
-  bw = 12,
-  bh = 6,
+  bw = 10,
+  bh = 5,
   shadow?: string,
 ): void {
   const ix = Math.round(x);
@@ -213,8 +226,26 @@ export function fillBricks(
       const clipW = Math.min(bx + bw - 1, ix + iw) - clipX;
       const clipH = Math.min(by + bh - 1, iy + ih) - clipY;
       if (clipW <= 0 || clipH <= 0) continue;
+
+      // Base brick + subtle midtone banding
       ctx.fillStyle = brick;
       ctx.fillRect(clipX, clipY, clipW, clipH);
+      if (clipH > 2) {
+        ctx.fillStyle = 'rgba(255,255,255,0.04)';
+        ctx.fillRect(clipX, clipY + 1, clipW, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(clipX, clipY + Math.floor(clipH / 2), clipW, 1);
+      }
+      // Speckle variation (stable pseudo-hash)
+      const hash = ((bx * 17) ^ (by * 31)) & 7;
+      if (hash === 0 && clipW > 3 && clipH > 2) {
+        ctx.fillStyle = 'rgba(0,0,0,0.12)';
+        ctx.fillRect(clipX + 2, clipY + 2, 1, 1);
+      } else if (hash === 3 && clipW > 4) {
+        ctx.fillStyle = 'rgba(255,255,255,0.07)';
+        ctx.fillRect(clipX + clipW - 3, clipY + 1, 1, 1);
+      }
+
       if (clipH > 1 && clipY === by) {
         ctx.fillStyle = light;
         ctx.fillRect(clipX, clipY, clipW, 1);
