@@ -1,6 +1,6 @@
 /**
  * Photo-quality bus-window views across мост Александра Невского.
- * Reference street-view plates + railing cutouts with banded parallax depth.
+ * Reference street-view plates + railing cutouts with parallax depth.
  * Sources: public/art/bus-bridge-*.jpg|.png
  */
 
@@ -78,7 +78,6 @@ function withSmooth(ctx: CanvasRenderingContext2D, draw: () => void): void {
   ctx.imageSmoothingQuality = prevQuality;
 }
 
-/** Soft ease for plate crossfades. */
 function smoothstep(t: number): number {
   const x = Math.max(0, Math.min(1, t));
   return x * x * (3 - 2 * x);
@@ -95,26 +94,25 @@ type PlateBlend = { id: BusBridgePlateId; alpha: number };
  */
 function plateBlend(progress: number): PlateBlend[] {
   const p = Math.max(0, Math.min(1, progress));
+  // Short crossfades — one dominant plate avoids ghosted banks / pedestrians.
+  // 0.00–0.30 kremlin → 0.28–0.52 kremlinShip → 0.50–0.76 shipTower → 0.74–1.00 diez
+  const segments: { id: BusBridgePlateId; a0: number; a1: number }[] = [
+    { id: 'kremlin', a0: -0.05, a1: 0.3 },
+    { id: 'kremlinShip', a0: 0.28, a1: 0.52 },
+    { id: 'shipTower', a0: 0.5, a1: 0.76 },
+    { id: 'diez', a0: 0.74, a1: 1.05 },
+  ];
+  const fade = 0.06;
   const out: PlateBlend[] = [];
-
-  const kremlinA = 1 - smoothstep((p - 0.18) / 0.22);
-  if (kremlinA > 0.02) out.push({ id: 'kremlin', alpha: kremlinA });
-
-  let shipA = 0;
-  if (p < 0.22) shipA = smoothstep(p / 0.22) * 0.55;
-  else if (p < 0.55) shipA = 0.55 + smoothstep((p - 0.22) / 0.33) * 0.45;
-  else shipA = 1 - smoothstep((p - 0.55) / 0.2);
-  if (shipA > 0.02) out.push({ id: 'kremlinShip', alpha: shipA });
-
-  let towerA = 0;
-  if (p > 0.4 && p < 0.55) towerA = smoothstep((p - 0.4) / 0.15);
-  else if (p >= 0.55 && p < 0.78) towerA = 1;
-  else if (p >= 0.78) towerA = 1 - smoothstep((p - 0.78) / 0.18);
-  if (towerA > 0.02) out.push({ id: 'shipTower', alpha: towerA });
-
-  const diezA = p > 0.68 ? smoothstep((p - 0.68) / 0.22) : 0;
-  if (diezA > 0.02) out.push({ id: 'diez', alpha: diezA });
-
+  for (const seg of segments) {
+    let a = 0;
+    if (p >= seg.a0 && p <= seg.a1) {
+      const inF = smoothstep((p - seg.a0) / fade);
+      const outF = 1 - smoothstep((p - (seg.a1 - fade)) / fade);
+      a = Math.min(inF, outF);
+    }
+    if (a > 0.02) out.push({ id: seg.id, alpha: a });
+  }
   if (out.length === 0) out.push({ id: 'kremlin', alpha: 1 });
   return out;
 }
@@ -139,46 +137,39 @@ function drawLayerTiled(
 }
 
 /**
- * Draw a horizontal band of a photo with independent pan (parallax).
- * Band is defined in destination Y; source Y maps proportionally.
+ * Cover-fit a plate into the glass with horizontal pan + slight vertical bias.
+ * Draws slightly wider than glass so pan doesn't reveal edges.
  */
-function drawPlateBand(
+function drawPlateCover(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   dx: number,
   dy: number,
   dw: number,
   dh: number,
-  /** Source vertical start/end as 0–1 of image height. */
-  srcY0: number,
-  srcY1: number,
-  /** Horizontal pan in source pixels (positive → image moves left). */
-  srcPanX: number,
+  /** 0..1 pan across spare horizontal source (0.5 = centered). */
+  pan01: number,
+  /** Vertical bias: negative = more sky, positive = more railing. */
+  biasY = 0.04,
 ): void {
   const iw = img.naturalWidth || img.width;
   const ih = img.naturalHeight || img.height;
-  if (iw < 1 || ih < 1 || dh < 1) return;
+  if (iw < 1 || ih < 1) return;
 
-  const sy0 = Math.max(0, Math.min(ih - 1, srcY0 * ih));
-  const sy1 = Math.max(sy0 + 1, Math.min(ih, srcY1 * ih));
-  const sh = sy1 - sy0;
-  const scale = dw / iw;
-  let sx = ((srcPanX % iw) + iw) % iw;
-
-  const drawSeg = (sxi: number, dxi: number, segW: number): void => {
-    if (segW < 0.5) return;
-    ctx.drawImage(img, sxi, sy0, segW, sh, dxi, dy, segW * scale, dh);
-  };
-
-  const first = Math.min(iw, iw - sx);
-  drawSeg(sx, dx, first);
-  if (first * scale < dw - 0.5) {
-    drawSeg(0, dx + first * scale, iw);
-  }
+  // Overscan so slow/fast parallax layers can shift without empty edges
+  const overscan = 1.18;
+  const scale = Math.max((dw * overscan) / iw, dh / ih);
+  const sw = dw / scale;
+  const sh = dh / scale;
+  const maxSx = Math.max(0, iw - sw);
+  const sx = maxSx * Math.max(0, Math.min(1, pan01));
+  let sy = (ih - sh) / 2 + biasY * ih;
+  sy = Math.max(0, Math.min(ih - sh, sy));
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
 }
 
 /**
- * Bus-window cinematic: photo plates + banded parallax depth.
+ * Bus-window cinematic: photo plates + parallax depth.
  * `progress` 0→1 over the bridge crossing.
  */
 export function drawBusBridgeParallax(
@@ -191,7 +182,8 @@ export function drawBusBridgeParallax(
   preloadBusBridgeViews();
 
   const p = Math.max(0, Math.min(1, progress));
-  const cam = p * 360 + Math.sin(time * 0.65) * 4;
+  const cam = p * 1.0;
+  const bob = Math.sin(time * 0.7) * 0.008;
   const glassX = 12;
   const glassY = 10;
   const glassW = width - 24;
@@ -208,66 +200,63 @@ export function drawBusBridgeParallax(
   ctx.clip();
 
   withSmooth(ctx, () => {
-    const skyH = Math.floor(glassH * 0.44);
-    const farY = glassY + Math.floor(glassH * 0.3);
-    const farH = Math.floor(glassH * 0.32);
-    const rivY = glassY + Math.floor(glassH * 0.52);
-    const rivH = Math.floor(glassH * 0.3);
+    // Normalize blend weights so the strongest plate is opaque (no wash-through).
+    const readyBlends = blends.filter((b) => {
+      const s = slots[b.id];
+      return !!s && s.ready && !!s.img && b.alpha > 0.02;
+    });
+    const maxA = readyBlends.reduce((m, b) => Math.max(m, b.alpha), 0) || 1;
 
-    // 1) Dedicated sky plate — slowest
+    // 1) Sky — slowest drift (only as underlay behind plates)
     const sky = slots.sky;
     if (sky.ready && sky.img) {
-      drawLayerTiled(ctx, sky.img, glassY - 4, skyH, width, cam * 0.05 + time * 2.2);
+      const skyPan = (cam * 0.08 + time * 0.006 + bob * 0.35) % 1;
+      drawPlateCover(
+        ctx,
+        sky.img,
+        glassX - 4,
+        glassY - 2,
+        glassW + 8,
+        glassH,
+        skyPan,
+        -0.05,
+      );
     }
 
-    // 2–4) Banded parallax from each active photo plate
-    for (const b of blends) {
-      const slot = slots[b.id];
-      if (!slot.ready || !slot.img) continue;
-      const img = slot.img;
-      const iw = img.naturalWidth || img.width;
-      const panUnit = iw / Math.max(1, glassW);
-      ctx.globalAlpha = Math.min(1, b.alpha);
-
-      // Sky band from plate (very slow)
-      drawPlateBand(ctx, img, glassX - 10, glassY, glassW + 20, skyH, 0, 0.42, cam * 0.08 * panUnit);
-
-      // Landmarks (Kremlin / Sophia / tower / Diez) — slow
-      drawPlateBand(ctx, img, glassX - 10, farY, glassW + 20, farH, 0.28, 0.58, cam * 0.2 * panUnit);
-
-      // River / banks — medium
-      drawPlateBand(ctx, img, glassX - 10, rivY, glassW + 20, rivH, 0.5, 0.78, cam * 0.48 * panUnit);
-
-      // Lower plate (railing base in photo) — faster, under cutout
-      const nearY = glassY + Math.floor(glassH * 0.68);
-      const nearH = glassY + glassH - nearY;
-      drawPlateBand(ctx, img, glassX - 10, nearY, glassW + 20, nearH, 0.68, 1, cam * 0.85 * panUnit);
-
+    // 2) Photo plates — opaque base + short crossfade only
+    const ordered = [...readyBlends].sort((a, b) => b.alpha - a.alpha);
+    for (let i = 0; i < ordered.length; i++) {
+      const b = ordered[i]!;
+      const slot = slots[b.id]!;
+      const img = slot.img!;
+      const a = i === 0 ? 1 : Math.min(1, b.alpha / maxA);
+      ctx.globalAlpha = a;
+      const midPan = (cam * 0.4 + bob) % 1;
+      drawPlateCover(ctx, img, glassX - 2, glassY, glassW + 4, glassH, midPan, 0.06);
       ctx.globalAlpha = 1;
     }
 
     // Soft vignette
     const g = ctx.createLinearGradient(glassX, glassY, glassX, glassY + glassH);
-    g.addColorStop(0, 'rgba(20, 28, 40, 0.14)');
-    g.addColorStop(0.5, 'rgba(20, 28, 40, 0)');
-    g.addColorStop(1, 'rgba(12, 16, 22, 0.18)');
+    g.addColorStop(0, 'rgba(20, 28, 40, 0.08)');
+    g.addColorStop(0.55, 'rgba(20, 28, 40, 0)');
+    g.addColorStop(1, 'rgba(12, 16, 22, 0.12)');
     ctx.fillStyle = g;
     ctx.fillRect(glassX, glassY, glassW, glassH);
 
-    // 5) Railing cutout — fastest near field
-    const railH = Math.floor(glassH * 0.42);
-    const railY = glassY + glassH - railH + 2;
-    const railScroll = cam * 1.25 + time * 7;
+    // 3) Railing cutout — fastest near field (parallax depth cue)
+    const railH = Math.floor(glassH * 0.28);
+    const railY = glassY + glassH - railH + 1;
+    const railScroll = cam * 560 + time * 16;
     const railPrimary = slots[p < 0.5 ? 'railingKremlin' : 'railingShipTower'];
     const railSecondary = slots[p < 0.5 ? 'railingShipTower' : 'railingKremlin'];
     if (railPrimary.ready && railPrimary.img) {
-      ctx.globalAlpha = p < 0.55 ? 1 : 1 - smoothstep((p - 0.5) / 0.12) * 0.4;
-      drawLayerTiled(ctx, railPrimary.img, railY, railH, width, railScroll);
       ctx.globalAlpha = 1;
+      drawLayerTiled(ctx, railPrimary.img, railY, railH, width, railScroll);
     }
-    if (p > 0.46 && railSecondary.ready && railSecondary.img) {
-      ctx.globalAlpha = smoothstep((p - 0.46) / 0.16);
-      drawLayerTiled(ctx, railSecondary.img, railY, railH, width, railScroll + 52);
+    if (p > 0.48 && railSecondary.ready && railSecondary.img) {
+      ctx.globalAlpha = smoothstep((p - 0.48) / 0.14);
+      drawLayerTiled(ctx, railSecondary.img, railY, railH, width, railScroll + 80);
       ctx.globalAlpha = 1;
     }
   });

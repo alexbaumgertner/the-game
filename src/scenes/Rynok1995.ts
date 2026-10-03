@@ -474,7 +474,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
                   phase = 'bus_ride';
                   busRideProgress = 0;
                   toast = 'СЕМЁРКА · ПОЕХАЛИ';
-                  toastTimer = 1.2;
+                  toastTimer = 0.9;
                 }
               });
             }
@@ -512,11 +512,12 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     ): void {
       if (phase === 'bus_ride' || (phase === 'cleared' && busRideProgress > 0.99)) {
         drawBusBridgeParallax(ctx, width, height, Math.min(1, busRideProgress), time);
-        if (hasSister) drawSister(ctx, width * 0.38, height - 42, time);
+        // Seat figures on the sill (below window glass / railing)
+        if (hasSister) drawSister(ctx, width * 0.38, height - 22, time);
         const savedX = player.x;
         const savedY = player.y;
         player.x = width * 0.52;
-        player.y = height - 40;
+        player.y = height - 20;
         player.render(ctx, alpha);
         player.x = savedX;
         player.y = savedY;
@@ -552,7 +553,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         uiPanel(ctx, width - mw - 4, 36, mw, 12, 'rgba(16,20,12,0.85)', 'rgba(200,168,80,0.7)');
         drawUiText(ctx, m, width - mw, 38, '#f0e0a0', 7, 650);
       }
-      if (hasKeys) {
+      if (hasKeys && phase !== 'bus_ride') {
         drawUiText(ctx, 'Ключи', width - 40, 50, '#a0f0c0', 6.5, 550);
       }
       if (hasBackpack && phase !== 'bus_ride') {
@@ -626,9 +627,27 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       },
       forceRide: () => {
         hasSister = true;
+        hasBackpack = true;
+        hasKeys = true;
+        knowBus = true;
         phase = 'bus_ride';
-        busRideProgress = 0.2;
+        busRideProgress = 0;
+        toast = '';
+        toastTimer = 0;
       },
+      /** Pin ride progress 0..1 for debug / art capture. */
+      setRideProgress: (p: number) => {
+        hasSister = true;
+        hasBackpack = true;
+        hasKeys = true;
+        knowBus = true;
+        phase = 'bus_ride';
+        busRideProgress = Math.max(0, Math.min(0.99, p));
+        winTimer = 2.2;
+        toast = '';
+        toastTimer = 0;
+      },
+      getRideProgress: () => busRideProgress,
     },
   };
 }
