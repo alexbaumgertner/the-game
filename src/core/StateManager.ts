@@ -11,7 +11,13 @@ import type { Input } from './Input';
 export type GameEra = 'ERA_2026' | 'ERA_1995';
 
 /** Named gameplay / UI scenes. */
-export type SceneId = 'apartment_2026' | 'rynok_1995' | 'podezd_1995';
+export type SceneId =
+  | 'apartment_2026'
+  | 'rynok_1995'
+  | 'podezd_1995'
+  | 'vokzal_1995'
+  | 'garazhi_1995'
+  | 'dvor_1995';
 
 export interface SceneContext {
   era: GameEra;
@@ -53,8 +59,17 @@ export interface ProgressFlags {
   /** Set when Level 1 rynok is cleared — unlocks diary Level 2. */
   level1Cleared: boolean;
   level2Selected: boolean;
-  /** Set when Level 2 подъезд is cleared. */
+  /** Set when Level 2 подъезд is cleared — unlocks diary Level 3. */
   level2Cleared: boolean;
+  level3Selected: boolean;
+  /** Set when Level 3 вокзал is cleared — unlocks diary Level 4. */
+  level3Cleared: boolean;
+  level4Selected: boolean;
+  /** Set when Level 4 гаражи is cleared — unlocks diary Level 5. */
+  level4Cleared: boolean;
+  level5Selected: boolean;
+  /** Set when Level 5 двор/крыша (блок финал) is cleared. */
+  level5Cleared: boolean;
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
@@ -65,6 +80,12 @@ const DEFAULT_FLAGS: ProgressFlags = {
   level1Cleared: false,
   level2Selected: false,
   level2Cleared: false,
+  level3Selected: false,
+  level3Cleared: false,
+  level4Selected: false,
+  level4Cleared: false,
+  level5Selected: false,
+  level5Cleared: false,
 };
 
 export class StateManager {

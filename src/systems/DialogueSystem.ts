@@ -7,6 +7,8 @@ import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 export type DialogueEffect =
   | 'calm_father'
   | 'calm_mother'
+  | 'calm_relative'
+  | 'calm_goods'
   | 'wrong_reassure'
   | 'none';
 
@@ -422,6 +424,140 @@ export const PODEZD_LANDING_SCRIPT: DialogueScript = {
     panic_worse: {
       speaker: 'Гопник',
       text: 'Пустые карманы? Тогда кулаки. Наверх - ПОШЁЛ!',
+      next: null,
+    },
+  },
+};
+
+/** Level 3 вокзал — mid-platform bag / money shakedown. */
+export const VOKZAL_PLATFORM_SCRIPT: DialogueScript = {
+  id: 'vokzal_platform_midfight',
+  start: 'thug_intro',
+  lines: {
+    thug_intro: {
+      speaker: 'Гопник',
+      text: 'Сумка. Деньги. Или тётка остаётся на перроне.',
+      next: 'relative_line',
+    },
+    relative_line: {
+      speaker: 'Тётя',
+      text: 'Саша… посылка от отца внутри. Не отдавай просто так.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Что ответить?',
+      choiceTimeLimit: 7,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Отвали. Посылка наша.',
+          effect: 'calm_relative',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, договоримся…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Тётя',
+      text: 'Хорошо. Держись рядом — заберём свёрток.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Гопник',
+      text: 'Слабак. Тогда кулаки — и посылка наша!',
+      next: null,
+    },
+  },
+};
+
+/** Level 4 гаражи — father’s goods / крыша branch. */
+export const GARAZHI_ROOF_SCRIPT: DialogueScript = {
+  id: 'garazhi_roof_midfight',
+  start: 'thug_intro',
+  lines: {
+    thug_intro: {
+      speaker: 'Гопник',
+      text: 'Гаражи — наша крыша. Ящик отца — наш процент.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Крыша или кулаки?',
+      choiceTimeLimit: 7,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Ящик наш. Уходите.',
+          effect: 'calm_goods',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, процент…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Зуич',
+      text: 'Тогда зачищаем ряд — и ящик домой.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Гопник',
+      text: 'Процент? Нет. Ломаем кости — потом ящик.',
+      next: null,
+    },
+  },
+};
+
+/** Level 5 двор — short beat before boss-lite wave. */
+export const DVOR_ROOF_SCRIPT: DialogueScript = {
+  id: 'dvor_roof_midfight',
+  start: 'intro',
+  lines: {
+    intro: {
+      speaker: 'Старший',
+      text: 'Двор. Крыша. Ты далеко зашёл, пацан.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Финал блока — что скажешь?',
+      choiceTimeLimit: 6,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Я не сдамся.',
+          effect: 'calm_relative',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, разойдёмся…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Старший',
+      text: 'Тогда на крышу. Покажи зубы.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Старший',
+      text: 'Слабо. Ребята — разнесите его.',
       next: null,
     },
   },

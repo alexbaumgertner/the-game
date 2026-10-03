@@ -19,6 +19,10 @@ import { BeerSystem } from './systems/BeerSystem';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
 import { createPodezd1995Scene } from './scenes/Podezd1995';
+import { createVokzal1995Scene } from './scenes/Vokzal1995';
+import { createGarazhi1995Scene } from './scenes/Garazhi1995';
+import { createDvor1995Scene } from './scenes/Dvor1995';
+import type { DialogueSystem } from './systems/DialogueSystem';
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -55,10 +59,16 @@ function bootstrap(): void {
   const apartment = createApartment2026Scene({ states, player, hud, beer });
   const rynok = createRynok1995Scene({ states, player, hud, beer });
   const podezd = createPodezd1995Scene({ states, player, hud, beer });
+  const vokzal = createVokzal1995Scene({ states, player, hud, beer });
+  const garazhi = createGarazhi1995Scene({ states, player, hud, beer });
+  const dvor = createDvor1995Scene({ states, player, hud, beer });
 
   states.register('apartment_2026', apartment);
   states.register('rynok_1995', rynok);
   states.register('podezd_1995', podezd);
+  states.register('vokzal_1995', vokzal);
+  states.register('garazhi_1995', garazhi);
+  states.register('dvor_1995', dvor);
   states.boot('apartment_2026', { era: 'ERA_2026' });
 
   const loop = new GameLoop({
@@ -98,21 +108,24 @@ function bootstrap(): void {
     }
   });
 
+  const sceneDialogue = (): DialogueSystem | null => {
+    const scene = states.current.scene;
+    if (scene === 'rynok_1995') return rynok.getDialogue();
+    if (scene === 'podezd_1995') return podezd.getDialogue();
+    if (scene === 'vokzal_1995') return vokzal.getDialogue();
+    if (scene === 'garazhi_1995') return garazhi.getDialogue();
+    if (scene === 'dvor_1995') return dvor.getDialogue();
+    if (scene === 'apartment_2026') return apartment.getDialogue();
+    return null;
+  };
+
   injectTouchControlStyles();
   const touch = new TouchControls({
     input,
     root: document.body,
     onPause: togglePause,
     getDialogueChoices: () => {
-      const scene = states.current.scene;
-      const d =
-        scene === 'rynok_1995'
-          ? rynok.getDialogue()
-          : scene === 'podezd_1995'
-            ? podezd.getDialogue()
-            : scene === 'apartment_2026'
-              ? apartment.getDialogue()
-              : null;
+      const d = sceneDialogue();
       if (!d || !d.isOpen || !d.hasChoices) return { active: false };
       const labels = d.choiceLabels;
       return { active: true, labels: labels ?? undefined };
@@ -122,15 +135,7 @@ function bootstrap(): void {
   // Tap dialogue box / choice rows directly on the canvas (in addition to pad).
   const onCanvasPointer = (e: PointerEvent): void => {
     if (e.button !== undefined && e.button !== 0) return;
-    const scene = states.current.scene;
-    const d =
-      scene === 'rynok_1995'
-        ? rynok.getDialogue()
-        : scene === 'podezd_1995'
-          ? podezd.getDialogue()
-          : scene === 'apartment_2026'
-            ? apartment.getDialogue()
-            : null;
+    const d = sceneDialogue();
     if (!d || !d.isOpen) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
@@ -171,6 +176,9 @@ function bootstrap(): void {
     apartment,
     rynok,
     podezd,
+    vokzal,
+    garazhi,
+    dvor,
     touch,
     canvas,
     display: {
@@ -187,6 +195,27 @@ function bootstrap(): void {
     gotoPodezd: () => {
       states.setFlag('level1Cleared', true);
       states.goto('podezd_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into вокзал Level 3. */
+    gotoVokzal: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.goto('vokzal_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into гаражи Level 4. */
+    gotoGarazhi: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.setFlag('level3Cleared', true);
+      states.goto('garazhi_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into двор Level 5. */
+    gotoDvor: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.setFlag('level3Cleared', true);
+      states.setFlag('level4Cleared', true);
+      states.goto('dvor_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
     },
     captureCanvas: () => canvas.toDataURL('image/png'),
   };
