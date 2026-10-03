@@ -16,6 +16,7 @@ import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { BeerSystem } from './systems/BeerSystem';
+import { preloadAerialsPoster } from './art/aerialsPoster';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
 import { createPodezd1995Scene } from './scenes/Podezd1995';
@@ -41,6 +42,7 @@ function bootstrap(): void {
   // Crisp pixels — never let the browser smooth our buffer.
   ctx.imageSmoothingEnabled = false;
   configureDisplay(canvas, ctx);
+  preloadAerialsPoster();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);

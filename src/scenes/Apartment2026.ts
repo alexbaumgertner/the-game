@@ -10,6 +10,7 @@ import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { APT_PAL, CAT_PAL } from '@/art/segaPalette';
+import { drawAerialsPoster, preloadAerialsPoster } from '@/art/aerialsPoster';
 import {
   ditherRect,
   fillPattern,
@@ -335,6 +336,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
   return {
     enter(ctx: SceneContext): void {
+      preloadAerialsPoster();
       beer.resetForApartment();
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -563,7 +565,7 @@ function drawApartment(
 
   drawWindow(ctx, depthCam);
   drawRedDoor(ctx);
-  drawNuMetalPoster(ctx);
+  drawAerialsPoster(ctx);
   drawFloor(ctx, width, height);
   drawBed(ctx);
   drawDeskAndPc(ctx);
@@ -607,74 +609,6 @@ function drawRedDoor(ctx: CanvasRenderingContext2D): void {
   px(ctx, 16, FLOOR_Y - 48, 5, 3, P.brass);
   px(ctx, 17, FLOOR_Y - 47, 3, 1, P.brassHi);
   px(ctx, 18, FLOOR_Y - 46, 1, 1, P.brassDim);
-}
-
-function drawNuMetalPoster(ctx: CanvasRenderingContext2D): void {
-  // Stylized nu-metal / Aerials-vibe — painted desert dusk + lone figure.
-  // Original composition (no logos / no copyrighted art 1:1). Must read clearly vs wallpaper.
-  const x = 136;
-  const y = 12;
-  const w = 62;
-  const h = 58;
-
-  px(ctx, x + 3, y + 3, w, h, '#2a2018');
-  px(ctx, x, y, w, h, '#0c0c12');
-  px(ctx, x + 1, y + 1, w - 2, h - 2, '#1a1420');
-  px(ctx, x + 3, y + 3, w - 6, h - 6, '#e8d8b0');
-  px(ctx, x + 4, y + 4, w - 8, 1, '#f0e8c8');
-  px(ctx, x + 4, y + 4, w - 8, h - 8, '#2a1848');
-
-  const ix = x + 5;
-  const iy = y + 5;
-  const iw = w - 10;
-  const ih = h - 10;
-
-  // Sky bands with dither seams
-  px(ctx, ix, iy, iw, 8, '#2a1868');
-  px(ctx, ix, iy + 6, iw, 8, '#4a2888');
-  ditherRect(ctx, ix, iy + 12, iw, 6, '#7040a0', '#a05070');
-  ditherRect(ctx, ix, iy + 16, iw, 6, '#a05070', '#e07830');
-  px(ctx, ix, iy + 20, iw, 6, '#e88838');
-  px(ctx, ix, iy + 24, iw, 3, '#f0a050');
-  // Sun disk + rays
-  px(ctx, ix + iw - 16, iy + 5, 9, 9, '#f8e070');
-  px(ctx, ix + iw - 14, iy + 7, 5, 5, '#fff0a8');
-  px(ctx, ix + iw - 12, iy + 9, 2, 2, '#ffffff');
-  px(ctx, ix + 6, iy + 9, 12, 1, '#c090e0');
-  px(ctx, ix + 16, iy + 13, 10, 1, '#d0a070');
-  px(ctx, ix + 4, iy + 15, 6, 1, '#e0b890');
-
-  // Layered dunes
-  px(ctx, ix, iy + 26, iw, ih - 26, '#c88840');
-  px(ctx, ix, iy + 24, iw, 4, '#f0b858');
-  px(ctx, ix + 2, iy + 28, 18, 4, '#d89850');
-  px(ctx, ix + 20, iy + 26, 22, 3, '#e0a860');
-  px(ctx, ix + 40, iy + 29, 16, 4, '#d09048');
-  ditherRect(ctx, ix, iy + 34, iw, ih - 34, '#b87838', '#8a5828');
-  speckles(ctx, ix, iy + 28, iw, ih - 28, '#a06830', 3, 1);
-  px(ctx, ix, iy + ih - 8, iw, 8, '#8a5028');
-  px(ctx, ix + 10, iy + ih - 10, 28, 3, '#a06830');
-  px(ctx, ix + 8, iy + ih - 6, 20, 1, '#704020');
-
-  // Lone figure — shaded silhouette
-  const fx = ix + Math.floor(iw / 2) - 1;
-  const fy = iy + 18;
-  px(ctx, fx, fy, 4, 5, '#080810');
-  px(ctx, fx + 1, fy + 1, 2, 2, '#202028');
-  px(ctx, fx, fy + 5, 4, 14, '#080810');
-  px(ctx, fx + 3, fy + 6, 1, 4, '#303040');
-  px(ctx, fx - 12, fy + 7, 28, 3, '#080810');
-  px(ctx, fx - 14, fy + 6, 4, 3, '#101018');
-  px(ctx, fx + 12, fy + 6, 4, 3, '#101018');
-  px(ctx, fx - 1, fy + 18, 2, 8, '#080810');
-  px(ctx, fx + 2, fy + 18, 2, 8, '#080810');
-  px(ctx, fx + 3, fy + 6, 1, 3, '#404050');
-
-  // Tape / wear
-  px(ctx, x + 4, y + 4, 5, 3, '#d0c090');
-  px(ctx, x + w - 9, y + 4, 5, 3, '#d0c090');
-  px(ctx, x + 4, y + h - 7, 5, 3, '#c8b888');
-  px(ctx, x + w - 5, y + h - 6, 3, 3, P.wallBase);
 }
 
 function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
