@@ -83,13 +83,14 @@ await setup({
 });
 await saveCanvas('apartment-find-cigarettes.png');
 
-// Kitchen detail
+// Kitchen detail — колонка + large framed photo
 await setup({
-  x: ROOM * 2 + 160,
+  x: ROOM * 2 + 175,
   objective: 'Найди сигареты',
 });
-await sleep(400);
+await sleep(1200);
 await saveCanvas('apartment-kitchen-detail.png');
+await saveCanvas('apartment-kitchen-framed-photo.png');
 
 // Bath Irony of Fate
 await setup({
