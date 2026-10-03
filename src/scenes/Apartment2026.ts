@@ -571,8 +571,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
 
       if (states.flags.introDone) {
-        // Gray + мыслепоток under beer chrome so HUD stays readable.
-        beer.renderCrisis(ctx, width, height);
+        // Progressive desat + thoughts over Зуич; HUD stays readable on top.
+        beer.renderCrisis(ctx, width, height, player.x, player.y);
         beer.renderHud(ctx, width);
       }
     },
