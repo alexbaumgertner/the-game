@@ -1,6 +1,6 @@
 /**
- * Lightweight keyboard + virtual (touch) state for apartment + rynok combat.
- * Move · Jump · Punch · Kick · Bazar special · Interact · Confirm · Choices.
+ * Lightweight keyboard + virtual (touch) state for apartment + 1995 quiz levels.
+ * Move · Jump · Interact · Quiz answers 1–4 · Hint · Confirm · Legacy punch/kick.
  */
 
 export type InputAction =
@@ -16,6 +16,10 @@ export type InputAction =
   | 'confirm'
   | 'choice1'
   | 'choice2'
+  | 'choice3'
+  | 'choice4'
+  /** Paid quiz hint (same MF as gangster punch). */
+  | 'hint'
   /** Drink beer / «Применить бухло». */
   | 'beer';
 
@@ -32,6 +36,9 @@ const BINDINGS: Record<InputAction, readonly string[]> = {
   confirm: ['Enter'],
   choice1: ['Digit1', 'Numpad1'],
   choice2: ['Digit2', 'Numpad2'],
+  choice3: ['Digit3', 'Numpad3'],
+  choice4: ['Digit4', 'Numpad4'],
+  hint: ['KeyH', 'KeyL'],
   beer: ['KeyB'],
 };
 
@@ -151,6 +158,9 @@ export class Input {
       e.code === 'KeyF' ||
       e.code === 'Digit1' ||
       e.code === 'Digit2' ||
+      e.code === 'Digit3' ||
+      e.code === 'Digit4' ||
+      e.code === 'KeyH' ||
       e.code === 'KeyB' ||
       e.code === 'KeyP' ||
       e.code === 'Escape'

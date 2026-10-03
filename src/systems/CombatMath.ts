@@ -1,4 +1,11 @@
-/** Shared AABB helpers for arcade combat. */
+/** Shared AABB helpers for arcade combat / quiz encounters. */
+
+/**
+ * Absolute Mental Fortitude drain from one gangster punch
+ * (`Gangster.consumeAttackHit` return value). Wrong quiz answers
+ * and hints reuse this number.
+ */
+export const GANGSTER_PUNCH_MF = 14;
 
 export interface Rect {
   x: number;

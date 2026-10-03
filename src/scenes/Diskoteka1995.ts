@@ -5,9 +5,8 @@
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
-import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
+import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
-import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { DISKO_PAL } from '@/art/segaPalette';
@@ -18,7 +17,6 @@ import {
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
-import { aabbOverlap } from '@/systems/CombatMath';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -29,6 +27,8 @@ import {
   DISKO_CLUB_SCRIPT,
   type DialogueEffect,
 } from '@/systems/DialogueSystem';
+import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
+import { tickQuizEncounter } from '@/systems/quizEncounter';
 
 const P = DISKO_PAL;
 const WORLD_W = 540;
@@ -55,7 +55,6 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
 
   let camX = 0;
   let gangsters: Gangster[] = [];
-  let bubbles: BazarBubble[] = [];
   let phase: LevelPhase = 'wave1';
   let gameOverTimer = 0;
   let toast = '';
@@ -68,6 +67,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
   let winTimer = 0;
   let dialogueStarted = false;
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
 
   const bulbs: PointLight[] = [
     { kind: 'point', x: 70, y: 80, radius: 30, color: '#e84898', phase: 0.2 },
@@ -138,7 +138,6 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
 
   const clearCombatAndReturn = (): void => {
     gangsters = [];
-    bubbles = [];
     phase = 'gameover';
     gameOverTimer = 0;
     if (dialogue.isOpen) dialogue.close();
@@ -149,9 +148,9 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
   const beginDialogue = (): void => {
     if (dialogueStarted || dialogue.isOpen) return;
     dialogueStarted = true;
+    quiz.closeSilent();
     phase = 'dialogue';
     gangsters = [];
-    bubbles = [];
     player.vx = 0;
     toast = 'НЕОН И ДЫМ';
     toastTimer = 1.2;
@@ -201,7 +200,6 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
     drawDiskoWorld(ctx, WORLD_W, viewH, time);
     if (cassette && !cassette.taken) drawCassette(ctx, cassette.x, cassette.y);
     for (const g of gangsters) g.render(ctx, alpha);
-    for (const b of bubbles) b.render(ctx);
     player.render(ctx, alpha);
   };
 
@@ -257,8 +255,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-      bubbles = [];
-      phase = 'wave1';
+        phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -270,14 +267,15 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       winTimer = 0;
       dialogueStarted = false;
       dialogue.resetSilent();
+      quiz.closeSilent();
       spawnWave1();
       syncHud();
     },
 
     exit(): void {
       gangsters = [];
-      bubbles = [];
-      dialogue.resetSilent();
+        dialogue.resetSilent();
+      quiz.closeSilent();
       hud.set({ showSwagger: false });
     },
 
@@ -297,14 +295,13 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
         const input = states.input;
         if (input) {
           if (dialogue.hasChoices) {
-            if (input.justPressed('choice1') || input.justPressed('punch')) {
+            if (input.justPressed('choice1')) {
               dialogue.selectChoice(0);
-            } else if (input.justPressed('choice2') || input.justPressed('kick')) {
+            } else if (input.justPressed('choice2')) {
               dialogue.selectChoice(1);
             }
           } else if (
             input.justPressed('confirm') ||
-            input.justPressed('punch') ||
             input.justPressed('interact')
           ) {
             dialogue.advance();
@@ -338,74 +335,37 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       player.update(dt);
       const input = states.input;
 
-      if (input && !player.isKo) {
-        if (input.justPressed('jump')) player.tryJump();
-        if (input.justPressed('punch')) player.tryPunch();
-        if (input.justPressed('kick')) player.tryKick();
-        if (input.justPressed('special')) {
-          const bubble = player.tryBazar();
-          if (bubble) {
-            bubbles.push(bubble);
-            toast = bubble.phrase;
-            toastTimer = 0.9;
-            shake = Math.max(shake, 0.28);
-          } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
-            toastTimer = 0.7;
-          }
+      // School quiz replaces punch/kick/bazar
+      if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
+        const qres = tickQuizEncounter({
+          quiz,
+          input,
+          player,
+          gangsters,
+          dt,
+          autoOpen: true,
+          swaggerOnCorrect: 14,
+        });
+        if (qres.toast) {
+          toast = qres.toast;
+          toastTimer = qres.toastTimer;
         }
+      } else {
+        quiz.update(dt);
+      }
+
+      if (input && !player.isKo && !quiz.isOpen) {
+        if (input.justPressed('jump')) player.tryJump();
         player.applyWalk(input.axisX(), dt, 16, WORLD_W - 16);
       }
 
       player.applyPhysics(dt, 16, WORLD_W - 16);
-
-      const atk = player.attackHitbox();
-      if (atk) {
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(atk, g.body())) {
-            const dmg = player.animState === 'teen_kick' ? 14 : 10;
-            const swag = player.animState === 'teen_kick' ? 18 : 12;
-            g.takeHit(dmg, player.facing);
-            player.addSwagger(swag);
-            player.markAttackConnected();
-            break;
-          }
-        }
-      }
-
-      for (const b of bubbles) {
-        b.update(dt);
-        if (!b.canHit) continue;
-        const hb = b.hitbox();
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(hb, g.body())) {
-            g.takeBazarStun(b.facing);
-            player.addSwagger(6);
-            b.markHit();
-            toast = b.phrase;
-            toastTimer = 0.9;
-            break;
-          }
-        }
-      }
-      bubbles = bubbles.filter((b) => b.alive);
 
       for (const g of gangsters) {
         g.update(dt, player.x, player.y, FLOOR_Y, 40, WORLD_W - 20);
         const drop = g.consumeCoatDrop();
         if (drop && !cassette) {
           cassette = { x: drop.x, y: drop.y, taken: false };
-        }
-        if (player.invuln > 0 || player.isKo || g.isKo) continue;
-        const ah = g.attackHitbox();
-        if (ah && aabbOverlap(ah, player.body())) {
-          const dmg = g.consumeAttackHit();
-          if (dmg > 0) {
-            const scaled = clubHeat > 0.8 ? dmg + 5 : dmg;
-            player.takeDamage(scaled, g.facing);
-          }
         }
       }
 
@@ -421,19 +381,20 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
+        quiz.closeSilent();
         toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
       const alive = gangsters.filter((g) => !g.isKo).length;
 
-      if (phase === 'wave1' && !dialogueStarted) {
+      if (phase === 'wave1' && !dialogueStarted && !quiz.isOpen) {
         if (alive === 0) {
           beginDialogue();
         } else {
-          syncHud(`Волна 1 · Гопники ${alive}`);
+          syncHud(`Волна 1 · Вопросы ${alive}`);
         }
-      } else if (phase === 'wave2') {
+      } else if (phase === 'wave2' && !quiz.isOpen) {
         if (alive === 0 && hasCassette) {
           phase = 'cleared';
           winTimer = 2.4;
@@ -466,11 +427,10 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
+      } else if (quiz.isOpen) {
+        quiz.render(ctx, width, height);
       } else {
-        const hint =
-          phase === 'wave2' && !hasCassette
-            ? 'Забери кассету · J удар · K нога · L базар'
-            : 'J удар · K нога · L базар · Пробел — прыжок';
+        const hint = quiz.isOpen ? '' : quizHudHint();
         const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
         uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(16,8,24,0.78)', 'rgba(232,72,152,0.45)');
         drawUiText(ctx, hint, 8, height - 11, P.uiBorder, 6.5, 500);
@@ -522,6 +482,10 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
 
     getDialogue(): DialogueSystem {
       return dialogue;
+    },
+
+    getQuiz(): QuizSystem {
+      return quiz;
     },
 
     __debug: {

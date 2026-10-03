@@ -28,6 +28,8 @@ import { createMost1995Scene } from './scenes/Most1995';
 import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
 import { createDetinets1995Scene } from './scenes/Detinets1995';
 import type { DialogueSystem } from './systems/DialogueSystem';
+import type { QuizSystem } from './systems/QuizSystem';
+import { preloadFamilyFaces } from './art/familyFaces';
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -45,6 +47,7 @@ function bootstrap(): void {
   configureDisplay(canvas, ctx);
   preloadAerialsPoster();
   preloadApartmentPhotos();
+  preloadFamilyFaces();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);
@@ -135,6 +138,19 @@ function bootstrap(): void {
     return null;
   };
 
+  const sceneQuiz = (): QuizSystem | null => {
+    const scene = states.current.scene;
+    if (scene === 'rynok_1995') return rynok.getQuiz();
+    if (scene === 'podezd_1995') return podezd.getQuiz();
+    if (scene === 'vokzal_1995') return vokzal.getQuiz();
+    if (scene === 'garazhi_1995') return garazhi.getQuiz();
+    if (scene === 'dvor_1995') return dvor.getQuiz();
+    if (scene === 'most_1995') return most.getQuiz();
+    if (scene === 'diskoteka_1995') return diskoteka.getQuiz();
+    if (scene === 'detinets_1995') return detinets.getQuiz();
+    return null;
+  };
+
   injectTouchControlStyles();
   const touch = new TouchControls({
     input,
@@ -146,15 +162,35 @@ function bootstrap(): void {
       const labels = d.choiceLabels;
       return { active: true, labels: labels ?? undefined };
     },
+    getQuizChoices: () => {
+      const q = sceneQuiz();
+      if (!q || !q.isOpen) return { active: false };
+      return { active: true, labels: q.answerLabels ?? undefined };
+    },
   });
 
-  // Tap dialogue box / choice rows directly on the canvas (in addition to pad).
+  // Tap dialogue / quiz rows directly on the canvas (in addition to pad).
   const onCanvasPointer = (e: PointerEvent): void => {
     if (e.button !== undefined && e.button !== 0) return;
-    const d = sceneDialogue();
-    if (!d || !d.isOpen) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
+
+    const q = sceneQuiz();
+    if (q?.isOpen) {
+      const qhit = q.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      if (qhit === null) return;
+      e.preventDefault();
+      if (qhit === 'hint') {
+        input.pulseVirtual('hint');
+      } else {
+        const map = ['choice1', 'choice2', 'choice3', 'choice4'] as const;
+        input.pulseVirtual(map[qhit]!);
+      }
+      return;
+    }
+
+    const d = sceneDialogue();
+    if (!d || !d.isOpen) return;
     const hit = d.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     if (hit === null) return;
     e.preventDefault();

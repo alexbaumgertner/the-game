@@ -1,15 +1,14 @@
 /**
  * ERA_1995 — Level 1 “Novgorod Центральный рынок, Winter 1995” (Neo-Noir 16-bit).
- * Wave 1 adults (ask for directions) → mother-stall timed dialogue → Wave 2 → mother’s coat.
+ * Wave 1 adults (school quiz) → mother-stall timed dialogue → Wave 2 quizzes → mother’s coat.
  * Midground = wavy blue-glass market hall; gameplay = stalls / street / bus stop.
- * Parallax / lighting / Bazar / MF Game Over → apartment snap-back preserved.
+ * Parallax / lighting / MF Game Over → apartment snap-back preserved.
  */
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
-import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
+import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
-import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
@@ -21,7 +20,7 @@ import {
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
-import { aabbOverlap } from '@/systems/CombatMath';
+import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -32,6 +31,8 @@ import {
   MOTHER_STALL_SCRIPT,
   type DialogueEffect,
 } from '@/systems/DialogueSystem';
+import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
+import { tickQuizEncounter } from '@/systems/quizEncounter';
 
 const FLOOR_Y = 188;
 const R = RYNOK_PAL;
@@ -40,15 +41,6 @@ const WORLD_W = 560;
 const MOTHER_STALL_X = 330;
 const MOTHER_STALL_W = 68;
 const WRONG_REASSURE_MF_DRAIN = 22;
-
-/** Direction lines adults mutter when pressed (give / withhold). */
-const DIRECTION_LINES = [
-  'МЕХА — к синему навесу',
-  'Не скажу. Пшёл вон.',
-  'Лоток мехов — правее',
-  'Спроси у бабы на МЕХА',
-  'Дорогу сам ищи',
-] as const;
 
 type LevelPhase =
   | 'wave1'
@@ -94,7 +86,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   let camX = 0;
   let gangsters: Gangster[] = [];
-  let bubbles: BazarBubble[] = [];
   let phase: LevelPhase = 'wave1';
   let gameOverTimer = 0;
   let toast = '';
@@ -107,8 +98,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   let coat: CoatPickup | null = null;
   let winTimer = 0;
   let dialogueStarted = false;
-  let directionIdx = 0;
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
 
   /** Soft street-lamp pools — no trash-fire barrels. */
   const lampSpots: PointLight[] = [
@@ -174,11 +165,11 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   };
 
   const objectiveForPhase = (): string => {
-    if (phase === 'wave1') return 'Спроси дорогу к лотку';
+    if (phase === 'wave1') return 'Ответь взрослым · к лотку МЕХА';
     if (phase === 'dialogue') return 'Говори с мамой - таймер';
     if (phase === 'wave2') {
-      if (!hasCoat) return 'Забери шубу + зачисти волну';
-      return 'Шуба есть - добей взрослых';
+      if (!hasCoat) return 'Забери шубу + ответь на вопросы';
+      return 'Шуба есть - допроси остальных';
     }
     if (phase === 'cleared') return 'УР. 1 ПРОЙДЕН';
     return 'КОНЕЦ ИГРЫ';
@@ -201,12 +192,12 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   const clearCombatAndReturn = (): void => {
     gangsters = [];
-    bubbles = [];
     coat = null;
     hasCoat = false;
     phase = 'gameover';
     gameOverTimer = 0;
     if (dialogue.isOpen) dialogue.close();
+    quiz.closeSilent();
     player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
     states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
   };
@@ -221,7 +212,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     dialogueStarted = true;
     phase = 'dialogue';
     gangsters = [];
-    bubbles = [];
+    quiz.closeSilent();
     player.vx = 0;
     toast = 'МАМА ЗОВЁТ';
     toastTimer = 1.2;
@@ -256,13 +247,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     phase = 'wave2';
     spawnWave2();
     syncHud();
-  };
-
-  const mutterDirection = (): void => {
-    const line = DIRECTION_LINES[directionIdx % DIRECTION_LINES.length]!;
-    directionIdx += 1;
-    toast = line;
-    toastTimer = 1.15;
   };
 
   /** Gameplay layer paint (world space; ParallaxStack already translates). */
@@ -300,7 +284,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     for (const d of dogs) drawDog(ctx, d, time);
     if (coat && !coat.taken) drawCoatPickup(ctx, coat.x, coat.y);
     for (const g of gangsters) g.render(ctx, alpha);
-    for (const b of bubbles) b.render(ctx);
     player.render(ctx, alpha);
   };
 
@@ -362,6 +345,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadFamilyFaces();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 60;
@@ -370,7 +354,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 60;
       camX = 0;
-      bubbles = [];
       phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
@@ -382,29 +365,25 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       coat = null;
       winTimer = 0;
       dialogueStarted = false;
-      directionIdx = 0;
       dialogue.resetSilent();
+      quiz.closeSilent();
       spawnWave1();
       spawnDogs();
-      syncHud('Спроси дорогу к лотку');
+      syncHud('Ответь взрослым · к лотку МЕХА');
     },
 
     exit(): void {
       gangsters = [];
-      bubbles = [];
       dogs = [];
       coat = null;
       dialogue.resetSilent();
+      quiz.closeSilent();
       hud.set({ showSwagger: false });
     },
 
     update(dt: number): void {
       time += dt;
       if (shake > 0) shake = Math.max(0, shake - dt);
-      if (player.bazarShake > 0) {
-        shake = Math.max(shake, player.bazarShake);
-      }
-
       if (toastTimer > 0) {
         toastTimer -= dt;
         if (toastTimer <= 0) toast = '';
@@ -414,7 +393,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       for (const d of dogs) {
         d.bob += dt;
         d.x += d.facing * d.speed * dt;
-        // Occasional pause / turn
         if (Math.sin(time * 1.3 + d.phase) > 0.92) {
           d.facing = (d.facing * -1) as 1 | -1;
         }
@@ -428,21 +406,20 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         }
       }
 
-      // ── Dialogue modal: pause combat sim, feed input to DialogueSystem ──
+      // ── Dialogue modal: pause quiz sim, feed input to DialogueSystem ──
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.update(dt);
         player.update(dt);
         const input = states.input;
         if (input) {
           if (dialogue.hasChoices) {
-            if (input.justPressed('choice1') || input.justPressed('punch')) {
+            if (input.justPressed('choice1')) {
               dialogue.selectChoice(0);
-            } else if (input.justPressed('choice2') || input.justPressed('kick')) {
+            } else if (input.justPressed('choice2')) {
               dialogue.selectChoice(1);
             }
           } else if (
             input.justPressed('confirm') ||
-            input.justPressed('punch') ||
             input.justPressed('interact')
           ) {
             dialogue.advance();
@@ -482,62 +459,32 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       player.update(dt);
       const input = states.input;
 
-      if (input && !player.isKo) {
-        if (input.justPressed('jump')) player.tryJump();
-        if (input.justPressed('punch')) player.tryPunch();
-        if (input.justPressed('kick')) player.tryKick();
-        if (input.justPressed('special')) {
-          const bubble = player.tryBazar();
-          if (bubble) {
-            bubbles.push(bubble);
-            toast = bubble.phrase;
-            toastTimer = 0.9;
-            shake = Math.max(shake, 0.28);
-          } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
-            toastTimer = 0.7;
-          }
+      // School quiz with adults (replaces punch/kick)
+      if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
+        const qres = tickQuizEncounter({
+          quiz,
+          input,
+          player,
+          gangsters,
+          dt,
+          autoOpen: true,
+          swaggerOnCorrect: 14,
+        });
+        if (qres.toast) {
+          toast = qres.toast;
+          toastTimer = qres.toastTimer;
         }
+      } else {
+        quiz.update(dt);
+      }
 
+      if (input && !player.isKo && !quiz.isOpen) {
+        if (input.justPressed('jump')) player.tryJump();
         const axis = input.axisX();
         player.applyWalk(axis, dt, 20, WORLD_W - 20);
       }
 
       player.applyPhysics(dt, 20, WORLD_W - 20);
-
-      const atk = player.attackHitbox();
-      if (atk) {
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(atk, g.body())) {
-            const dmg = player.animState === 'teen_kick' ? 14 : 10;
-            const swag = player.animState === 'teen_kick' ? 18 : 12;
-            g.takeHit(dmg, player.facing);
-            player.addSwagger(swag);
-            player.markAttackConnected();
-            if (phase === 'wave1') mutterDirection();
-            break;
-          }
-        }
-      }
-
-      for (const b of bubbles) {
-        b.update(dt);
-        if (!b.canHit) continue;
-        const hb = b.hitbox();
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(hb, g.body())) {
-            g.takeBazarStun(b.facing);
-            player.addSwagger(6);
-            b.markHit();
-            toast = b.phrase;
-            toastTimer = 0.9;
-            break;
-          }
-        }
-      }
-      bubbles = bubbles.filter((b) => b.alive);
 
       for (const g of gangsters) {
         g.update(dt, player.x, player.y, FLOOR_Y, 30, WORLD_W - 30);
@@ -546,15 +493,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           coat = { x: drop.x, y: drop.y, taken: false };
           toast = 'ШУБА УПАЛА!';
           toastTimer = 1.2;
-        }
-        if (player.invuln > 0 || player.isKo || g.isKo) continue;
-        const ah = g.attackHitbox();
-        if (ah && aabbOverlap(ah, player.body())) {
-          const dmg = g.consumeAttackHit();
-          if (dmg > 0) {
-            const scaled = motherPanic > 0.8 ? dmg + 3 : dmg;
-            player.takeDamage(scaled, g.facing);
-          }
         }
       }
 
@@ -574,25 +512,26 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
+        quiz.closeSilent();
         toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
       const alive = gangsters.filter((g) => !g.isKo).length;
 
-      // Mid-fight: reach mother stall with ≥1 KO, or clear wave 1 entirely
-      if (phase === 'wave1' && !dialogueStarted) {
+      // After answering ≥1 adult near МЕХА, or clear wave 1
+      if (phase === 'wave1' && !dialogueStarted && !quiz.isOpen) {
         const anyKo = gangsters.some((g) => g.isKo);
         if ((nearMotherStall() && anyKo) || alive === 0) {
           beginMotherDialogue();
         } else {
           syncHud(
             alive === 1
-              ? 'Один взрослый - к маме'
-              : `Волна 1 · Взрослые ${alive} · К МЕХА`,
+              ? 'Один вопрос - к маме'
+              : `Волна 1 · Вопросы ${alive} · К МЕХА`,
           );
         }
-      } else if (phase === 'wave2') {
+      } else if (phase === 'wave2' && !quiz.isOpen) {
         if (alive === 0 && hasCoat) {
           phase = 'cleared';
           winTimer = 2.4;
@@ -630,13 +569,15 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
+      } else if (quiz.isOpen) {
+        quiz.render(ctx, width, height);
       } else {
         const hint =
           phase === 'wave2' && !hasCoat
-            ? 'J удар · K нога · L базар · Забери шубу'
+            ? `${quizHudHint()} · Забери шубу`
             : phase === 'wave1'
-              ? 'J спроси · K нога · L базар · К лотку МЕХА'
-              : 'J удар · K нога · L базар · Пробел — прыжок';
+              ? `${quizHudHint()} · К лотку МЕХА`
+              : `${quizHudHint()} · Пробел — прыжок`;
         const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
         uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(120,100,60,0.45)');
         drawUiText(ctx, hint, 8, height - 11, R.uiBorder, 6.5, 500);
@@ -715,12 +656,17 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       return dialogue;
     },
 
+    getQuiz(): QuizSystem {
+      return quiz;
+    },
+
     /** Dev / capture helpers (wired via main `__novgorod.rynok`). */
     __debug: {
       getPhase: () => phase,
       forceDialogue: () => beginMotherDialogue(),
       forceWave2Calm: () => {
         dialogue.resetSilent();
+        quiz.closeSilent();
         motherPanic = 0.25;
         hasCoat = false;
         coat = null;
@@ -753,6 +699,12 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         dialogue.advance();
         dialogue.advance();
         dialogue.advance();
+      },
+      answerCorrect: () => {
+        if (!quiz.isOpen) return;
+        for (let i = 0; i < 4; i++) {
+          if (quiz.selectAnswer(i) === 'correct') break;
+        }
       },
     },
   };
@@ -1130,7 +1082,7 @@ function drawStallSeller(
   px(ctx, ox + 1, oy - 38 + bob, 1, 1, '#181018');
 }
 
-/** Mother behind МЕХА stall — headscarf + fur-collar coat. */
+/** Mother behind МЕХА stall — photo face + fur-collar coat. */
 function drawMother(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -1147,25 +1099,21 @@ function drawMother(
   px(ctx, ox - 6, oy - 32, 12, 3, '#c8a070');
   px(ctx, ox - 5, oy - 31, 10, 1, '#e0c090');
   speckles(ctx, ox - 6, oy - 32, 12, 3, '#a08060', 2, 1);
-  // Head + headscarf
-  px(ctx, ox - 5, oy - 40, 10, 9, '#d0a878');
-  px(ctx, ox - 4, oy - 39, 3, 2, '#e8c898');
-  px(ctx, ox + 2, oy - 37, 2, 3, '#a87858');
-  px(ctx, ox - 5, oy - 43, 10, 4, '#4a3040');
-  px(ctx, ox - 4, oy - 44, 8, 2, '#6a4858');
-  px(ctx, ox - 6, oy - 41, 2, 6, '#4a3040');
-  px(ctx, ox + 4, oy - 41, 2, 6, '#3a2830');
-  // Face
-  px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
-  px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
-  px(ctx, ox - 2, oy - 36, 1, 1, '#e8e0d0');
-  px(ctx, ox + 2, oy - 36, 1, 1, '#e8e0d0');
-  if (panic > 0.5) {
-    px(ctx, ox - 4, oy - 37, 1, 1, '#f0e0c0');
-    px(ctx, ox + 4, oy - 37, 1, 1, '#f0e0c0');
+  // Headscarf frame under photo face
+  px(ctx, ox - 6, oy - 44, 12, 4, '#4a3040');
+  px(ctx, ox - 7, oy - 42, 2, 8, '#4a3040');
+  px(ctx, ox + 5, oy - 42, 2, 8, '#3a2830');
+  px(ctx, ox - 5, oy - 42, 10, 12, '#d0a878');
+  // Photo-quality face from family portrait
+  if (!drawFamilyFaceWithRim(ctx, 'mother', ox - 5, oy - 43, 10, 12)) {
+    px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
+    px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
+    px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
   }
-  px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
-  px(ctx, ox - 2, oy - 32, 4, 1, panic > 0.55 ? '#603030' : '#806050');
+  if (panic > 0.5) {
+    px(ctx, ox - 6, oy - 38, 1, 1, '#f0e0c0');
+    px(ctx, ox + 5, oy - 38, 1, 1, '#f0e0c0');
+  }
   // Arms
   if (panic > 0.55) {
     px(ctx, ox - 11, oy - 30, 4, 4, '#d0a878');

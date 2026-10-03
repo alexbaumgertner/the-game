@@ -5,9 +5,8 @@
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
-import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
+import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
-import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { DETINETS_PAL } from '@/art/segaPalette';
@@ -18,7 +17,6 @@ import {
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
-import { aabbOverlap } from '@/systems/CombatMath';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -29,6 +27,8 @@ import {
   DETINETS_WALL_SCRIPT,
   type DialogueEffect,
 } from '@/systems/DialogueSystem';
+import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
+import { tickQuizEncounter } from '@/systems/quizEncounter';
 
 const P = DETINETS_PAL;
 const WORLD_W = 580;
@@ -65,7 +65,6 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
 
   let camX = 0;
   let gangsters: Gangster[] = [];
-  let bubbles: BazarBubble[] = [];
   let phase: LevelPhase = 'wave1';
   let gameOverTimer = 0;
   let toast = '';
@@ -77,6 +76,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
   let dialogueStarted = false;
   let boss: Gangster | null = null;
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
 
   const bulbs: PointLight[] = [
     { kind: 'point', x: 90, y: 110, radius: 26, color: '#e8c868', phase: 0.3 },
@@ -149,7 +149,6 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
 
   const clearCombatAndReturn = (): void => {
     gangsters = [];
-    bubbles = [];
     boss = null;
     phase = 'gameover';
     gameOverTimer = 0;
@@ -161,9 +160,9 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
   const beginDialogue = (): void => {
     if (dialogueStarted || dialogue.isOpen) return;
     dialogueStarted = true;
+    quiz.closeSilent();
     phase = 'dialogue';
     gangsters = [];
-    bubbles = [];
     player.vx = 0;
     toast = 'ФИНАЛ ЗИМЫ';
     toastTimer = 1.2;
@@ -227,7 +226,6 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
         drawUiText(ctx, '★', ox - 3, oy - 34, '#f0c040', 7, 700);
       }
     }
-    for (const b of bubbles) b.render(ctx);
     player.render(ctx, alpha);
   };
 
@@ -296,8 +294,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-      bubbles = [];
-      phase = 'wave1';
+        phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -308,15 +305,16 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       dialogueStarted = false;
       boss = null;
       dialogue.resetSilent();
+      quiz.closeSilent();
       spawnWave1();
       syncHud();
     },
 
     exit(): void {
       gangsters = [];
-      bubbles = [];
-      boss = null;
+        boss = null;
       dialogue.resetSilent();
+      quiz.closeSilent();
       hud.set({ showSwagger: false });
     },
 
@@ -336,14 +334,13 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
         const input = states.input;
         if (input) {
           if (dialogue.hasChoices) {
-            if (input.justPressed('choice1') || input.justPressed('punch')) {
+            if (input.justPressed('choice1')) {
               dialogue.selectChoice(0);
-            } else if (input.justPressed('choice2') || input.justPressed('kick')) {
+            } else if (input.justPressed('choice2')) {
               dialogue.selectChoice(1);
             }
           } else if (
             input.justPressed('confirm') ||
-            input.justPressed('punch') ||
             input.justPressed('interact')
           ) {
             dialogue.advance();
@@ -381,95 +378,55 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       player.update(dt);
       const input = states.input;
 
-      if (input && !player.isKo) {
-        if (input.justPressed('jump')) player.tryJump();
-        if (input.justPressed('punch')) player.tryPunch();
-        if (input.justPressed('kick')) player.tryKick();
-        if (input.justPressed('special')) {
-          const bubble = player.tryBazar();
-          if (bubble) {
-            bubbles.push(bubble);
-            toast = bubble.phrase;
-            toastTimer = 0.9;
-            shake = Math.max(shake, 0.28);
-          } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
-            toastTimer = 0.7;
-          }
+      if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
+        const qres = tickQuizEncounter({
+          quiz,
+          input,
+          player,
+          gangsters,
+          dt,
+          autoOpen: true,
+          swaggerOnCorrect: 14,
+        });
+        if (qres.toast) {
+          toast = qres.toast;
+          toastTimer = qres.toastTimer;
         }
+      } else {
+        quiz.update(dt);
+      }
+
+      if (input && !player.isKo && !quiz.isOpen) {
+        if (input.justPressed('jump')) player.tryJump();
         player.applyWalk(input.axisX(), dt, 16, WORLD_W - 16);
       }
 
       player.applyPhysics(dt, 16, WORLD_W - 16, PLATFORMS);
-
-      const atk = player.attackHitbox();
-      if (atk) {
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (Math.abs(g.y - player.y) > 28) continue;
-          if (aabbOverlap(atk, g.body())) {
-            const dmg = player.animState === 'teen_kick' ? 14 : 10;
-            const swag = player.animState === 'teen_kick' ? 18 : 12;
-            g.takeHit(dmg, player.facing);
-            player.addSwagger(swag);
-            player.markAttackConnected();
-            break;
-          }
-        }
-      }
-
-      for (const b of bubbles) {
-        b.update(dt);
-        if (!b.canHit) continue;
-        const hb = b.hitbox();
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(hb, g.body())) {
-            g.takeBazarStun(b.facing);
-            player.addSwagger(6);
-            b.markHit();
-            toast = b.phrase;
-            toastTimer = 0.9;
-            break;
-          }
-        }
-      }
-      bubbles = bubbles.filter((b) => b.alive);
 
       for (const g of gangsters) {
         const fy = gangsterFloor(g);
         const minX = phase === 'wave2' ? 340 : 40;
         const maxX = phase === 'wave2' ? WORLD_W - 20 : 300;
         g.update(dt, player.x, player.y, fy, minX, maxX);
-        if (player.invuln > 0 || player.isKo || g.isKo) continue;
-        if (Math.abs(g.y - player.y) > 28) continue;
-        const ah = g.attackHitbox();
-        if (ah && aabbOverlap(ah, player.body())) {
-          const dmg = g.consumeAttackHit();
-          if (dmg > 0) {
-            const isBoss = boss !== null && g === boss;
-            const scaled = (isBoss ? dmg + 7 : dmg) + (resolve > 0.8 ? 3 : 0);
-            player.takeDamage(scaled, g.facing);
-          }
-        }
       }
 
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
+        quiz.closeSilent();
         toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
       const alive = gangsters.filter((g) => !g.isKo).length;
 
-      if (phase === 'wave1' && !dialogueStarted) {
+      if (phase === 'wave1' && !dialogueStarted && !quiz.isOpen) {
         if (alive === 0) {
           beginDialogue();
         } else {
-          syncHud(`Волна 1 · Гопники ${alive}`);
+          syncHud(`Волна 1 · Вопросы ${alive}`);
         }
-      } else if (phase === 'wave2') {
+      } else if (phase === 'wave2' && !quiz.isOpen) {
         if (alive === 0) {
           phase = 'cleared';
           winTimer = 2.8;
@@ -503,11 +460,10 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
+      } else if (quiz.isOpen) {
+        quiz.render(ctx, width, height);
       } else {
-        const hint =
-          phase === 'wave1' && gangsters.every((g) => g.isKo)
-            ? 'Пробел — прыжок на стену'
-            : 'J удар · K нога · L базар · Пробел — прыжок';
+        const hint = quiz.isOpen ? '' : quizHudHint();
         const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
         uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(200,160,80,0.45)');
         drawUiText(ctx, hint, 8, height - 11, P.uiBorder, 6.5, 500);
@@ -546,6 +502,10 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       return dialogue;
     },
 
+    getQuiz(): QuizSystem {
+      return quiz;
+    },
+
     __debug: {
       getPhase: () => phase,
       forceDialogue: () => {
@@ -565,6 +525,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       },
       forceWave2: () => {
         dialogue.resetSilent();
+      quiz.closeSilent();
         resolve = 0.25;
         phase = 'wave2';
         spawnWave2();

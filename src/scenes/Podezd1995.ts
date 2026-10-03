@@ -5,9 +5,8 @@
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
-import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
+import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
-import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { PODEZD_PAL } from '@/art/segaPalette';
@@ -18,7 +17,6 @@ import {
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
-import { aabbOverlap } from '@/systems/CombatMath';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -30,6 +28,9 @@ import {
   PODEZD_LANDING_SCRIPT,
   type DialogueEffect,
 } from '@/systems/DialogueSystem';
+import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
+import { tickQuizEncounter } from '@/systems/quizEncounter';
+import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 
 const P = PODEZD_PAL;
 const WORLD_W = 520;
@@ -72,7 +73,6 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
   let camX = 0;
   let gangsters: Gangster[] = [];
-  let bubbles: BazarBubble[] = [];
   let phase: LevelPhase = 'wave1';
   let gameOverTimer = 0;
   let toast = '';
@@ -84,6 +84,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
   let dialogueStarted = false;
   let wave2Cleared = false;
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
 
   /** Mother escort position (follows toward player, clamped to platforms). */
   let motherX = 48;
@@ -137,7 +138,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
     if (phase === 'wave1') return 'Зачисти вход - веди маму';
     if (phase === 'dialogue') return 'Разговор - крыша, таймер';
     if (phase === 'wave2') {
-      if (!wave2Cleared) return 'Верхняя площадка - гопники';
+      if (!wave2Cleared) return 'Верхняя площадка - вопросы';
       return 'Доберись до двери';
     }
     if (phase === 'cleared') return 'УР. 2 ПРОЙДЕН';
@@ -161,7 +162,6 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
   const clearCombatAndReturn = (): void => {
     gangsters = [];
-    bubbles = [];
     phase = 'gameover';
     gameOverTimer = 0;
     if (dialogue.isOpen) dialogue.close();
@@ -180,9 +180,9 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
   const beginLandingDialogue = (): void => {
     if (dialogueStarted || dialogue.isOpen) return;
     dialogueStarted = true;
+    quiz.closeSilent();
     phase = 'dialogue';
     gangsters = [];
-    bubbles = [];
     player.vx = 0;
     toast = 'КРЫША ТРЕБУЕТ';
     toastTimer = 1.2;
@@ -292,7 +292,6 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
     drawApartmentDoor(ctx);
     drawMother(ctx, motherX, motherY, motherFear);
     for (const g of gangsters) g.render(ctx, alpha);
-    for (const b of bubbles) b.render(ctx);
     player.render(ctx, alpha);
     drawSmokeVibes(ctx, time);
   };
@@ -348,6 +347,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadFamilyFaces();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -356,8 +356,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-      bubbles = [];
-      phase = 'wave1';
+        phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -373,14 +372,15 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       carX = -40;
       carFacing = 1;
       dialogue.resetSilent();
+      quiz.closeSilent();
       spawnWave1();
       syncHud('Зачисти вход - веди маму');
     },
 
     exit(): void {
       gangsters = [];
-      bubbles = [];
-      dialogue.resetSilent();
+        dialogue.resetSilent();
+      quiz.closeSilent();
       hud.set({ showSwagger: false });
     },
 
@@ -412,14 +412,13 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
         const input = states.input;
         if (input) {
           if (dialogue.hasChoices) {
-            if (input.justPressed('choice1') || input.justPressed('punch')) {
+            if (input.justPressed('choice1')) {
               dialogue.selectChoice(0);
-            } else if (input.justPressed('choice2') || input.justPressed('kick')) {
+            } else if (input.justPressed('choice2')) {
               dialogue.selectChoice(1);
             }
           } else if (
             input.justPressed('confirm') ||
-            input.justPressed('punch') ||
             input.justPressed('interact')
           ) {
             dialogue.advance();
@@ -458,90 +457,50 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       updateMother(dt);
       const input = states.input;
 
-      if (input && !player.isKo) {
-        if (input.justPressed('jump')) player.tryJump();
-        if (input.justPressed('punch')) player.tryPunch();
-        if (input.justPressed('kick')) player.tryKick();
-        if (input.justPressed('special')) {
-          const bubble = player.tryBazar();
-          if (bubble) {
-            bubbles.push(bubble);
-            toast = bubble.phrase;
-            toastTimer = 0.9;
-            shake = Math.max(shake, 0.28);
-          } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
-            toastTimer = 0.7;
-          }
+      if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
+        const qres = tickQuizEncounter({
+          quiz,
+          input,
+          player,
+          gangsters,
+          dt,
+          autoOpen: true,
+          swaggerOnCorrect: 14,
+        });
+        if (qres.toast) {
+          toast = qres.toast;
+          toastTimer = qres.toastTimer;
         }
+      } else {
+        quiz.update(dt);
+      }
+
+      if (input && !player.isKo && !quiz.isOpen) {
+        if (input.justPressed('jump')) player.tryJump();
         const axis = input.axisX();
         player.applyWalk(axis, dt, 16, WORLD_W - 16);
       }
 
       player.applyPhysics(dt, 16, WORLD_W - 16, PLATFORMS);
 
-      const atk = player.attackHitbox();
-      if (atk) {
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          // Only hit thugs on similar floor
-          if (Math.abs(g.y - player.y) > 28) continue;
-          if (aabbOverlap(atk, g.body())) {
-            const dmg = player.animState === 'teen_kick' ? 14 : 10;
-            const swag = player.animState === 'teen_kick' ? 18 : 12;
-            g.takeHit(dmg, player.facing);
-            player.addSwagger(swag);
-            player.markAttackConnected();
-            break;
-          }
-        }
-      }
-
-      for (const b of bubbles) {
-        b.update(dt);
-        if (!b.canHit) continue;
-        const hb = b.hitbox();
-        for (const g of gangsters) {
-          if (g.isKo) continue;
-          if (aabbOverlap(hb, g.body())) {
-            g.takeBazarStun(b.facing);
-            player.addSwagger(6);
-            b.markHit();
-            toast = b.phrase;
-            toastTimer = 0.9;
-            break;
-          }
-        }
-      }
-      bubbles = bubbles.filter((b) => b.alive);
-
       for (const g of gangsters) {
         const fy = gangsterFloor(g);
         const minX = phase === 'wave2' ? 400 : 40;
         const maxX = phase === 'wave2' ? WORLD_W - 20 : 200;
         g.update(dt, player.x, player.y, fy, minX, maxX);
-        if (player.invuln > 0 || player.isKo || g.isKo) continue;
-        if (Math.abs(g.y - player.y) > 28) continue;
-        const ah = g.attackHitbox();
-        if (ah && aabbOverlap(ah, player.body())) {
-          const dmg = g.consumeAttackHit();
-          if (dmg > 0) {
-            const scaled = motherFear > 0.8 ? dmg + 3 : dmg;
-            player.takeDamage(scaled, g.facing);
-          }
-        }
       }
 
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
+        quiz.closeSilent();
         toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
       const alive = gangsters.filter((g) => !g.isKo).length;
 
-      if (phase === 'wave1' && !dialogueStarted) {
+      if (phase === 'wave1' && !dialogueStarted && !quiz.isOpen) {
         const anyKo = gangsters.some((g) => g.isKo);
         if (alive === 0 || (nearMidLanding() && anyKo)) {
           if (nearMidLanding()) {
@@ -557,10 +516,10 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
           syncHud(
             alive === 1
               ? 'Один гопник - потом вверх'
-              : `Волна 1 · Гопники ${alive} · Вход`,
+              : `Волна 1 · Вопросы ${alive} · Вход`,
           );
         }
-      } else if (phase === 'wave2') {
+      } else if (phase === 'wave2' && !quiz.isOpen) {
         if (alive === 0) {
           wave2Cleared = true;
           if (nearDoor()) {
@@ -608,11 +567,10 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
       if (phase === 'dialogue' && dialogue.isOpen) {
         dialogue.render(ctx, width, height);
+      } else if (quiz.isOpen) {
+        quiz.render(ctx, width, height);
       } else {
-        const hint =
-          phase === 'wave2' && wave2Cleared
-            ? 'К двери · Пробел — прыжок'
-            : 'J удар · K нога · L базар · Пробел — прыжок';
+        const hint = quiz.isOpen ? '' : quizHudHint();
         const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
         uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(120,100,60,0.45)');
         drawUiText(ctx, hint, 8, height - 11, P.uiBorder, 6.5, 500);
@@ -671,6 +629,10 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       return dialogue;
     },
 
+    getQuiz(): QuizSystem {
+      return quiz;
+    },
+
     __debug: {
       getPhase: () => phase,
       forceDialogue: () => {
@@ -682,6 +644,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       },
       forceWave2Calm: () => {
         dialogue.resetSilent();
+      quiz.closeSilent();
         motherFear = 0.25;
         phase = 'wave2';
         wave2Cleared = false;
@@ -872,21 +835,16 @@ function drawMother(
   px(ctx, ox - 6, oy - 32, 12, 3, '#c8a070'); // fur collar
   px(ctx, ox - 5, oy - 31, 10, 1, '#e0c090');
   speckles(ctx, ox - 6, oy - 32, 12, 3, '#a08060', 2, 1);
-  // Head + headscarf
-  px(ctx, ox - 5, oy - 40, 10, 9, '#d0a878');
-  px(ctx, ox - 4, oy - 39, 3, 2, '#e8c898');
-  px(ctx, ox + 2, oy - 37, 2, 3, '#a87858');
-  px(ctx, ox - 5, oy - 43, 10, 4, '#4a3040');
-  px(ctx, ox - 4, oy - 44, 8, 2, '#6a4858');
-  px(ctx, ox - 6, oy - 41, 2, 6, '#4a3040'); // scarf side
-  px(ctx, ox + 4, oy - 41, 2, 6, '#3a2830');
-  // Face
-  px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
-  px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
-  px(ctx, ox - 2, oy - 36, 1, 1, '#e8e0d0');
-  px(ctx, ox + 2, oy - 36, 1, 1, '#e8e0d0');
-  px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
-  px(ctx, ox - 2, oy - 32, 4, 1, fear > 0.55 ? '#603030' : '#806050');
+  // Headscarf + photo face
+  px(ctx, ox - 6, oy - 44, 12, 4, '#4a3040');
+  px(ctx, ox - 7, oy - 42, 2, 8, '#4a3040');
+  px(ctx, ox + 5, oy - 42, 2, 8, '#3a2830');
+  px(ctx, ox - 5, oy - 42, 10, 12, '#d0a878');
+  if (!drawFamilyFaceWithRim(ctx, 'mother', ox - 5, oy - 43, 10, 12)) {
+    px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
+    px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
+    px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
+  }
   if (fear > 0.55) {
     px(ctx, ox + 6, oy - 40, 1, 2, '#80c0e0');
     drawUiText(ctx, '!', ox + 8, oy - 44, '#e04040', 8, 700);

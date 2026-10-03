@@ -18,6 +18,11 @@ export interface TouchControlsOptions {
     | { active: boolean; labels?: [string, string] }
     | null
     | undefined;
+  /** School quiz: 4 answers + hint strip. */
+  getQuizChoices?: () =>
+    | { active: boolean; labels?: [string, string, string, string] }
+    | null
+    | undefined;
 }
 
 function prefersTouchUi(): boolean {
@@ -42,9 +47,11 @@ export class TouchControls {
   private readonly root: HTMLElement;
   private readonly onPause?: () => void;
   private readonly getDialogueChoices?: TouchControlsOptions['getDialogueChoices'];
+  private readonly getQuizChoices?: TouchControlsOptions['getQuizChoices'];
   private readonly shell: HTMLDivElement;
   private readonly pad: HTMLDivElement;
   private readonly choiceBar: HTMLDivElement;
+  private readonly quizBar: HTMLDivElement;
   private readonly toggleBtn: HTMLButtonElement;
   private visible: boolean;
   private forced = false;
@@ -57,6 +64,7 @@ export class TouchControls {
     this.root = options.root ?? document.body;
     this.onPause = options.onPause;
     this.getDialogueChoices = options.getDialogueChoices;
+    this.getQuizChoices = options.getQuizChoices;
     this.visible = prefersTouchUi();
 
     this.shell = document.createElement('div');
@@ -83,10 +91,8 @@ export class TouchControls {
         <button type="button" class="tc-btn tc-jump" data-action="jump" aria-label="Прыжок">ПРЫГ</button>
       </div>
       <div class="tc-cluster tc-right">
-        <button type="button" class="tc-btn tc-act" data-action="punch" aria-label="Удар">A<br><span>УДАР</span></button>
-        <button type="button" class="tc-btn tc-act" data-action="kick" aria-label="Нога">B<br><span>НОГА</span></button>
-        <button type="button" class="tc-btn tc-act tc-special" data-action="special" aria-label="Базар">C<br><span>БАЗАР</span></button>
-        <button type="button" class="tc-btn tc-act tc-interact" data-action="interact" aria-label="Действие">E<br><span>ВЗЯТЬ</span></button>
+        <button type="button" class="tc-btn tc-act" data-action="hint" aria-label="Подсказка">H<br><span>ПОДСК</span></button>
+        <button type="button" class="tc-btn tc-act tc-interact" data-action="interact" aria-label="Спросить">E<br><span>СПРОС</span></button>
         <button type="button" class="tc-btn tc-act tc-beer" data-action="beer" aria-label="Применить бухло">П<br><span>БУХЛО</span></button>
       </div>
       <button type="button" class="tc-btn tc-pause" data-pause="1" aria-label="Пауза">II</button>
@@ -106,11 +112,38 @@ export class TouchControls {
       </button>
     `;
 
-    this.shell.append(this.toggleBtn, this.choiceBar, this.pad);
+    this.quizBar = document.createElement('div');
+    this.quizBar.className = 'tc-quiz';
+    this.quizBar.hidden = true;
+    this.quizBar.innerHTML = `
+      <button type="button" class="tc-btn tc-choice" data-action="choice1" aria-label="Ответ 1">
+        <span class="tc-choice-key">1</span>
+        <span class="tc-choice-label" data-quiz-label="0">1</span>
+      </button>
+      <button type="button" class="tc-btn tc-choice" data-action="choice2" aria-label="Ответ 2">
+        <span class="tc-choice-key">2</span>
+        <span class="tc-choice-label" data-quiz-label="1">2</span>
+      </button>
+      <button type="button" class="tc-btn tc-choice" data-action="choice3" aria-label="Ответ 3">
+        <span class="tc-choice-key">3</span>
+        <span class="tc-choice-label" data-quiz-label="2">3</span>
+      </button>
+      <button type="button" class="tc-btn tc-choice" data-action="choice4" aria-label="Ответ 4">
+        <span class="tc-choice-key">4</span>
+        <span class="tc-choice-label" data-quiz-label="3">4</span>
+      </button>
+      <button type="button" class="tc-btn tc-choice tc-hint" data-action="hint" aria-label="Подсказка">
+        <span class="tc-choice-key">H</span>
+        <span class="tc-choice-label">ПОДСКАЗКА</span>
+      </button>
+    `;
+
+    this.shell.append(this.toggleBtn, this.choiceBar, this.quizBar, this.pad);
     this.root.appendChild(this.shell);
 
     this.bindPad(this.pad);
     this.bindPad(this.choiceBar);
+    this.bindPad(this.quizBar);
     this.applyVisibility();
 
     window.addEventListener('resize', this.onResize);
@@ -221,6 +254,17 @@ export class TouchControls {
       if (a) a.textContent = info.labels[0]!.toUpperCase();
       if (b) b.textContent = info.labels[1]!.toUpperCase();
     }
+
+    const q = this.getQuizChoices?.();
+    const showQ = !!(this.visible && q?.active && !show);
+    this.quizBar.hidden = !showQ;
+    this.shell.classList.toggle('tc-quiz-open', showQ);
+    if (showQ && q?.labels) {
+      for (let i = 0; i < 4; i++) {
+        const el = this.quizBar.querySelector(`[data-quiz-label="${i}"]`);
+        if (el) el.textContent = q.labels[i]!.slice(0, 18).toUpperCase();
+      }
+    }
   };
 }
 
@@ -247,7 +291,8 @@ export function injectTouchControlStyles(): void {
   --tc-font-sm: clamp(8px, 1.5vmin, 11px);
 }
 #touch-controls.tc-visible .tc-pad,
-#touch-controls.tc-visible .tc-choices:not([hidden]) {
+#touch-controls.tc-visible .tc-choices:not([hidden]),
+#touch-controls.tc-visible .tc-quiz:not([hidden]) {
   opacity: 1;
   visibility: visible;
 }
@@ -301,15 +346,13 @@ export function injectTouchControlStyles(): void {
 .tc-left .tc-btn[data-action="jump"] { grid-area: jump; }
 .tc-right {
   right: calc(10px + var(--tc-safe-r));
-  grid-template-columns: var(--tc-btn) var(--tc-btn) var(--tc-btn);
+  grid-template-columns: var(--tc-btn) var(--tc-btn);
   grid-template-rows: var(--tc-btn) var(--tc-btn);
   grid-template-areas:
-    "punch kick beer"
-    "special interact interact";
+    "hint beer"
+    "interact interact";
 }
-.tc-right .tc-btn[data-action="punch"] { grid-area: punch; }
-.tc-right .tc-btn[data-action="kick"] { grid-area: kick; }
-.tc-right .tc-btn[data-action="special"] { grid-area: special; }
+.tc-right .tc-btn[data-action="hint"] { grid-area: hint; }
 .tc-right .tc-btn[data-action="interact"] { grid-area: interact; }
 .tc-right .tc-btn[data-action="beer"] { grid-area: beer; }
 .tc-beer {
@@ -366,7 +409,8 @@ export function injectTouchControlStyles(): void {
   font-size: var(--tc-font);
   letter-spacing: 0.12em;
 }
-.tc-choices {
+.tc-choices,
+.tc-quiz {
   pointer-events: auto;
   position: absolute;
   left: 50%;
@@ -379,6 +423,14 @@ export function injectTouchControlStyles(): void {
   z-index: 46;
   opacity: 0;
   visibility: hidden;
+}
+.tc-quiz {
+  bottom: calc(8px + var(--tc-safe-b));
+  max-height: 55vh;
+  overflow-y: auto;
+}
+#touch-controls.tc-quiz-open .tc-pad {
+  opacity: 0.25;
 }
 .tc-choice {
   display: flex;

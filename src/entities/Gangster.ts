@@ -25,6 +25,11 @@ export interface GangsterConfig {
   variant?: GangsterVariant;
   /** Drops mother's stolen coat on KO. */
   carriesCoat?: boolean;
+  /**
+   * Quiz encounter mode: approach / face player, never punch.
+   * Default true — school quiz replaces combat.
+   */
+  quizOnly?: boolean;
 }
 
 const GW = 16;
@@ -210,6 +215,8 @@ export class Gangster {
   droppedCoat = false;
   /** Chase speed multiplier (calm mother → slightly slower wave 2). */
   speedMul = 1;
+  /** When true, NPC never attacks — player answers a school quiz instead. */
+  quizOnly: boolean;
   readonly width = GW;
   readonly height = GH;
 
@@ -227,6 +234,12 @@ export class Gangster {
     this.maxHp = this.hp;
     this.variant = config.variant ?? 'thug';
     this.carriesCoat = config.carriesCoat ?? false;
+    this.quizOnly = config.quizOnly ?? true;
+  }
+
+  /** Distance within which the player can start a quiz (E / auto). */
+  inQuizRange(playerX: number, range = 28): boolean {
+    return !this.isKo && Math.abs(playerX - this.x) < range;
   }
 
   get alive(): boolean {
@@ -254,12 +267,26 @@ export class Gangster {
     };
   }
 
-  /** Scene calls once when punch connects. */
+  /**
+   * Scene calls once when punch connects.
+   * Absolute MF damage — also exported as `GANGSTER_PUNCH_MF` / `QUIZ_MF_COST`.
+   */
   consumeAttackHit(): number {
+    if (this.quizOnly) return 0;
     if (this.attackHitDone || this.ai !== 'attack') return 0;
     if (this.attackTimer > 0.22 || this.attackTimer <= 0.05) return 0;
     this.attackHitDone = true;
     return 14;
+  }
+
+  /** Instantly resolve NPC after a correct quiz answer. */
+  resolveByQuiz(): void {
+    if (this.ai === 'ko') return;
+    this.hp = 0;
+    this.ai = 'ko';
+    this.koTimer = 1.1;
+    this.vx = 0;
+    this.markCoatDrop();
   }
 
   takeHit(damage: number, knockFacing: 1 | -1, knock = 55): void {
@@ -353,6 +380,28 @@ export class Gangster {
     const dist = Math.abs(dx);
     if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
 
+    // Quiz NPCs: wander closer, face player, never punch
+    if (this.quizOnly) {
+      const talk = 26;
+      const aggroQ = 140;
+      if (dist < aggroQ) {
+        this.ai = 'chase';
+        if (dist > talk) {
+          const speed = 28 * this.speedMul;
+          this.vx = this.facing * speed;
+          this.x += this.vx * dt;
+        } else {
+          this.vx = 0;
+          this.ai = 'idle';
+        }
+      } else {
+        this.ai = 'idle';
+        this.vx = 0;
+      }
+      this.clamp(minX, maxX);
+      return;
+    }
+
     const aggro = 160;
     const melee = 18;
 
@@ -417,14 +466,24 @@ export class Gangster {
     }
     ctx.restore();
 
-    // Tiny HP pip
+    // Quiz prompt / legacy HP pip
     if (!this.isKo) {
-      const bw = 16;
-      const filled = Math.round((this.hp / this.maxHp) * bw);
-      ctx.fillStyle = '#1a1018';
-      ctx.fillRect(ox - 8, oy - GH - 5, bw, 3);
-      ctx.fillStyle = TEEN_PAL.scarf;
-      ctx.fillRect(ox - 8, oy - GH - 5, filled, 3);
+      if (this.quizOnly) {
+        ctx.fillStyle = '#1a1018';
+        ctx.fillRect(ox - 5, oy - GH - 8, 10, 8);
+        ctx.fillStyle = '#f0d878';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', ox, oy - GH - 1);
+        ctx.textAlign = 'left';
+      } else {
+        const bw = 16;
+        const filled = Math.round((this.hp / this.maxHp) * bw);
+        ctx.fillStyle = '#1a1018';
+        ctx.fillRect(ox - 8, oy - GH - 5, bw, 3);
+        ctx.fillStyle = TEEN_PAL.scarf;
+        ctx.fillRect(ox - 8, oy - GH - 5, filled, 3);
+      }
     }
   }
 }
