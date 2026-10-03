@@ -478,13 +478,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
             applyLightingOverlay(c, 0, w, h, {
-              ambient: { color: 'rgba(34, 30, 54, 0.40)' },
+              // Softer ambient so cream damask wallpaper stays readable
+              ambient: { color: 'rgba(36, 30, 42, 0.28)' },
               points: [
                 {
                   kind: 'point',
                   x: 104,
                   y: 100,
-                  radius: 38,
+                  radius: 42,
                   color: '#ffd878',
                   screenSpace: true,
                 },
@@ -493,7 +494,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
                   // Cool spill from enlarged night window
                   x: 250,
                   y: 72,
-                  radius: 36,
+                  radius: 40,
                   color: '#7090c8',
                   screenSpace: true,
                 },
@@ -539,6 +540,11 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     getDialogue(): DialogueSystem {
       return dialogue;
+    },
+
+    /** Debug / capture helper — force UI overlay. */
+    setOverlay(mode: OverlayMode): void {
+      overlay = mode;
     },
   };
 }

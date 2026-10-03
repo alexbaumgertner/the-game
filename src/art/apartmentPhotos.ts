@@ -80,12 +80,12 @@ export function drawTiledWallpaper(
     return;
   }
 
-  // Scale tile so pattern reads at logical resolution (~48px repeat)
-  const tileKey = `${slot.img.width}x${slot.img.height}`;
+  // Larger tile so damask florals stay readable at 320-wide logical res
+  const tileKey = `${slot.img.width}x${slot.img.height}:96`;
   if (!wallpaperPattern || wallpaperPatternKey !== tileKey) {
     const tile = document.createElement('canvas');
-    const tw = 48;
-    const th = 48;
+    const tw = 96;
+    const th = 96;
     tile.width = tw;
     tile.height = th;
     const tctx = tile.getContext('2d');
@@ -93,8 +93,8 @@ export function drawTiledWallpaper(
       tctx.imageSmoothingEnabled = true;
       tctx.imageSmoothingQuality = 'high';
       tctx.drawImage(slot.img, 0, 0, tw, th);
-      // Slight night warm dim so cream paper fits 2026 evening room
-      tctx.fillStyle = 'rgba(40, 28, 20, 0.22)';
+      // Light warm evening wash — keep cream+brown readable, no blotches
+      tctx.fillStyle = 'rgba(48, 36, 28, 0.08)';
       tctx.fillRect(0, 0, tw, th);
       wallpaperPattern = ctx.createPattern(tile, 'repeat');
       wallpaperPatternKey = tileKey;
@@ -110,9 +110,9 @@ export function drawTiledWallpaper(
     px(ctx, x, y, w, h, '#c8b898');
   }
 
-  // Subtle vertical seams (paper strips) — clean, no grease
-  for (let sx = 28; sx < x + w; sx += 48) {
-    px(ctx, sx, y + 4, 1, h - 8, 'rgba(90, 70, 50, 0.18)');
+  // Clean paper seams only (no grease / nicotine stains)
+  for (let sx = 32; sx < x + w; sx += 96) {
+    px(ctx, sx, y + 2, 1, h - 6, 'rgba(100, 78, 55, 0.14)');
   }
 }
 
@@ -204,8 +204,9 @@ export function drawWindowParade(
   // Soft ground strip under parade
   px(ctx, x, y + h - 14, w, 14, 'rgba(20, 28, 18, 0.55)');
 
-  const period = 22;
-  const track = w + 160;
+  // Slow ambient loop — monument + moose + caption stay in glass together longer
+  const period = 28;
+  const track = w + 120;
   const scroll = ((time % period) / period) * track;
 
   type Item =
@@ -213,10 +214,12 @@ export function drawWindowParade(
     | { kind: 'caption'; offset: number };
 
   const items: Item[] = [
-    { kind: 'monument', offset: 0, dw: 42, dh: 48 },
-    { kind: 'caption', offset: 70 },
-    { kind: 'moose', offset: 150, dw: 52, dh: 42 },
-    { kind: 'caption', offset: 230 },
+    { kind: 'monument', offset: 8, dw: 38, dh: 44 },
+    { kind: 'moose', offset: 58, dw: 48, dh: 38 },
+    { kind: 'caption', offset: 18 },
+    { kind: 'monument', offset: 130, dw: 38, dh: 44 },
+    { kind: 'moose', offset: 180, dw: 48, dh: 38 },
+    { kind: 'caption', offset: 140 },
   ];
 
   for (const item of items) {
