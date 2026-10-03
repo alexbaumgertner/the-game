@@ -1,7 +1,9 @@
 /**
- * ERA_2026 — хрущёвка Зуича.
- * Интро: за компом → рыжая кошка → комод → дневник 1995 → Level Select.
- * Пиво: pickups + BeerSystem («Применить бухло»).
+ * ERA_2026 — хрущёвка Зуича (Зелинского 2).
+ * Туалет ← комната → кухня → ванная.
+ * Интро: комп → кошка → комод → дневник 1995.
+ * Квесты: сигареты; после L1 — лоток; после L2 — помыться.
+ * Пиво: pickups + BeerSystem (жажда параллельно).
  */
 
 import type { SceneContext, StateManager } from '@/core/StateManager';
@@ -18,6 +20,28 @@ import {
   drawWindowParade,
   preloadApartmentPhotos,
 } from '@/art/apartmentPhotos';
+import {
+  BATH_ORIGIN,
+  CIGARETTES_X,
+  CHAIN_X,
+  FLOOR_Y as APT_FLOOR_Y,
+  IPPOLIT_X,
+  KITCHEN_ORIGIN,
+  LITTER_X,
+  ROOM_ORIGIN,
+  ROOM_W,
+  TUB_X,
+  TOILET_ORIGIN,
+  WORLD_W,
+  drawBathroom,
+  drawBeerCan,
+  drawCigarettePack,
+  drawDoorwayArch,
+  drawKitchen,
+  drawRoomBottles,
+  drawToiletRoom,
+  preloadIppolitFace,
+} from '@/art/apartmentExpand';
 import {
   ditherRect,
   px,
@@ -38,13 +62,13 @@ import { applyLightingOverlay } from '@/render/LightingOverlay';
 import { DialogueSystem, type DialogueScript } from '@/systems/DialogueSystem';
 
 const WIDTH = LOGICAL_WIDTH;
-const FLOOR_Y = 192;
+const FLOOR_Y = APT_FLOOR_Y;
 const PROMPT_Y = 210;
 const P = APT_PAL;
-/** Desk / PC seat X. */
-const DESK_X = 92;
+/** Desk / PC seat X (living room). */
+const DESK_X = ROOM_ORIGIN + 92;
 /** Dresser (комод) hotspot. */
-const DRESSER_X = 236;
+const DRESSER_X = ROOM_ORIGIN + 236;
 const DRESSER_W = 70;
 
 interface BeerCan {
@@ -113,7 +137,48 @@ const AFTER_LEVEL1_SCRIPT: DialogueScript = {
     },
     ok: {
       speaker: 'Кошка',
-      text: 'Мяу. Комод не убежит.',
+      text: 'Мяу. И лоток в туалете — не забудь.',
+      next: null,
+    },
+  },
+};
+
+const IPPOLIT_SCRIPT: DialogueScript = {
+  id: 'ippolit_back',
+  start: 'ask',
+  lines: {
+    ask: {
+      speaker: 'Ипполит',
+      text: 'Потрите мне спинку, пожалуйста! Ну, пожалуйста… Что вам трудно, что ли?',
+      next: 'hint',
+    },
+    hint: {
+      speaker: 'Ипполит',
+      text: 'Сигареты? Ищите у холодильника на кухне. А я тут… с лёгким паром.',
+      next: null,
+    },
+  },
+};
+
+const IPPOLIT_WASH_SCRIPT: DialogueScript = {
+  id: 'ippolit_wash',
+  start: 'ask',
+  lines: {
+    ask: {
+      speaker: 'Ипполит',
+      text: 'Потрите спинку — и сами залезайте. Вода горяченькая пошла!',
+      next: null,
+    },
+  },
+};
+
+const CAT_LITTER_SCRIPT: DialogueScript = {
+  id: 'cat_litter',
+  start: 'ask',
+  lines: {
+    ask: {
+      speaker: 'Кошка',
+      text: 'Почисти лоток. Мяу. Я ходила — теперь твоя очередь.',
       next: null,
     },
   },
@@ -128,12 +193,17 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let diaryCursor = 0;
   let prompt = 'ИССЛЕДУЙ КВАРТИРУ';
   let time = 0;
+  let camX = ROOM_ORIGIN;
   let depthCam = 0;
   const stack = new ParallaxStack();
   const dialogue = new DialogueSystem();
   let introStarted = false;
   let beerCans: BeerCan[] = [];
   const hotspotHints = new HotspotHintClock();
+  let flushT = 0;
+  let ippolitSpoke = false;
+  let cigarettesTaken = false;
+  let catLitterAsked = false;
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
@@ -150,6 +220,21 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!states.flags.diaryUnlocked) {
       prompt = 'ВСТАНЬ И ПОДОЙДИ К КОМОДУ';
       hud.set({ objective: 'Открой комод' });
+      return;
+    }
+    if (states.flags.level1Cleared && !states.flags.litterCleaned) {
+      prompt = 'ТУАЛЕТ ← ЛОТОК КОШКИ';
+      hud.set({ objective: 'Почисти лоток' });
+      return;
+    }
+    if (!states.flags.cigarettesFound && !cigarettesTaken) {
+      prompt = 'НАЙДИ СИГАРЕТЫ → КУХНЯ';
+      hud.set({ objective: 'Найди сигареты' });
+      return;
+    }
+    if (states.flags.level2Cleared && !states.flags.bathed) {
+      prompt = 'ВАННАЯ → ПОМОЙСЯ';
+      hud.set({ objective: 'Помойся' });
       return;
     }
     if (!states.flags.level1Cleared) {
@@ -192,11 +277,39 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     return null;
   };
 
+  const nearChain = (): boolean => Math.abs(player.x - CHAIN_X) < 22;
+  const nearLitter = (): boolean => Math.abs(player.x - LITTER_X) < 22;
+  const nearCigarettes = (): boolean =>
+    !cigarettesTaken &&
+    !states.flags.cigarettesFound &&
+    Math.abs(player.x - CIGARETTES_X) < 22;
+  const nearIppolit = (): boolean => Math.abs(player.x - IPPOLIT_X) < 28;
+  const nearTub = (): boolean => Math.abs(player.x - TUB_X) < 32;
+  const inToilet = (): boolean =>
+    player.x >= TOILET_ORIGIN && player.x < ROOM_ORIGIN;
+
   const activePrompt = (): string | null => {
     if (overlay !== 'none' || dialogue.isOpen) return null;
     if (!states.flags.introDone) return null;
     if (nearDresser() && !states.flags.diaryUnlocked) return 'Открыть комод';
     if (nearDresser() && states.flags.diaryUnlocked) return 'Открыть дневник';
+    if (nearChain()) return 'Дёрнуть цепочку';
+    if (
+      nearLitter() &&
+      states.flags.level1Cleared &&
+      !states.flags.litterCleaned
+    ) {
+      return 'Почистить лоток';
+    }
+    if (nearCigarettes()) return 'Взять сигареты';
+    if (
+      nearTub() &&
+      states.flags.level2Cleared &&
+      !states.flags.bathed
+    ) {
+      return 'Помыться';
+    }
+    if (nearIppolit()) return 'Поговорить';
     const can = nearBeer();
     if (can) return 'Взять пиво';
     return null;
@@ -210,7 +323,6 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (dialogue.isOpen) return;
 
     if (overlay === 'photo') {
-      // After photo → level select
       overlay = 'diary';
       diaryCursor = nextDiaryCursor();
       hud.set({ objective: 'Выбери воспоминание' });
@@ -225,13 +337,73 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     if (!states.flags.introDone) return;
 
-    // Beer pickup
     const can = nearBeer();
     if (can) {
       player.beginInspect(0.35);
       can.taken = true;
       beer.pickup(1);
       showToast('Банка пива.');
+      return;
+    }
+
+    if (nearChain()) {
+      player.beginInspect(0.35);
+      flushT = 1.25;
+      showToast('Смыв! Грохот на весь подъезд.');
+      return;
+    }
+
+    if (
+      nearLitter() &&
+      states.flags.level1Cleared &&
+      !states.flags.litterCleaned
+    ) {
+      player.beginInspect(0.45);
+      states.setFlag('litterCleaned', true);
+      showToast('Лоток чист. Кошка довольна.');
+      refreshObjective();
+      return;
+    }
+
+    if (nearCigarettes()) {
+      player.beginInspect(0.4);
+      cigarettesTaken = true;
+      states.setFlag('cigarettesFound', true);
+      showToast('Сигареты. Пачка мятая, но своя.');
+      refreshObjective();
+      return;
+    }
+
+    if (
+      nearTub() &&
+      states.flags.level2Cleared &&
+      !states.flags.bathed
+    ) {
+      player.beginInspect(0.5);
+      if (!ippolitSpoke) {
+        dialogue.open(IPPOLIT_WASH_SCRIPT, () => {
+          ippolitSpoke = true;
+          states.setFlag('bathed', true);
+          showToast('С лёгким паром. Ты помылся.');
+          refreshObjective();
+        });
+      } else {
+        states.setFlag('bathed', true);
+        showToast('С лёгким паром. Ты помылся.');
+        refreshObjective();
+      }
+      return;
+    }
+
+    if (nearIppolit()) {
+      player.beginInspect(0.35);
+      if (!ippolitSpoke) {
+        dialogue.open(IPPOLIT_SCRIPT, () => {
+          ippolitSpoke = true;
+        });
+      } else {
+        showToast('Ипполит булькает в пальто.');
+      }
       return;
     }
 
@@ -280,7 +452,6 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     return 0;
   };
 
-  /** Prefer the next uncleared unlocked level. */
   const nextDiaryCursor = (): number => {
     if (!states.flags.level1Cleared) return 0;
     if (!states.flags.level2Cleared) return 1;
@@ -370,10 +541,20 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     }
   };
 
+  /** Cat world X — follows into toilet after L1 / when player is there. */
+  const catWorldX = (): number => {
+    if (inToilet() && states.flags.level1Cleared) {
+      return LITTER_X + 28;
+    }
+    if (inToilet()) return LITTER_X + 20;
+    return ROOM_ORIGIN + 58;
+  };
+
   return {
     enter(ctx: SceneContext): void {
       preloadAerialsPoster();
       preloadApartmentPhotos();
+      preloadIppolitFace();
       beer.resetForApartment();
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -382,6 +563,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       player.y = FLOOR_Y;
       player.facing = 1;
       player.walkSpeed = 52;
+      camX = Math.max(0, Math.min(WORLD_W - WIDTH, player.x - WIDTH * 0.4));
       overlay = 'none';
       toast = '';
       toastTimer = 0;
@@ -389,10 +571,17 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       dialogue.resetSilent();
       introStarted = false;
       hotspotHints.clear();
+      flushT = 0;
+      ippolitSpoke = false;
+      cigarettesTaken = states.flags.cigarettesFound;
+      catLitterAsked = false;
       beerCans = [
-        { x: 48, taken: false },
-        { x: 168, taken: false },
-        { x: 300, taken: false },
+        { x: ROOM_ORIGIN + 48, taken: false },
+        { x: ROOM_ORIGIN + 168, taken: false },
+        { x: ROOM_ORIGIN + 300, taken: false },
+        { x: KITCHEN_ORIGIN + 90, taken: false },
+        { x: BATH_ORIGIN + 60, taken: false },
+        { x: TOILET_ORIGIN + 100, taken: false },
       ];
       hud.set({
         hp: player.hp,
@@ -416,11 +605,11 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         introStarted = true;
       } else if (ctx.data?.afterLevel1 && states.flags.level1Cleared) {
         dialogue.open(AFTER_LEVEL1_SCRIPT, () => {
-          showToast('Дневник — ур. 2 выпускной.', 2.4);
+          showToast('Лоток в туалете ← и дневник — ур. 2.', 2.8);
           refreshObjective();
         });
       } else if (ctx.data?.afterLevel2 && states.flags.level2Cleared) {
-        showToast('Выпускной закрыт. Что дальше — в дневнике.', 2.8);
+        showToast('Выпускной закрыт. Можно помыться →', 2.8);
         refreshObjective();
       } else if (ctx.data?.epilogueFinale && states.flags.level8Cleared) {
         showToast('Долг закрыт. Зуич дочитал зиму.', 3.4);
@@ -437,9 +626,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     update(dt: number): void {
       time += dt;
       player.update(dt);
-      depthCam += ((player.x - WIDTH / 2) * 0.08 - depthCam) * Math.min(1, dt * 4);
+      if (flushT > 0) flushT = Math.max(0, flushT - dt);
 
-      // Thirst only after the player can walk / explore
+      const targetCam = player.x - WIDTH * 0.42;
+      camX += (targetCam - camX) * Math.min(1, dt * 6);
+      if (camX < 0) camX = 0;
+      if (camX > WORLD_W - WIDTH) camX = WORLD_W - WIDTH;
+      depthCam += ((player.x - ROOM_ORIGIN - WIDTH / 2) * 0.08 - depthCam) * Math.min(1, dt * 4);
+
       if (states.flags.introDone) beer.update(dt);
 
       if (!introStarted && !states.flags.introDone) {
@@ -449,6 +643,23 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           refreshObjective();
         });
         introStarted = true;
+      }
+
+      // Cat asks to clean litter when player enters toilet after L1
+      if (
+        states.flags.introDone &&
+        !dialogue.isOpen &&
+        overlay === 'none' &&
+        states.flags.level1Cleared &&
+        !states.flags.litterCleaned &&
+        inToilet() &&
+        !catLitterAsked
+      ) {
+        catLitterAsked = true;
+        dialogue.open(CAT_LITTER_SCRIPT, () => {
+          showToast('Почисти лоток (E).');
+          refreshObjective();
+        });
       }
 
       if (dialogue.isOpen) {
@@ -477,7 +688,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       const frozen = beer.isFrozen;
       const axis = frozen ? 0 : (states.input?.axisX() ?? 0);
       if (states.flags.introDone) {
-        player.applyWalk(axis, dt, 28, WIDTH - 28);
+        player.applyWalk(axis, dt, 20, WORLD_W - 20);
       }
       tryInteract();
     },
@@ -489,24 +700,39 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       width: number,
       height: number,
     ): void {
+      const cigsGone = cigarettesTaken || states.flags.cigarettesFound;
       stack.setLayers([
         {
-          id: 'room',
-          speedRatio: 0,
+          id: 'world',
+          speedRatio: 1,
           zIndex: 0,
-          screenSpace: true,
-          draw: (c) => drawApartment(c, width, height, depthCam, beerCans, time),
+          draw: (c) => {
+            drawApartmentWorld(
+              c,
+              height,
+              depthCam,
+              beerCans,
+              time,
+              flushT,
+              states.flags.litterCleaned,
+              ippolitSpoke,
+              states.flags.bathed,
+              cigsGone,
+            );
+          },
         },
         {
           id: 'gameplay',
-          speedRatio: 0,
+          speedRatio: 1,
           zIndex: 10,
-          screenSpace: true,
           draw: (c) => {
+            drawCatAt(c, catWorldX(), time);
             player.render(c, alpha);
-            drawCat(c, time);
             if (!dialogue.isOpen && overlay === 'none') {
-              drawHotspotHints(c, states, beerCans, time, player.x, hotspotHints);
+              drawHotspotHints(c, states, beerCans, time, player.x, hotspotHints, {
+                cigarettesGone: cigsGone,
+                flushBusy: flushT > 0,
+              });
             }
           },
         },
@@ -516,37 +742,36 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           zIndex: 20,
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
-            applyLightingOverlay(c, 0, w, h, {
-              // Softer ambient so cream damask wallpaper stays readable
-              ambient: { color: 'rgba(36, 30, 42, 0.28)' },
-              points: [
-                {
-                  kind: 'point',
-                  x: 104,
-                  y: 100,
-                  radius: 42,
-                  color: '#ffd878',
-                  screenSpace: true,
-                },
-                {
-                  kind: 'point',
-                  // Cool spill from enlarged night window
-                  x: 250,
-                  y: 72,
-                  radius: 40,
-                  color: '#7090c8',
-                  screenSpace: true,
-                },
-              ],
-              cones: [],
-              time,
-            }, ART_SCALE);
+            // Soft ambient only — NO desk/computer lamp bloom
+            const winScreenX = ROOM_ORIGIN + 250 - camX;
+            applyLightingOverlay(
+              c,
+              0,
+              w,
+              h,
+              {
+                ambient: { color: 'rgba(36, 30, 42, 0.28)' },
+                points: [
+                  {
+                    kind: 'point',
+                    // Cool spill from night window only (no desk/PC lamp bloom)
+                    x: winScreenX,
+                    y: 72,
+                    radius: 36,
+                    color: '#7090c8',
+                    screenSpace: true,
+                  },
+                ],
+                cones: [],
+                time,
+              },
+              ART_SCALE,
+            );
           },
         },
       ]);
-      stack.render(ctx, depthCam, width, height);
+      stack.render(ctx, camX, width, height);
 
-      // Bottom guidance only when not already showing a world ↑ CTA
       if (overlay === 'none' && !dialogue.isOpen && !activePrompt() && prompt) {
         drawPromptBar(ctx, width, prompt);
       }
@@ -571,8 +796,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
 
       if (states.flags.introDone) {
-        // Progressive desat + thoughts over Зуич; HUD stays readable on top.
-        beer.renderCrisis(ctx, width, height, player.x, player.y);
+        // Thoughts use screen X
+        beer.renderCrisis(ctx, width, height, player.x - camX, player.y);
         beer.renderHud(ctx, width);
       }
     },
@@ -585,22 +810,64 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     setOverlay(mode: OverlayMode): void {
       overlay = mode;
     },
+
+    /** Debug / capture — snap camera to world X (left edge). */
+    setCamX(x: number): void {
+      camX = Math.max(0, Math.min(WORLD_W - WIDTH, x));
+    },
   };
 }
 
-function drawApartment(
+function drawApartmentWorld(
   ctx: CanvasRenderingContext2D,
-  width: number,
   height: number,
   depthCam: number,
   beerCans: BeerCan[],
   time: number,
+  flushT: number,
+  litterClean: boolean,
+  ippolitSpoke: boolean,
+  bathed: boolean,
+  cigarettesGone: boolean,
+): void {
+  // Toilet
+  drawToiletRoom(ctx, TOILET_ORIGIN, height, time, flushT, litterClean);
+
+  // Living room
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(ROOM_ORIGIN, 0, ROOM_W, height);
+  ctx.clip();
+  ctx.translate(ROOM_ORIGIN, 0);
+  drawLivingRoom(ctx, ROOM_W, height, depthCam, time);
+  ctx.restore();
+
+  drawDoorwayArch(ctx, ROOM_ORIGIN + 4, '← туалет');
+  drawDoorwayArch(ctx, ROOM_ORIGIN + ROOM_W - 4, 'кухня →');
+  drawRoomBottles(ctx, ROOM_ORIGIN);
+
+  // Kitchen + bath
+  drawKitchen(ctx, KITCHEN_ORIGIN, height, time);
+  drawBathroom(ctx, BATH_ORIGIN, height, time, ippolitSpoke, bathed);
+
+  if (!cigarettesGone) {
+    drawCigarettePack(ctx, CIGARETTES_X, FLOOR_Y - 14, time);
+  }
+
+  for (const c of beerCans) {
+    if (!c.taken) drawBeerCan(ctx, c.x, FLOOR_Y - 8);
+  }
+}
+
+function drawLivingRoom(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  depthCam: number,
+  time: number,
 ): void {
   px(ctx, 0, 0, width, height, P.wallDeep);
-
-  // Photo damask wallpaper (cream + brown) — clean, no stains/blotches
   drawTiledWallpaper(ctx, 0, 0, width, FLOOR_Y - 10);
-  // Soft ceiling shadow only
   ditherRect(ctx, 0, 0, width, 8, 'rgba(40, 32, 28, 0.35)', 'rgba(40, 32, 28, 0.05)');
 
   drawWindow(ctx, depthCam, time);
@@ -611,39 +878,23 @@ function drawApartment(
   drawBed(ctx);
   drawDeskAndPc(ctx);
   drawComputerJunk(ctx);
-  drawBeerCorner(ctx);
   drawDresser(ctx);
-  drawLamp(ctx);
+  // No desk lamp / soft bloom above the PC (user request)
   drawBaseboard(ctx, width);
-
-  for (const c of beerCans) {
-    if (!c.taken) drawBeerCan(ctx, c.x, FLOOR_Y - 8);
-  }
-
-  // Soft lamp glow seeds (lighting overlay carries the bloom)
-  ctx.fillStyle = 'rgba(255, 200, 88, 0.35)';
-  for (const [gx, gy] of [
-    [96, 86], [104, 78], [112, 90], [108, 98],
-  ] as const) {
-    ctx.fillRect(gx, gy, 1, 1);
-  }
 }
 
 function drawRedDoor(ctx: CanvasRenderingContext2D): void {
-  // Old Soviet red apartment door — multi-shade panels + wear
   px(ctx, 0, FLOOR_Y - 86, 22, 76, '#4a1414');
   px(ctx, 2, FLOOR_Y - 84, 18, 72, '#8a2828');
   px(ctx, 3, FLOOR_Y - 82, 16, 2, '#c05050');
   px(ctx, 3, FLOOR_Y - 82, 2, 68, '#a84040');
   px(ctx, 17, FLOOR_Y - 82, 2, 68, '#601818');
-  // Panels
   px(ctx, 5, FLOOR_Y - 78, 12, 22, '#782020');
   px(ctx, 6, FLOOR_Y - 77, 10, 2, '#a03838');
   px(ctx, 6, FLOOR_Y - 76, 1, 18, '#903030');
   px(ctx, 5, FLOOR_Y - 50, 12, 28, '#6a1818');
   px(ctx, 6, FLOOR_Y - 49, 10, 2, '#882828');
   speckles(ctx, 4, FLOOR_Y - 80, 14, 60, '#5a1010', 4, 2);
-  // Peephole + brass handle
   px(ctx, 10, FLOOR_Y - 58, 4, 4, '#202028');
   px(ctx, 11, FLOOR_Y - 57, 2, 2, '#a0a8b0');
   px(ctx, 11, FLOOR_Y - 57, 1, 1, '#e0e8f0');
@@ -653,10 +904,8 @@ function drawRedDoor(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
-  // Finer PC clutter under / near window — more midtones & cables
   const baseX = 200;
   const fy = FLOOR_Y;
-  // Tower case with vent slots
   px(ctx, baseX, fy - 30, 22, 20, '#3a3a48');
   px(ctx, baseX + 1, fy - 29, 20, 2, '#585868');
   px(ctx, baseX + 1, fy - 29, 1, 18, '#505060');
@@ -667,33 +916,28 @@ function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
   }
   px(ctx, baseX + 15, fy - 18, 3, 2, '#40c040');
   px(ctx, baseX + 15, fy - 15, 3, 2, '#c04040');
-  // CRT with bezel + scanline hint
   px(ctx, baseX + 24, fy - 36, 22, 18, '#2a2a38');
   px(ctx, baseX + 25, fy - 35, 20, 2, '#484858');
   px(ctx, baseX + 26, fy - 33, 18, 11, '#1a2838');
   px(ctx, baseX + 27, fy - 32, 16, 2, '#2a4058');
-  px(ctx, baseX + 28, fy - 28, 6, 3, '#406080');
+  px(ctx, baseX + 28, fy - 30, 6, 3, '#406080');
   px(ctx, baseX + 36, fy - 27, 4, 2, '#60a080');
   px(ctx, baseX + 28, fy - 18, 14, 3, '#484858');
   px(ctx, baseX + 30, fy - 17, 4, 1, '#808890');
-  // Motherboard / ISA cards
   px(ctx, baseX + 8, fy - 12, 30, 7, '#204028');
   px(ctx, baseX + 9, fy - 11, 28, 1, '#386040');
   px(ctx, baseX + 10, fy - 10, 3, 3, '#c0a040');
   px(ctx, baseX + 16, fy - 10, 3, 3, '#c0a040');
   px(ctx, baseX + 22, fy - 10, 3, 3, '#808890');
   px(ctx, baseX + 28, fy - 9, 8, 2, '#608070');
-  // HDD / PSU bricks
   px(ctx, baseX + 46, fy - 16, 16, 8, '#303038');
   px(ctx, baseX + 47, fy - 15, 14, 1, '#505058');
   px(ctx, baseX + 48, fy - 12, 6, 2, '#202028');
-  // Cables — multi-tone spaghetti
   px(ctx, baseX - 6, fy - 10, 12, 2, '#282830');
   px(ctx, baseX - 4, fy - 8, 2, 6, '#383840');
   px(ctx, baseX + 40, fy - 20, 2, 14, '#282830');
   px(ctx, baseX + 42, fy - 12, 10, 2, '#484850');
   px(ctx, baseX + 50, fy - 24, 2, 8, '#202830');
-  // Sideways CRT
   px(ctx, baseX + 48, fy - 28, 16, 12, '#303040');
   px(ctx, baseX + 49, fy - 27, 14, 2, '#484858');
   px(ctx, baseX + 50, fy - 25, 12, 7, '#182028');
@@ -727,42 +971,11 @@ function drawFloor(ctx: CanvasRenderingContext2D, width: number, height: number)
   }
 }
 
-function drawBeerCorner(ctx: CanvasRenderingContext2D): void {
-  // Bottle pile left of bed
-  const bx = 28;
-  const fy = FLOOR_Y;
-  const bottles = [
-    [0, -18, '#3a6028'],
-    [6, -20, '#2a4820'],
-    [12, -16, '#4a7030'],
-    [4, -12, '#305028'],
-    [10, -14, '#284020'],
-  ] as const;
-  for (const [ox, oy, col] of bottles) {
-    px(ctx, bx + ox, fy + oy, 4, 12, col);
-    px(ctx, bx + ox + 1, fy + oy - 2, 2, 3, '#808890');
-    px(ctx, bx + ox + 1, fy + oy + 2, 2, 2, '#a0c060');
-  }
-}
-
-function drawBeerCan(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  px(ctx, x - 3, y - 9, 6, 11, '#c89030');
-  px(ctx, x - 2, y - 8, 4, 2, '#f0c868');
-  px(ctx, x - 2, y - 6, 1, 6, '#e0b050');
-  px(ctx, x + 1, y - 6, 1, 6, '#a07020');
-  px(ctx, x - 2, y - 10, 4, 2, '#a0a8b0');
-  px(ctx, x - 1, y - 10, 2, 1, '#d0d8e0');
-  px(ctx, x - 1, y - 4, 2, 3, '#c04040');
-  px(ctx, x - 1, y - 3, 2, 1, '#e06060');
-}
-
-/** Window frame + glass — ~1.3× prior 92×72 so parade reads. */
 function drawWindow(
   ctx: CanvasRenderingContext2D,
   depthCam = 0,
   time = 0,
 ): void {
-  // Prior: 200,28 / 92×72 → ×1.3 ≈ 120×94; pin right edge near 320
   const fx = 196;
   const fy = 22;
   const fw = 120;
@@ -784,7 +997,6 @@ function drawWindow(
   ditherRect(ctx, gx + 16, gy + 22, 48, 14, P.nightSkyMid, P.cityHi);
 
   const ox = Math.round(depthCam * 0.35);
-  // Distant city blocks behind parade
   const blocks = [
     [gx + 4, gy + 24, 16, 40, P.city, P.cityMid],
     [gx + 24, gy + 10, 22, 54, P.cityMid, P.cityHi],
@@ -801,15 +1013,12 @@ function drawWindow(
     }
   }
 
-  // Park parade floats past glass (monument · moose · caption)
   drawWindowParade(ctx, { x: gx, y: gy, w: gw, h: gh }, time, depthCam);
 
-  // Mullion + sash
   px(ctx, gx + Math.floor(gw / 2) - 1, gy, 3, gh, P.woodMid);
   px(ctx, gx + Math.floor(gw / 2), gy, 1, gh, P.woodHi);
   px(ctx, gx, gy + Math.floor(gh / 2) - 1, gw, 3, P.woodMid);
 
-  // Curtains with folds — scaled with frame
   const cw = 16;
   px(ctx, fx + 6, fy + 8, cw, fh - 18, P.curtain);
   px(ctx, fx + 8, fy + 12, 3, fh - 26, P.curtainHi);
@@ -835,7 +1044,6 @@ function drawDeskAndPc(ctx: CanvasRenderingContext2D): void {
   px(ctx, 74, FLOOR_Y - 10, 5, 10, P.woodDeep);
   px(ctx, 116, FLOOR_Y - 10, 5, 10, P.woodDeep);
 
-  // CRT on desk — bezel + screen glow + scanlines
   px(ctx, 78, FLOOR_Y - 70, 28, 26, '#2a2a38');
   px(ctx, 80, FLOOR_Y - 68, 24, 2, '#585868');
   px(ctx, 80, FLOOR_Y - 66, 24, 18, '#102028');
@@ -847,12 +1055,10 @@ function drawDeskAndPc(ctx: CanvasRenderingContext2D): void {
   px(ctx, 86, FLOOR_Y - 44, 12, 4, '#484858');
   px(ctx, 88, FLOOR_Y - 43, 4, 1, '#808890');
 
-  // Keyboard with key rows
   px(ctx, 78, FLOOR_Y - 46, 30, 5, '#3a3a48');
   px(ctx, 80, FLOOR_Y - 45, 26, 1, '#585868');
   for (let kx = 81; kx < 104; kx += 3) px(ctx, kx, FLOOR_Y - 44, 2, 1, '#686878');
 
-  // Tower under desk
   px(ctx, 108, FLOOR_Y - 38, 14, 26, '#303040');
   px(ctx, 110, FLOOR_Y - 36, 10, 2, '#505060');
   px(ctx, 110, FLOOR_Y - 33, 10, 4, '#202028');
@@ -896,65 +1102,48 @@ function drawBed(ctx: CanvasRenderingContext2D): void {
   px(ctx, 9, FLOOR_Y - 44, 1, 20, P.woodHi);
 }
 
-function drawLamp(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 130, FLOOR_Y - 48, 4, 18, P.woodDark);
-  px(ctx, 126, FLOOR_Y - 56, 12, 8, P.brass);
-  px(ctx, 128, FLOOR_Y - 54, 8, 2, P.brassHi);
-  px(ctx, 129, FLOOR_Y - 58, 6, 2, P.lampGlow);
-}
-
-/** Ginger cat NPC — readable fur, ears, eyes (hi-detail drawn). */
-function drawCat(ctx: CanvasRenderingContext2D, time: number): void {
+function drawCatAt(ctx: CanvasRenderingContext2D, worldX: number, time: number): void {
   const C = CAT_PAL;
   const bob = Math.floor(time * 2) % 2;
-  const x = 58;
+  const x = worldX;
   const y = FLOOR_Y - 10 + bob;
 
-  // Body
   px(ctx, x, y - 11, 15, 9, C.fur);
   px(ctx, x + 1, y - 10, 13, 2, C.furHi);
   px(ctx, x + 2, y - 7, 11, 3, C.furMid);
   px(ctx, x + 3, y - 5, 9, 2, C.belly);
   speckles(ctx, x, y - 11, 15, 9, C.furDark, 3, 1);
-  // Stripes
   px(ctx, x + 3, y - 9, 2, 1, C.stripe);
   px(ctx, x + 7, y - 8, 2, 1, C.stripe);
   px(ctx, x + 11, y - 9, 2, 1, C.stripe);
   px(ctx, x + 5, y - 6, 2, 1, C.stripe);
 
-  // Head
   px(ctx, x + 10, y - 18, 9, 8, C.fur);
   px(ctx, x + 11, y - 17, 7, 2, C.furHi);
   px(ctx, x + 12, y - 14, 5, 2, C.furMid);
-  // Ears (triangle-ish)
   px(ctx, x + 10, y - 22, 3, 4, C.fur);
   px(ctx, x + 11, y - 21, 1, 2, C.innerEar);
   px(ctx, x + 16, y - 22, 3, 4, C.fur);
   px(ctx, x + 17, y - 21, 1, 2, C.innerEar);
   px(ctx, x + 10, y - 22, 1, 1, C.outline);
   px(ctx, x + 18, y - 22, 1, 1, C.outline);
-  // Eyes — green shine
   px(ctx, x + 12, y - 15, 2, 2, C.eye);
   px(ctx, x + 16, y - 15, 2, 2, C.eye);
   px(ctx, x + 12, y - 15, 1, 1, C.eyeHi);
   px(ctx, x + 16, y - 15, 1, 1, C.eyeHi);
-  // Nose + muzzle
   px(ctx, x + 14, y - 13, 2, 1, C.nose);
   px(ctx, x + 14, y - 13, 1, 1, C.noseHi);
   px(ctx, x + 13, y - 12, 1, 1, C.outline);
   px(ctx, x + 16, y - 12, 1, 1, C.outline);
-  // Whiskers
   px(ctx, x + 10, y - 13, 3, 1, C.whisker);
   px(ctx, x + 17, y - 13, 3, 1, C.whisker);
   px(ctx, x + 10, y - 12, 2, 1, C.whisker);
   px(ctx, x + 18, y - 12, 2, 1, C.whisker);
 
-  // Tail — arched
   px(ctx, x - 5, y - 13, 6, 2, C.fur);
   px(ctx, x - 6, y - 18, 2, 6, C.furMid);
   px(ctx, x - 5, y - 19, 2, 2, C.furHi);
   px(ctx, x - 6, y - 16, 1, 1, C.stripe);
-  // Front paws
   px(ctx, x + 2, y - 3, 3, 2, C.furHi);
   px(ctx, x + 8, y - 3, 3, 2, C.furHi);
 }
@@ -966,18 +1155,69 @@ function drawHotspotHints(
   timeSec: number,
   playerX: number,
   clock: HotspotHintClock,
+  opts: { cigarettesGone: boolean; flushBusy: boolean },
 ): void {
   if (!states.flags.introDone) return;
 
-  // Proximity: on enter → compact ↑+text for ~5s, then ↑ only until leave/re-enter.
-  const nearDresser = playerX >= DRESSER_X && playerX <= DRESSER_X + DRESSER_W;
-  const dresser = clock.sample('dresser', nearDresser, timeSec);
+  const nearDress = playerX >= DRESSER_X && playerX <= DRESSER_X + DRESSER_W;
+  const dresser = clock.sample('dresser', nearDress, timeSec);
   if (dresser.active) {
     const label = states.flags.diaryUnlocked ? 'Открыть дневник' : 'Открыть комод';
     drawInteractPrompt(ctx, DRESSER_X + DRESSER_W / 2, FLOOR_Y - 58, label, timeSec, {
       size: 5.5,
       showLabel: dresser.showLabel,
     });
+  }
+
+  const chainNear = Math.abs(playerX - CHAIN_X) < 22 && !opts.flushBusy;
+  const chain = clock.sample('chain', chainNear, timeSec);
+  if (chain.active) {
+    drawInteractPrompt(ctx, CHAIN_X, FLOOR_Y - 70, 'Дёрнуть цепочку', timeSec, {
+      size: 5.5,
+      showLabel: chain.showLabel,
+    });
+  }
+
+  const litterNear =
+    Math.abs(playerX - LITTER_X) < 22 &&
+    states.flags.level1Cleared &&
+    !states.flags.litterCleaned;
+  const litter = clock.sample('litter', litterNear, timeSec);
+  if (litter.active) {
+    drawInteractPrompt(ctx, LITTER_X, FLOOR_Y - 28, 'Почистить лоток', timeSec, {
+      size: 5.5,
+      showLabel: litter.showLabel,
+    });
+  }
+
+  const cigNear = !opts.cigarettesGone && Math.abs(playerX - CIGARETTES_X) < 22;
+  const cig = clock.sample('cigs', cigNear, timeSec);
+  if (cig.active) {
+    drawInteractPrompt(ctx, CIGARETTES_X, FLOOR_Y - 30, 'Взять сигареты', timeSec, {
+      size: 5.5,
+      showLabel: cig.showLabel,
+    });
+  }
+
+  const washNear =
+    Math.abs(playerX - TUB_X) < 32 &&
+    states.flags.level2Cleared &&
+    !states.flags.bathed;
+  const wash = clock.sample('wash', washNear, timeSec);
+  if (wash.active) {
+    drawInteractPrompt(ctx, TUB_X, FLOOR_Y - 56, 'Помыться', timeSec, {
+      size: 5.5,
+      showLabel: wash.showLabel,
+    });
+  } else {
+    const ipNear = Math.abs(playerX - IPPOLIT_X) < 28;
+    const ip = clock.sample('ippolit', ipNear && !washNear, timeSec);
+    if (ip.active) {
+      drawInteractPrompt(ctx, IPPOLIT_X, FLOOR_Y - 56, 'Поговорить', timeSec, {
+        size: 5.5,
+        showLabel: ip.showLabel,
+      });
+    }
   }
 
   for (let i = 0; i < beerCans.length; i++) {
@@ -1011,7 +1251,6 @@ function drawPromptBar(ctx: CanvasRenderingContext2D, width: number, text: strin
   drawUiTextCentered(ctx, text, width / 2, PROMPT_Y - 8, P.uiText, 7, 550);
 }
 
-/** Family photo frame — photo-quality счастливая семья. */
 function drawPhotoOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   ctx.fillStyle = 'rgba(6, 6, 12, 0.88)';
   ctx.fillRect(0, 0, width, height);
@@ -1029,7 +1268,6 @@ function drawPhotoOverlay(ctx: CanvasRenderingContext2D, width: number, height: 
   const photoH = bh - 28;
   const drawn = drawFamilyPhotoFace(ctx, bx + 2, by + 2, bw - 4, photoH - 2);
   if (!drawn) {
-    // Fallback silhouette while loading
     px(ctx, bx + 2, by + 2, bw - 4, photoH - 2, '#88b070');
   }
 
@@ -1083,7 +1321,6 @@ function drawDiarySelect(
 
   drawUiTextCentered(ctx, 'Дневник — уровни', width / 2, by + 8, P.diaryPages, 8, 650);
 
-  // Tiny счастливая семья portrait on diary cover
   const thumbX = bx + bw - 40;
   const thumbY = by + 6;
   px(ctx, thumbX, thumbY, 26, 20, P.frameDark);

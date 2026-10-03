@@ -58,6 +58,12 @@ export interface ProgressFlags {
   seenPhoto: boolean;
   /** Diary level-select unlocked (same beat as finding diary in dresser). */
   diaryUnlocked: boolean;
+  /** Apartment exploration — pack of cigarettes found (кухня / холодильник). */
+  cigarettesFound: boolean;
+  /** After Level 1 — cat litter cleaned in toilet. */
+  litterCleaned: boolean;
+  /** After Level 2 — washed in the bath (помыться). */
+  bathed: boolean;
   level1Selected: boolean;
   /** Set when Level 1 rynok is cleared — unlocks diary Level 2. */
   level1Cleared: boolean;
@@ -88,6 +94,9 @@ const DEFAULT_FLAGS: ProgressFlags = {
   introDone: false,
   seenPhoto: false,
   diaryUnlocked: false,
+  cigarettesFound: false,
+  litterCleaned: false,
+  bathed: false,
   level1Selected: false,
   level1Cleared: false,
   level2Selected: false,
