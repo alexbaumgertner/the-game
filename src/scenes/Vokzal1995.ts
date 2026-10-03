@@ -29,6 +29,7 @@ import {
 } from '@/systems/DialogueSystem';
 import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
 import { tickQuizEncounter } from '@/systems/quizEncounter';
+import { GENERAL_PHILOSOPHY_QUESTIONS } from '@/data/philosophyQuestions';
 
 const P = VOKZAL_PAL;
 const WORLD_W = 560;
@@ -509,6 +510,11 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
         dialogue.advance();
         dialogue.advance();
         dialogue.advance();
+      },
+      /** Open general philosophy bank by index (era-tagged L3+ deck). */
+      forcePhilosophyQuiz: (index = 0) => {
+        dialogue.resetSilent();
+        quiz.openFromBank('Прохожий', GENERAL_PHILOSOPHY_QUESTIONS, index);
       },
       forceClear: () => {
         phase = 'cleared';

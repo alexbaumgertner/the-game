@@ -4,6 +4,7 @@
  */
 
 export {
+  type PhilosophyEra,
   type QuizSubject,
   type QuizQuestion,
   type SchoolQuestion,
@@ -12,6 +13,7 @@ export {
   GENERAL_PHILOSOPHY_QUESTIONS,
   PHILOSOPHY_QUESTIONS,
   SCHOOL_QUESTIONS,
+  countByEra,
   shuffleQuestion,
   nextPhilosophyQuestion,
   nextMarketQuestion,
