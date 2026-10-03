@@ -14,6 +14,10 @@ import {
   drawTiledWallpaper,
   preloadApartmentPhotos,
 } from '@/art/apartmentPhotos';
+import {
+  drawFatherRoomWallPhotos,
+  preloadFatherRoomPhotos,
+} from '@/art/fatherRoomPhotos';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import {
@@ -172,6 +176,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
     enter(): void {
       beer.pauseForFlashback();
       preloadApartmentPhotos();
+      preloadFatherRoomPhotos();
       preloadFamilyFaces();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -389,6 +394,8 @@ function drawGradRoom(
   // Graduation banner
   px(ctx, 100, 28, 120, 14, '#4a2040');
   drawUiText(ctx, 'ВЫПУСКНОЙ — 1995', 110, 32, '#f0d0e0', 7, 650);
+  // Framed Solaris stills on the wall (Kelvin window + house porch)
+  drawFatherRoomWallPhotos(ctx);
   // Floor speckles
   speckles(ctx, 0, FLOOR_Y, width, 20, '#2a2418', 5, Math.floor(t));
 }
