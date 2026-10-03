@@ -258,3 +258,112 @@ export function fillBricks(
     }
   }
 }
+
+/**
+ * Fine wood grain over a plank rect — multi-shade streaks + knots.
+ * Integer pixels only (no smoothing).
+ */
+export function woodGrain(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  base: string,
+  hi: string,
+  mid: string,
+  dark: string,
+  vertical = true,
+): void {
+  const ix = Math.round(x);
+  const iy = Math.round(y);
+  const iw = Math.round(w);
+  const ih = Math.round(h);
+  ctx.fillStyle = base;
+  ctx.fillRect(ix, iy, iw, ih);
+  if (vertical) {
+    for (let gx = ix + 1; gx < ix + iw - 1; gx += 3) {
+      const tone = ((gx - ix) / 3) % 3;
+      ctx.fillStyle = tone === 0 ? hi : tone === 1 ? mid : dark;
+      ctx.fillRect(gx, iy + 1, 1, Math.max(1, ih - 2));
+      if (tone === 0 && ih > 8) {
+        ctx.fillStyle = dark;
+        ctx.fillRect(gx, iy + 3 + ((gx * 5) % (ih - 6)), 1, 2);
+      }
+    }
+    for (let k = ix + 4; k < ix + iw - 4; k += 11) {
+      const ky = iy + 2 + ((k * 7) % Math.max(1, ih - 5));
+      ctx.fillStyle = dark;
+      ctx.fillRect(k, ky, 2, 2);
+      ctx.fillStyle = mid;
+      ctx.fillRect(k, ky, 1, 1);
+    }
+  } else {
+    for (let gy = iy + 1; gy < iy + ih - 1; gy += 2) {
+      const tone = ((gy - iy) / 2) % 3;
+      ctx.fillStyle = tone === 0 ? hi : tone === 1 ? mid : dark;
+      ctx.fillRect(ix + 1, gy, Math.max(1, iw - 2), 1);
+    }
+  }
+  ctx.fillStyle = hi;
+  ctx.fillRect(ix, iy, iw, 1);
+  ctx.fillRect(ix, iy, 1, ih);
+  ctx.fillStyle = dark;
+  ctx.fillRect(ix, iy + ih - 1, iw, 1);
+  ctx.fillRect(ix + iw - 1, iy, 1, ih);
+}
+
+/**
+ * Organic grease / nicotine stain — dithered blob with soft edge.
+ */
+export function greaseStain(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  deep: string,
+  mid: string,
+  edge: string,
+): void {
+  const ix = Math.round(x);
+  const iy = Math.round(y);
+  const iw = Math.round(w);
+  const ih = Math.round(h);
+  const cx = ix + iw / 2;
+  const cy = iy + ih / 2;
+  for (let py = iy; py < iy + ih; py++) {
+    for (let px_ = ix; px_ < ix + iw; px_++) {
+      const nx = (px_ - cx) / (iw / 2);
+      const ny = (py - cy) / (ih / 2);
+      const d = nx * nx + ny * ny * 0.85 + (((px_ * 3 + py * 7) & 3) * 0.04);
+      if (d > 1.05) continue;
+      if (d < 0.35) ctx.fillStyle = deep;
+      else if (d < 0.7) ctx.fillStyle = mid;
+      else if (((px_ ^ py) & 1) === 0) ctx.fillStyle = edge;
+      else continue;
+      ctx.fillRect(px_, py, 1, 1);
+    }
+  }
+}
+
+/** Sparse fur / fabric speckles for illustrative density. */
+export function speckles(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  color: string,
+  step = 4,
+  seed = 0,
+): void {
+  const ix = Math.round(x);
+  const iy = Math.round(y);
+  ctx.fillStyle = color;
+  for (let py = iy; py < iy + h; py += step) {
+    for (let px_ = ix + ((py + seed) % step); px_ < ix + w; px_ += step) {
+      if (((px_ * 13 + py * 17 + seed) & 5) === 0) ctx.fillRect(px_, py, 1, 1);
+    }
+  }
+}

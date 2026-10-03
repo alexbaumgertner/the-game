@@ -45,8 +45,12 @@ export const ADULT_PAL = {
   /** Light chest tag on sweatshirt. */
   tag: '#c8d0d8',
   eye: '#d0dce8',
+  eyeWhite: '#f0f4f8',
+  pupil: '#1a2030',
   teeth: '#f8f4f0',
+  lip: '#d09088',
   brow: '#a88870',
+  ear: '#e0b898',
 } as const;
 
 /**
@@ -77,8 +81,29 @@ export const TEEN_PAL = {
   scarfDark: '#902028',
   tag: '#c8d0d8',
   eye: '#d8e0e8',
+  eyeWhite: '#f0f4f8',
+  pupil: '#1a2030',
   teeth: '#f8f4f0',
+  lip: '#d89890',
   brow: '#b09078',
+  ear: '#e8c0a0',
+} as const;
+
+/** Ginger cat — multi-shade fur for readable drawn look. */
+export const CAT_PAL = {
+  outline: '#3a2010',
+  furHi: '#f8b070',
+  fur: '#e07828',
+  furMid: '#c06020',
+  furDark: '#8a4018',
+  stripe: '#6a3010',
+  belly: '#f0c898',
+  eye: '#203820',
+  eyeHi: '#d0e870',
+  nose: '#d04040',
+  noseHi: '#f07070',
+  innerEar: '#f8a090',
+  whisker: '#f0e0d0',
 } as const;
 
 /** 2026 Khrushchyovka apartment — wallpaper motifs, bevelled furniture. */
@@ -91,6 +116,11 @@ export const APT_PAL = {
   wallpaperDot: '#6a6890',
   wallpaperMotif: '#7a78b0',
   wallpaperShadow: '#3c3a58',
+  wallStainDeep: '#4a3828',
+  wallStainMid: '#5a4838',
+  wallStainEdge: '#6a5848',
+  wallFloral: '#8a6878',
+  wallFloralLeaf: '#5a7860',
   floor: '#6a5848',
   floorLight: '#8a7860',
   floorMid: '#7a6858',
@@ -101,6 +131,7 @@ export const APT_PAL = {
   woodMid: '#9a8070',
   woodDark: '#524030',
   woodDeep: '#322820',
+  woodKnot: '#3a2818',
   bedSheet: '#7a7aa0',
   bedSheetHi: '#9a9ac0',
   bedBlanket: '#9a5a68',

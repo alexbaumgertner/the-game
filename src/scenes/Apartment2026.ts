@@ -9,8 +9,16 @@ import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
-import { APT_PAL } from '@/art/segaPalette';
-import { ditherRect, fillPattern, px, segaBox } from '@/art/pixelDraw';
+import { APT_PAL, CAT_PAL } from '@/art/segaPalette';
+import {
+  ditherRect,
+  fillPattern,
+  greaseStain,
+  px,
+  segaBox,
+  speckles,
+  woodGrain,
+} from '@/art/pixelDraw';
 import {
   drawInteractPrompt,
   drawUiText,
@@ -443,16 +451,22 @@ function drawApartment(
 ): void {
   px(ctx, 0, 0, width, height, P.wallDeep);
 
-  // Greasy / stained wallpaper
-  fillPattern(ctx, 0, 0, width, FLOOR_Y - 10, P.wallBase, P.wallpaperMotif, 10, 'diamonds');
-  for (let x = 36; x < width; x += 52) {
-    px(ctx, x, 10, 2, FLOOR_Y - 24, P.wallpaperShadow);
-    px(ctx, x + 1, 10, 1, FLOOR_Y - 24, P.wallpaper);
+  // Wallpaper base + floral motif (drawn midtones, not chunky checks)
+  fillPattern(ctx, 0, 0, width, FLOOR_Y - 10, P.wallBase, P.wallpaperMotif, 8, 'diamonds');
+  speckles(ctx, 0, 0, width, FLOOR_Y - 10, P.wallpaperDot, 5, 3);
+  speckles(ctx, 0, 8, width, FLOOR_Y - 20, P.wallFloral, 11, 7);
+  speckles(ctx, 4, 12, width - 8, FLOOR_Y - 28, P.wallFloralLeaf, 13, 2);
+  // Vertical seam strips
+  for (let x = 28; x < width; x += 44) {
+    px(ctx, x, 8, 2, FLOOR_Y - 22, P.wallpaperShadow);
+    px(ctx, x + 1, 8, 1, FLOOR_Y - 22, P.wallpaper);
+    ditherRect(ctx, x - 1, 20, 1, FLOOR_Y - 40, P.wallDark, P.wallpaperShadow);
   }
-  // Oil / nicotine stains
-  ditherRect(ctx, 20, 40, 40, 50, P.wallBase, '#6a5840');
-  ditherRect(ctx, 160, 20, 50, 36, P.wallDark, '#5a4838');
-  ditherRect(ctx, 260, 50, 36, 40, P.wallpaperShadow, '#4a3a28');
+  // Nuanced grease / nicotine stains
+  greaseStain(ctx, 14, 36, 48, 56, P.wallStainDeep, P.wallStainMid, P.wallStainEdge);
+  greaseStain(ctx, 150, 16, 58, 42, P.wallStainDeep, P.wallStainMid, P.wallDark);
+  greaseStain(ctx, 248, 44, 44, 48, P.wallpaperShadow, P.wallStainMid, P.wallStainEdge);
+  greaseStain(ctx, 70, 70, 30, 28, P.wallStainMid, P.wallStainEdge, P.wallBase);
   ditherRect(ctx, 0, 0, width, 10, P.wallDeep, P.wallDark);
 
   drawWindow(ctx, depthCam);
@@ -481,34 +495,41 @@ function drawApartment(
 }
 
 function drawRedDoor(ctx: CanvasRenderingContext2D): void {
-  // Old Soviet red apartment door (left wall)
-  px(ctx, 0, FLOOR_Y - 86, 22, 76, '#6a2020');
+  // Old Soviet red apartment door — multi-shade panels + wear
+  px(ctx, 0, FLOOR_Y - 86, 22, 76, '#4a1414');
   px(ctx, 2, FLOOR_Y - 84, 18, 72, '#8a2828');
-  px(ctx, 3, FLOOR_Y - 82, 16, 2, '#a83838');
-  px(ctx, 3, FLOOR_Y - 82, 2, 68, '#a04040');
-  px(ctx, 4, FLOOR_Y - 70, 14, 40, '#782020');
-  // Peephole + handle
-  px(ctx, 10, FLOOR_Y - 58, 4, 4, '#303038');
-  px(ctx, 11, FLOOR_Y - 57, 2, 2, '#808890');
+  px(ctx, 3, FLOOR_Y - 82, 16, 2, '#c05050');
+  px(ctx, 3, FLOOR_Y - 82, 2, 68, '#a84040');
+  px(ctx, 17, FLOOR_Y - 82, 2, 68, '#601818');
+  // Panels
+  px(ctx, 5, FLOOR_Y - 78, 12, 22, '#782020');
+  px(ctx, 6, FLOOR_Y - 77, 10, 2, '#a03838');
+  px(ctx, 6, FLOOR_Y - 76, 1, 18, '#903030');
+  px(ctx, 5, FLOOR_Y - 50, 12, 28, '#6a1818');
+  px(ctx, 6, FLOOR_Y - 49, 10, 2, '#882828');
+  speckles(ctx, 4, FLOOR_Y - 80, 14, 60, '#5a1010', 4, 2);
+  // Peephole + brass handle
+  px(ctx, 10, FLOOR_Y - 58, 4, 4, '#202028');
+  px(ctx, 11, FLOOR_Y - 57, 2, 2, '#a0a8b0');
+  px(ctx, 11, FLOOR_Y - 57, 1, 1, '#e0e8f0');
   px(ctx, 16, FLOOR_Y - 48, 5, 3, P.brass);
   px(ctx, 17, FLOOR_Y - 47, 3, 1, P.brassHi);
+  px(ctx, 18, FLOOR_Y - 46, 1, 1, P.brassDim);
 }
 
 function drawNuMetalPoster(ctx: CanvasRenderingContext2D): void {
-  // Stylized nu-metal / Aerials-vibe pixel tribute — desert + lone figure.
+  // Stylized nu-metal / Aerials-vibe — painted desert dusk + lone figure.
   // Original composition (no logos / no copyrighted art 1:1). Must read clearly vs wallpaper.
   const x = 136;
   const y = 12;
   const w = 62;
   const h = 58;
 
-  // Wall drop-shadow so the frame pops off stained wallpaper
   px(ctx, x + 3, y + 3, w, h, '#2a2018');
-  // Thick black poster frame
   px(ctx, x, y, w, h, '#0c0c12');
   px(ctx, x + 1, y + 1, w - 2, h - 2, '#1a1420');
-  // Cream mat / aged paper edge
   px(ctx, x + 3, y + 3, w - 6, h - 6, '#e8d8b0');
+  px(ctx, x + 4, y + 4, w - 8, 1, '#f0e8c8');
   px(ctx, x + 4, y + 4, w - 8, h - 8, '#2a1848');
 
   const ix = x + 5;
@@ -516,52 +537,51 @@ function drawNuMetalPoster(ctx: CanvasRenderingContext2D): void {
   const iw = w - 10;
   const ih = h - 10;
 
-  // Sky: violet → hot orange (Aerials desert dusk vibe)
-  px(ctx, ix, iy, iw, 10, '#3a2878');
-  px(ctx, ix, iy + 8, iw, 8, '#7040a0');
-  ditherRect(ctx, ix, iy + 14, iw, 10, '#a05070', '#e07830');
+  // Sky bands with dither seams
+  px(ctx, ix, iy, iw, 8, '#2a1868');
+  px(ctx, ix, iy + 6, iw, 8, '#4a2888');
+  ditherRect(ctx, ix, iy + 12, iw, 6, '#7040a0', '#a05070');
+  ditherRect(ctx, ix, iy + 16, iw, 6, '#a05070', '#e07830');
   px(ctx, ix, iy + 20, iw, 6, '#e88838');
-  // Bright sun / glow
-  px(ctx, ix + iw - 16, iy + 6, 8, 8, '#f8e070');
-  px(ctx, ix + iw - 14, iy + 8, 4, 4, '#fff0a8');
-  // Soft ray accents (original, not album art)
-  px(ctx, ix + 8, iy + 10, 10, 1, '#c090e0');
-  px(ctx, ix + 18, iy + 14, 8, 1, '#d0a070');
+  px(ctx, ix, iy + 24, iw, 3, '#f0a050');
+  // Sun disk + rays
+  px(ctx, ix + iw - 16, iy + 5, 9, 9, '#f8e070');
+  px(ctx, ix + iw - 14, iy + 7, 5, 5, '#fff0a8');
+  px(ctx, ix + iw - 12, iy + 9, 2, 2, '#ffffff');
+  px(ctx, ix + 6, iy + 9, 12, 1, '#c090e0');
+  px(ctx, ix + 16, iy + 13, 10, 1, '#d0a070');
+  px(ctx, ix + 4, iy + 15, 6, 1, '#e0b890');
 
-  // Layered dunes — high contrast sand
+  // Layered dunes
   px(ctx, ix, iy + 26, iw, ih - 26, '#c88840');
   px(ctx, ix, iy + 24, iw, 4, '#f0b858');
-  // Far dune ridge
   px(ctx, ix + 2, iy + 28, 18, 4, '#d89850');
   px(ctx, ix + 20, iy + 26, 22, 3, '#e0a860');
   px(ctx, ix + 40, iy + 29, 16, 4, '#d09048');
   ditherRect(ctx, ix, iy + 34, iw, ih - 34, '#b87838', '#8a5828');
-  // Near dune shadow
+  speckles(ctx, ix, iy + 28, iw, ih - 28, '#a06830', 3, 1);
   px(ctx, ix, iy + ih - 8, iw, 8, '#8a5028');
   px(ctx, ix + 10, iy + ih - 10, 28, 3, '#a06830');
+  px(ctx, ix + 8, iy + ih - 6, 20, 1, '#704020');
 
-  // Lone figure, arms wide — bold silhouette (readable at a glance)
+  // Lone figure — shaded silhouette
   const fx = ix + Math.floor(iw / 2) - 1;
   const fy = iy + 18;
-  // Head
   px(ctx, fx, fy, 4, 5, '#080810');
-  // Torso
+  px(ctx, fx + 1, fy + 1, 2, 2, '#202028');
   px(ctx, fx, fy + 5, 4, 14, '#080810');
-  // Arms outstretched
+  px(ctx, fx + 3, fy + 6, 1, 4, '#303040');
   px(ctx, fx - 12, fy + 7, 28, 3, '#080810');
   px(ctx, fx - 14, fy + 6, 4, 3, '#101018');
   px(ctx, fx + 12, fy + 6, 4, 3, '#101018');
-  // Legs slightly apart
   px(ctx, fx - 1, fy + 18, 2, 8, '#080810');
   px(ctx, fx + 2, fy + 18, 2, 8, '#080810');
-  // Tiny highlight on shoulder so figure reads against dunes
-  px(ctx, fx + 3, fy + 6, 1, 3, '#303040');
+  px(ctx, fx + 3, fy + 6, 1, 3, '#404050');
 
-  // Tape / pin marks on corners (lived-in bedroom)
+  // Tape / wear
   px(ctx, x + 4, y + 4, 5, 3, '#d0c090');
   px(ctx, x + w - 9, y + 4, 5, 3, '#d0c090');
   px(ctx, x + 4, y + h - 7, 5, 3, '#c8b888');
-  // Slightly torn bottom-right corner
   px(ctx, x + w - 5, y + h - 6, 3, 3, P.wallBase);
 }
 
@@ -615,18 +635,26 @@ function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
 
 function drawFloor(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   px(ctx, 0, FLOOR_Y - 10, width, height - (FLOOR_Y - 10), P.floor);
-  for (let x = 0; x < width; x += 14) {
-    const tone = (x / 14) % 3;
+  for (let x = 0; x < width; x += 12) {
+    const tone = (x / 12) % 3;
     const col = tone === 0 ? P.floorLight : tone === 1 ? P.floorMid : P.floor;
-    px(ctx, x, FLOOR_Y - 10, 13, height - (FLOOR_Y - 10), col);
-    px(ctx, x + 13, FLOOR_Y - 10, 1, height - (FLOOR_Y - 10), P.floorDark);
-    // Fine grain / scuff midtones
-    px(ctx, x + 3, FLOOR_Y + 1, 6, 1, P.floorGrain);
-    px(ctx, x + 7, FLOOR_Y + 8, 4, 1, P.floorDark);
-    if (tone === 1) px(ctx, x + 5, FLOOR_Y + 14, 3, 1, P.floorLight);
+    woodGrain(
+      ctx,
+      x,
+      FLOOR_Y - 10,
+      11,
+      height - (FLOOR_Y - 10),
+      col,
+      P.floorLight,
+      P.floorGrain,
+      P.floorDark,
+      true,
+    );
+    px(ctx, x + 11, FLOOR_Y - 10, 1, height - (FLOOR_Y - 10), P.floorDark);
+    if (tone === 1) px(ctx, x + 4, FLOOR_Y + 14, 3, 1, P.floorLight);
   }
   ctx.fillStyle = P.floorDark;
-  for (let x = 6; x < width; x += 14) {
+  for (let x = 6; x < width; x += 12) {
     ctx.fillRect(x, FLOOR_Y + 5, 1, 1);
     ctx.fillRect(x + 3, FLOOR_Y + 16, 1, 1);
   }
@@ -651,31 +679,46 @@ function drawBeerCorner(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawBeerCan(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  px(ctx, x - 3, y - 8, 6, 10, '#d8a040');
-  px(ctx, x - 2, y - 7, 4, 2, '#f0c868');
-  px(ctx, x - 2, y - 9, 4, 2, '#808890');
+  px(ctx, x - 3, y - 9, 6, 11, '#c89030');
+  px(ctx, x - 2, y - 8, 4, 2, '#f0c868');
+  px(ctx, x - 2, y - 6, 1, 6, '#e0b050');
+  px(ctx, x + 1, y - 6, 1, 6, '#a07020');
+  px(ctx, x - 2, y - 10, 4, 2, '#a0a8b0');
+  px(ctx, x - 1, y - 10, 2, 1, '#d0d8e0');
   px(ctx, x - 1, y - 4, 2, 3, '#c04040');
+  px(ctx, x - 1, y - 3, 2, 1, '#e06060');
 }
 
 function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
-  px(ctx, 200, 28, 92, 72, P.woodDark);
+  woodGrain(ctx, 200, 28, 92, 72, P.woodDark, P.woodHi, P.wood, P.woodDeep, false);
   px(ctx, 202, 30, 88, 68, P.wood);
   px(ctx, 204, 32, 84, 2, P.woodHi);
   px(ctx, 204, 32, 2, 64, P.woodHi);
   px(ctx, 204, 34, 80, 60, P.woodDeep);
 
   px(ctx, 208, 38, 72, 52, P.nightSky);
-  ditherRect(ctx, 208, 38, 72, 8, P.nightSky, P.nightSkyMid);
-  px(ctx, 208, 70, 72, 20, P.nightSkyMid);
+  ditherRect(ctx, 208, 38, 72, 10, P.nightSky, P.nightSkyMid);
+  px(ctx, 208, 68, 72, 22, P.nightSkyMid);
+  // Distant glow haze
+  ditherRect(ctx, 220, 58, 40, 12, P.nightSkyMid, P.cityHi);
 
   const ox = Math.round(depthCam * 0.35);
-  px(ctx, 212 + ox, 62, 14, 28, P.city);
-  px(ctx, 214 + ox, 58, 10, 4, P.cityMid);
-  px(ctx, 228 + ox, 50, 18, 40, P.cityMid);
-  px(ctx, 230 + ox, 46, 14, 4, P.cityHi);
-  px(ctx, 248 + ox, 66, 12, 24, P.city);
-  px(ctx, 262 + ox, 54, 14, 36, P.cityMid);
-  px(ctx, 264 + ox, 50, 10, 4, P.cityHi);
+  // City blocks with window grids
+  const blocks = [
+    [212, 58, 14, 32, P.city, P.cityMid],
+    [228, 46, 18, 44, P.cityMid, P.cityHi],
+    [248, 62, 12, 28, P.city, P.cityMid],
+    [262, 50, 14, 40, P.cityMid, P.cityHi],
+  ] as const;
+  for (const [bx, by, bw, bh, c0, c1] of blocks) {
+    px(ctx, bx + ox, by, bw, bh, c0);
+    px(ctx, bx + ox + 1, by - 3, bw - 2, 3, c1);
+    for (let wy = by + 3; wy < by + bh - 2; wy += 5) {
+      for (let wx = bx + 2; wx < bx + bw - 2; wx += 4) {
+        px(ctx, wx + ox, wy, 2, 2, ((wx + wy) % 8 === 0 ? P.windowLight : P.windowLightDim));
+      }
+    }
+  }
 
   const lights = [
     [216, 66], [220, 74], [232, 56], [238, 66], [242, 76],
@@ -688,10 +731,15 @@ function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
   px(ctx, 242, 38, 3, 52, P.woodMid);
   px(ctx, 243, 38, 1, 52, P.woodHi);
   px(ctx, 208, 62, 72, 3, P.woodMid);
+  // Curtains with folds
   px(ctx, 206, 36, 14, 58, P.curtain);
   px(ctx, 208, 40, 3, 50, P.curtainHi);
+  px(ctx, 211, 42, 2, 46, P.curtainFold);
+  px(ctx, 214, 44, 2, 44, P.curtainDark);
   px(ctx, 278, 36, 14, 58, P.curtain);
   px(ctx, 280, 40, 3, 50, P.curtainHi);
+  px(ctx, 283, 42, 2, 46, P.curtainFold);
+  px(ctx, 286, 44, 2, 44, P.curtainDark);
   px(ctx, 204, 34, 84, 3, P.woodHi);
 }
 
@@ -700,47 +748,42 @@ function drawBaseboard(ctx: CanvasRenderingContext2D, width: number): void {
   px(ctx, 0, FLOOR_Y - 14, width, 2, P.wood);
 }
 
-function drawBed(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 8, FLOOR_Y - 24, 68, 14, P.woodDark);
-  px(ctx, 10, FLOOR_Y - 22, 64, 2, P.woodHi);
-  px(ctx, 8, FLOOR_Y - 10, 68, 6, P.wood);
-  px(ctx, 12, FLOOR_Y - 30, 60, 8, P.bedSheet);
-  px(ctx, 30, FLOOR_Y - 34, 42, 10, P.bedBlanket);
-  px(ctx, 32, FLOOR_Y - 32, 38, 2, P.bedBlanketHi);
-  px(ctx, 12, FLOOR_Y - 38, 20, 10, P.pillow);
-  px(ctx, 14, FLOOR_Y - 36, 16, 3, P.pillowHi);
-  px(ctx, 8, FLOOR_Y - 46, 6, 24, P.wood);
-}
-
 function drawDeskAndPc(ctx: CanvasRenderingContext2D): void {
-  // Desk
-  px(ctx, 70, FLOOR_Y - 42, 58, 32, P.wood);
+  woodGrain(ctx, 70, FLOOR_Y - 42, 58, 32, P.wood, P.woodHi, P.woodMid, P.woodDark, false);
   px(ctx, 72, FLOOR_Y - 40, 54, 2, P.woodHi);
   px(ctx, 72, FLOOR_Y - 40, 2, 28, P.woodHi);
   px(ctx, 74, FLOOR_Y - 12, 50, 2, P.woodDark);
   px(ctx, 74, FLOOR_Y - 10, 5, 10, P.woodDeep);
   px(ctx, 116, FLOOR_Y - 10, 5, 10, P.woodDeep);
 
-  // CRT on desk
+  // CRT on desk — bezel + screen glow + scanlines
   px(ctx, 78, FLOOR_Y - 70, 28, 26, '#2a2a38');
-  px(ctx, 80, FLOOR_Y - 68, 24, 18, '#102028');
-  px(ctx, 82, FLOOR_Y - 66, 8, 4, '#306050');
-  px(ctx, 82, FLOOR_Y - 60, 14, 2, '#204038');
-  px(ctx, 82, FLOOR_Y - 56, 10, 2, '#204038');
+  px(ctx, 80, FLOOR_Y - 68, 24, 2, '#585868');
+  px(ctx, 80, FLOOR_Y - 66, 24, 18, '#102028');
+  px(ctx, 82, FLOOR_Y - 64, 20, 2, '#204040');
+  px(ctx, 82, FLOOR_Y - 62, 8, 3, '#408060');
+  px(ctx, 82, FLOOR_Y - 58, 14, 2, '#306050');
+  px(ctx, 82, FLOOR_Y - 54, 10, 2, '#284838');
+  px(ctx, 84, FLOOR_Y - 52, 12, 1, '#183030');
   px(ctx, 86, FLOOR_Y - 44, 12, 4, '#484858');
+  px(ctx, 88, FLOOR_Y - 43, 4, 1, '#808890');
 
-  // Keyboard
+  // Keyboard with key rows
   px(ctx, 78, FLOOR_Y - 46, 30, 5, '#3a3a48');
   px(ctx, 80, FLOOR_Y - 45, 26, 1, '#585868');
+  for (let kx = 81; kx < 104; kx += 3) px(ctx, kx, FLOOR_Y - 44, 2, 1, '#686878');
 
   // Tower under desk
   px(ctx, 108, FLOOR_Y - 38, 14, 26, '#303040');
-  px(ctx, 110, FLOOR_Y - 36, 10, 4, '#202028');
+  px(ctx, 110, FLOOR_Y - 36, 10, 2, '#505060');
+  px(ctx, 110, FLOOR_Y - 33, 10, 4, '#202028');
   px(ctx, 112, FLOOR_Y - 28, 3, 2, '#40a040');
+  px(ctx, 112, FLOOR_Y - 24, 3, 2, '#a04040');
+  px(ctx, 110, FLOOR_Y - 18, 8, 1, '#484858');
 }
 
 function drawDresser(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 244, FLOOR_Y - 54, 58, 44, P.wood);
+  woodGrain(ctx, 244, FLOOR_Y - 54, 58, 44, P.wood, P.woodHi, P.woodMid, P.woodDark, true);
   px(ctx, 246, FLOOR_Y - 52, 54, 2, P.woodHi);
   px(ctx, 246, FLOOR_Y - 52, 2, 40, P.woodHi);
   px(ctx, 298, FLOOR_Y - 52, 2, 40, P.woodDark);
@@ -750,9 +793,28 @@ function drawDresser(ctx: CanvasRenderingContext2D): void {
     px(ctx, 248, ry, 50, 10, P.woodDark);
     px(ctx, 250, ry + 1, 46, 8, P.wood);
     px(ctx, 252, ry + 2, 42, 1, P.woodHi);
+    speckles(ctx, 250, ry + 1, 46, 8, P.woodKnot, 5, ry);
     px(ctx, 266, ry + 4, 12, 3, P.brass);
     px(ctx, 268, ry + 4, 8, 1, P.brassHi);
+    px(ctx, 270, ry + 5, 4, 1, P.brassDim);
   }
+}
+
+function drawBed(ctx: CanvasRenderingContext2D): void {
+  woodGrain(ctx, 8, FLOOR_Y - 24, 68, 14, P.woodDark, P.woodHi, P.wood, P.woodDeep, false);
+  px(ctx, 10, FLOOR_Y - 22, 64, 2, P.woodHi);
+  px(ctx, 8, FLOOR_Y - 10, 68, 6, P.wood);
+  px(ctx, 12, FLOOR_Y - 30, 60, 8, P.bedSheet);
+  px(ctx, 14, FLOOR_Y - 29, 56, 1, P.bedSheetHi);
+  px(ctx, 30, FLOOR_Y - 34, 42, 10, P.bedBlanket);
+  px(ctx, 32, FLOOR_Y - 32, 38, 2, P.bedBlanketHi);
+  px(ctx, 34, FLOOR_Y - 28, 34, 1, P.bedBlanketDark);
+  speckles(ctx, 30, FLOOR_Y - 34, 42, 10, P.bedBlanketDark, 4, 1);
+  px(ctx, 12, FLOOR_Y - 38, 20, 10, P.pillow);
+  px(ctx, 14, FLOOR_Y - 36, 16, 3, P.pillowHi);
+  px(ctx, 16, FLOOR_Y - 32, 12, 2, P.pillowShadow);
+  px(ctx, 8, FLOOR_Y - 46, 6, 24, P.wood);
+  px(ctx, 9, FLOOR_Y - 44, 1, 20, P.woodHi);
 }
 
 function drawLamp(ctx: CanvasRenderingContext2D): void {
@@ -762,33 +824,60 @@ function drawLamp(ctx: CanvasRenderingContext2D): void {
   px(ctx, 129, FLOOR_Y - 58, 6, 2, P.lampGlow);
 }
 
-/** Simple orange ginger cat NPC near the desk. */
+/** Ginger cat NPC — readable fur, ears, eyes (hi-detail drawn). */
 function drawCat(ctx: CanvasRenderingContext2D, time: number): void {
+  const C = CAT_PAL;
   const bob = Math.floor(time * 2) % 2;
   const x = 58;
   const y = FLOOR_Y - 10 + bob;
+
   // Body
-  px(ctx, x, y - 10, 14, 8, '#e07828');
-  px(ctx, x + 1, y - 9, 12, 2, '#f09848');
-  px(ctx, x + 2, y - 6, 10, 3, '#c06020');
-  // Head
-  px(ctx, x + 10, y - 16, 8, 7, '#e07828');
-  px(ctx, x + 11, y - 15, 6, 2, '#f09848');
-  // Ears
-  px(ctx, x + 10, y - 19, 3, 3, '#e07828');
-  px(ctx, x + 15, y - 19, 3, 3, '#e07828');
-  px(ctx, x + 11, y - 18, 1, 1, '#f8b070');
-  px(ctx, x + 16, y - 18, 1, 1, '#f8b070');
-  // Eyes + nose
-  px(ctx, x + 12, y - 14, 1, 1, '#203020');
-  px(ctx, x + 15, y - 14, 1, 1, '#203020');
-  px(ctx, x + 13, y - 12, 2, 1, '#d04040');
-  // Tail
-  px(ctx, x - 4, y - 12, 5, 2, '#e07828');
-  px(ctx, x - 5, y - 16, 2, 5, '#c06020');
+  px(ctx, x, y - 11, 15, 9, C.fur);
+  px(ctx, x + 1, y - 10, 13, 2, C.furHi);
+  px(ctx, x + 2, y - 7, 11, 3, C.furMid);
+  px(ctx, x + 3, y - 5, 9, 2, C.belly);
+  speckles(ctx, x, y - 11, 15, 9, C.furDark, 3, 1);
   // Stripes
-  px(ctx, x + 4, y - 8, 2, 1, '#a04818');
-  px(ctx, x + 8, y - 7, 2, 1, '#a04818');
+  px(ctx, x + 3, y - 9, 2, 1, C.stripe);
+  px(ctx, x + 7, y - 8, 2, 1, C.stripe);
+  px(ctx, x + 11, y - 9, 2, 1, C.stripe);
+  px(ctx, x + 5, y - 6, 2, 1, C.stripe);
+
+  // Head
+  px(ctx, x + 10, y - 18, 9, 8, C.fur);
+  px(ctx, x + 11, y - 17, 7, 2, C.furHi);
+  px(ctx, x + 12, y - 14, 5, 2, C.furMid);
+  // Ears (triangle-ish)
+  px(ctx, x + 10, y - 22, 3, 4, C.fur);
+  px(ctx, x + 11, y - 21, 1, 2, C.innerEar);
+  px(ctx, x + 16, y - 22, 3, 4, C.fur);
+  px(ctx, x + 17, y - 21, 1, 2, C.innerEar);
+  px(ctx, x + 10, y - 22, 1, 1, C.outline);
+  px(ctx, x + 18, y - 22, 1, 1, C.outline);
+  // Eyes — green shine
+  px(ctx, x + 12, y - 15, 2, 2, C.eye);
+  px(ctx, x + 16, y - 15, 2, 2, C.eye);
+  px(ctx, x + 12, y - 15, 1, 1, C.eyeHi);
+  px(ctx, x + 16, y - 15, 1, 1, C.eyeHi);
+  // Nose + muzzle
+  px(ctx, x + 14, y - 13, 2, 1, C.nose);
+  px(ctx, x + 14, y - 13, 1, 1, C.noseHi);
+  px(ctx, x + 13, y - 12, 1, 1, C.outline);
+  px(ctx, x + 16, y - 12, 1, 1, C.outline);
+  // Whiskers
+  px(ctx, x + 10, y - 13, 3, 1, C.whisker);
+  px(ctx, x + 17, y - 13, 3, 1, C.whisker);
+  px(ctx, x + 10, y - 12, 2, 1, C.whisker);
+  px(ctx, x + 18, y - 12, 2, 1, C.whisker);
+
+  // Tail — arched
+  px(ctx, x - 5, y - 13, 6, 2, C.fur);
+  px(ctx, x - 6, y - 18, 2, 6, C.furMid);
+  px(ctx, x - 5, y - 19, 2, 2, C.furHi);
+  px(ctx, x - 6, y - 16, 1, 1, C.stripe);
+  // Front paws
+  px(ctx, x + 2, y - 3, 3, 2, C.furHi);
+  px(ctx, x + 8, y - 3, 3, 2, C.furHi);
 }
 
 function drawHotspotHints(

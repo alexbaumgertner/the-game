@@ -27,8 +27,8 @@ export interface GangsterConfig {
   carriesCoat?: boolean;
 }
 
-const GW = 14;
-const GH = 22;
+const GW = 16;
+const GH = 26;
 
 type Cell = string | null;
 
@@ -44,83 +44,135 @@ function gangsterFrame(
     g[y * GW + x] = c;
   };
   const o = SEGA.ink;
-  const skin = '#c89870';
+  const skin = '#d0a878';
+  const skinH = '#e8c898';
   const skinD = '#906048';
   const track = variant === 'tracksuit';
   const coat = track ? '#2a5888' : '#5a3038';
-  const coatH = track ? '#3a78b0' : '#784850';
+  const coatH = track ? '#4a88c0' : '#8a5860';
+  const coatM = track ? '#3a70a8' : '#6a4048';
   const coatD = track ? '#183858' : '#381820';
   const pants = track ? '#1a4068' : '#2a2838';
-  const pantsH = track ? '#2a5888' : '#3a3850';
+  const pantsH = track ? '#2a5888' : '#4a4860';
+  const pantsD = track ? '#102848' : '#181820';
   const shoes = '#18141c';
+  const shoesH = '#383038';
   const hair = '#1a1420';
+  const hairH = '#2a2430';
   const stripe = '#f0d040';
 
   // Hair
-  for (let x = 4; x <= 9; x++) set(x, 0, hair);
-  for (let x = 3; x <= 10; x++) set(x, 1, hair);
+  for (let x = 4; x <= 11; x++) set(x, 0, hair);
+  for (let x = 3; x <= 12; x++) set(x, 1, hair);
+  set(6, 0, hairH);
+  set(7, 1, hairH);
   // Head
-  for (let y = 2; y <= 6; y++) {
-    for (let x = 4; x <= 9; x++) set(x, y, skin);
+  for (let y = 2; y <= 7; y++) {
+    for (let x = 4; x <= 11; x++) set(x, y, skin);
   }
+  set(5, 3, skinH);
+  set(6, 3, skinH);
+  set(10, 4, skinD);
+  set(3, 4, skin);
+  set(12, 4, skinD);
+  // Brows / eyes
   set(5, 3, o);
-  set(8, 3, o);
-  set(6, 5, skinD);
-  set(7, 5, skinD);
+  set(6, 3, o);
+  set(9, 3, o);
+  set(10, 3, o);
   if (hurt) {
     set(5, 4, '#e04040');
-    set(8, 4, '#e04040');
+    set(6, 4, '#e04040');
+    set(9, 4, '#e04040');
+    set(10, 4, '#e04040');
+  } else {
+    set(5, 4, o);
+    set(6, 4, '#e8e0d0');
+    set(9, 4, o);
+    set(10, 4, '#e8e0d0');
   }
-  // Coat / tracksuit top
-  for (let y = 7; y <= 14; y++) {
-    for (let x = 3; x <= 10; x++) set(x, y, coat);
+  set(7, 5, skinD);
+  set(8, 5, skinD);
+  set(6, 6, skinD);
+  set(7, 6, o);
+  set(8, 6, o);
+  set(9, 6, skinD);
+
+  // Coat / tracksuit with folds
+  for (let y = 8; y <= 16; y++) {
+    for (let x = 3; x <= 12; x++) set(x, y, coat);
   }
-  set(4, 8, coatH);
-  set(5, 8, coatH);
-  set(3, 10, coatD);
-  set(10, 10, coatD);
+  set(4, 9, coatH);
+  set(5, 9, coatH);
+  set(6, 10, coatM);
+  set(4, 12, coatD);
+  set(11, 11, coatD);
+  set(10, 9, coatH);
+  set(3, 11, coatD);
+  set(12, 13, coatD);
   if (track) {
-    // Adidas-ish side stripe
-    set(3, 8, stripe);
     set(3, 9, stripe);
-    set(3, 11, stripe);
+    set(3, 10, stripe);
     set(3, 12, stripe);
-    set(10, 8, stripe);
-    set(10, 9, stripe);
+    set(3, 13, stripe);
+    set(3, 15, stripe);
+    set(12, 9, stripe);
+    set(12, 10, stripe);
+    set(12, 12, stripe);
+    set(12, 13, stripe);
   }
+
   // Arms
   if (punch) {
-    for (let x = 11; x <= 13; x++) {
-      set(x, 9, skin);
+    for (let x = 13; x <= 15; x++) {
       set(x, 10, skin);
+      set(x, 11, skin);
     }
-    set(13, 9, skinD);
+    set(15, 10, skinH);
+    set(14, 11, skinD);
+    set(15, 12, skin);
   } else if (facingIdle) {
-    set(2, 9, skin);
-    set(1, 10, skin);
-    set(11, 9, skin);
-    set(12, 10, skin);
-  } else {
-    set(1, 9, skin);
-    set(0, 10, skin);
-    set(12, 9, skin);
+    set(2, 10, skin);
+    set(1, 11, skin);
+    set(1, 12, skinD);
+    set(2, 12, skinH);
     set(13, 10, skin);
+    set(14, 11, skin);
+    set(14, 12, skinD);
+    set(13, 12, skinH);
+  } else {
+    set(1, 10, skin);
+    set(0, 11, skin);
+    set(0, 12, skinD);
+    set(14, 10, skin);
+    set(15, 11, skin);
+    set(15, 12, skinD);
   }
-  // Pants / shoes
-  for (let y = 15; y <= 18; y++) {
-    for (let x = 4; x <= 6; x++) set(x, y, pants);
-    for (let x = 7; x <= 9; x++) set(x, y, pants);
+
+  // Pants
+  for (let y = 17; y <= 21; y++) {
+    for (let x = 4; x <= 7; x++) set(x, y, pants);
+    for (let x = 8; x <= 11; x++) set(x, y, pants);
   }
-  set(4, 15, pantsH);
-  set(7, 15, pantsH);
-  for (let x = 3; x <= 5; x++) {
-    set(x, 19, shoes);
-    set(x, 20, shoes);
+  set(4, 17, pantsH);
+  set(8, 17, pantsH);
+  set(5, 19, pantsD);
+  set(10, 19, pantsD);
+  // Shoes
+  for (let x = 3; x <= 6; x++) {
+    set(x, 22, shoes);
+    set(x, 23, shoes);
   }
-  for (let x = 8; x <= 10; x++) {
-    set(x, 19, shoes);
-    set(x, 20, shoes);
+  for (let x = 9; x <= 12; x++) {
+    set(x, 22, shoes);
+    set(x, 23, shoes);
   }
+  set(3, 22, shoesH);
+  set(9, 22, shoesH);
+  set(4, 24, shoes);
+  set(5, 24, shoes);
+  set(10, 24, shoes);
+  set(11, 24, shoes);
   return g;
 }
 

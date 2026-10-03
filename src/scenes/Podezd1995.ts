@@ -11,7 +11,7 @@ import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { PODEZD_PAL } from '@/art/segaPalette';
-import { ditherRect, fillBricks, px, segaBox } from '@/art/pixelDraw';
+import { ditherRect, fillBricks, px, segaBox, speckles } from '@/art/pixelDraw';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -788,15 +788,20 @@ function drawMailboxes(ctx: CanvasRenderingContext2D): void {
   const by = GROUND_Y - 52;
   px(ctx, bx, by, 48, 36, P.mailboxDark);
   px(ctx, bx + 1, by + 1, 46, 1, P.mailboxHi);
+  px(ctx, bx + 1, by + 2, 1, 32, P.mailboxHi);
+  px(ctx, bx + 46, by + 2, 1, 32, '#1a2428');
   for (let row = 0; row < 3; row++) {
     for (let col = 0; col < 3; col++) {
       const x = bx + 3 + col * 15;
       const y = by + 3 + row * 11;
       px(ctx, x, y, 13, 9, P.mailbox);
       px(ctx, x + 1, y + 1, 11, 1, P.mailboxHi);
-      px(ctx, x + 1, y + 2, 11, 1, 'rgba(255,255,255,0.06)');
+      px(ctx, x + 1, y + 2, 11, 1, 'rgba(255,255,255,0.08)');
+      px(ctx, x + 1, y + 7, 11, 1, '#2a3840');
       px(ctx, x + 9, y + 4, 2, 3, P.doorNum);
+      px(ctx, x + 9, y + 4, 1, 1, '#e0c070');
       px(ctx, x + 2, y + 5, 5, 1, P.mailboxDark);
+      speckles(ctx, x, y, 13, 9, '#3a4850', 4, row * 3 + col);
     }
   }
 }
@@ -859,23 +864,42 @@ function drawMother(
 ): void {
   const ox = Math.round(x);
   const oy = Math.round(floorY);
-  // Coat (mother's recovered fur / winter coat)
-  px(ctx, ox - 6, oy - 30, 12, 18, '#6a4838');
-  px(ctx, ox - 5, oy - 28, 4, 4, '#8a6850');
-  // Head
-  px(ctx, ox - 4, oy - 38, 8, 8, '#c89870');
-  px(ctx, ox - 3, oy - 40, 6, 3, '#3a2830'); // headscarf
-  px(ctx, ox - 2, oy - 35, 2, 2, '#181018');
-  px(ctx, ox + 1, oy - 35, 2, 2, '#181018');
+  // Winter coat with fur collar + folds
+  px(ctx, ox - 7, oy - 32, 14, 20, '#6a4838');
+  px(ctx, ox - 6, oy - 30, 5, 6, '#8a6850');
+  px(ctx, ox + 1, oy - 28, 4, 8, '#5a3828');
+  speckles(ctx, ox - 7, oy - 32, 14, 20, '#4a3020', 3, 2);
+  px(ctx, ox - 6, oy - 32, 12, 3, '#c8a070'); // fur collar
+  px(ctx, ox - 5, oy - 31, 10, 1, '#e0c090');
+  speckles(ctx, ox - 6, oy - 32, 12, 3, '#a08060', 2, 1);
+  // Head + headscarf
+  px(ctx, ox - 5, oy - 40, 10, 9, '#d0a878');
+  px(ctx, ox - 4, oy - 39, 3, 2, '#e8c898');
+  px(ctx, ox + 2, oy - 37, 2, 3, '#a87858');
+  px(ctx, ox - 5, oy - 43, 10, 4, '#4a3040');
+  px(ctx, ox - 4, oy - 44, 8, 2, '#6a4858');
+  px(ctx, ox - 6, oy - 41, 2, 6, '#4a3040'); // scarf side
+  px(ctx, ox + 4, oy - 41, 2, 6, '#3a2830');
+  // Face
+  px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
+  px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
+  px(ctx, ox - 2, oy - 36, 1, 1, '#e8e0d0');
+  px(ctx, ox + 2, oy - 36, 1, 1, '#e8e0d0');
+  px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
+  px(ctx, ox - 2, oy - 32, 4, 1, fear > 0.55 ? '#603030' : '#806050');
   if (fear > 0.55) {
-    px(ctx, ox + 5, oy - 38, 1, 2, '#80c0e0');
-    drawUiText(ctx, '!', ox + 7, oy - 42, '#e04040', 8, 700);
+    px(ctx, ox + 6, oy - 40, 1, 2, '#80c0e0');
+    drawUiText(ctx, '!', ox + 8, oy - 44, '#e04040', 8, 700);
   }
-  // Arms / legs
-  px(ctx, ox - 8, oy - 26, 3, 6, '#c89870');
-  px(ctx, ox + 5, oy - 26, 3, 6, '#c89870');
-  px(ctx, ox - 4, oy - 12, 3, 12, '#2a2838');
-  px(ctx, ox + 1, oy - 12, 3, 12, '#2a2838');
+  // Arms / hands
+  px(ctx, ox - 10, oy - 28, 3, 7, '#d0a878');
+  px(ctx, ox + 7, oy - 28, 3, 7, '#d0a878');
+  px(ctx, ox - 9, oy - 27, 1, 3, '#e8c898');
+  // Skirt / legs + boots
+  px(ctx, ox - 5, oy - 12, 4, 8, '#3a3048');
+  px(ctx, ox + 1, oy - 12, 4, 8, '#3a3048');
+  px(ctx, ox - 6, oy - 4, 5, 4, '#18141c');
+  px(ctx, ox + 1, oy - 4, 5, 4, '#18141c');
 }
 
 function drawSmokeVibes(ctx: CanvasRenderingContext2D, t: number): void {

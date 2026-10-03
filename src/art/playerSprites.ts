@@ -49,7 +49,7 @@ type FaceMode = 'smile' | 'soft' | 'shout' | 'hurt';
 
 type Pal = typeof ADULT_PAL | typeof TEEN_PAL;
 
-/** Bald oval head + thin brows, light eyes, wide teeth smile. */
+/** Bald oval head + thin brows, light eyes, wide teeth smile — hi-detail shading. */
 function drawBaldFace(
   set: (x: number, y: number, c: Cell) => void,
   lx: number,
@@ -65,41 +65,65 @@ function drawBaldFace(
   const skM = pal.skinMid;
   const skS = pal.skinShadow;
   const eye = pal.eye;
+  const eyeW = pal.eyeWhite;
+  const pupil = pal.pupil;
   const teeth = pal.teeth;
   const brow = pal.brow;
+  const lip = pal.lip;
+  const ear = pal.ear;
 
   const x0 = (adult ? 10 : 8) + lx;
   const x1 = (adult ? 21 : 19) + lx;
   const mid = Math.floor((x0 + x1) / 2);
 
-  // Smooth bald scalp (no hair) — rounded crown
+  // Smooth bald scalp — rounded crown with highlight + temple shadow
   fillRect(set, x0 + 1, hy, x1 - 1, hy, skM);
   fillRect(set, x0, hy + 1, x1, hy + (adult ? 3 : 2), sk);
   set(x0 + 2, hy + 1, skH);
   set(x0 + 3, hy + 1, skH);
+  set(x0 + 4, hy + 1, skH);
+  set(mid, hy + 1, skH);
   set(x1 - 1, hy + 2, skS);
+  set(x1, hy + 2, skS);
+  set(x0, hy + 2, skM);
 
-  // Face oval
+  // Face oval with cheek planes
   const faceBot = hy + (adult ? 11 : 9);
   fillRect(set, x0, hy + (adult ? 4 : 3), x1, faceBot, sk);
+  // Left cheek highlight / right cheek shadow
+  for (let y = hy + (adult ? 5 : 4); y <= faceBot - 1; y++) {
+    set(x0 + 1, y, skH);
+    set(x1 - 1, y, skM);
+  }
   set(x0 - 1, hy + (adult ? 6 : 5), skM);
   set(x1 + 1, hy + (adult ? 6 : 5), skS);
   set(x0 + 2, hy + (adult ? 5 : 4), skH);
   set(x0 + 3, hy + (adult ? 5 : 4), skH);
 
-  // Jaw outline
+  // Ears
+  set(x0 - 1, hy + (adult ? 6 : 5), ear);
+  set(x0 - 2, hy + (adult ? 7 : 6), skM);
+  set(x1 + 1, hy + (adult ? 6 : 5), ear);
+  set(x1 + 2, hy + (adult ? 7 : 6), skS);
+
+  // Jaw outline + chin shadow
   set(x0 - 1, hy + (adult ? 5 : 4), o);
   set(x1 + 1, hy + (adult ? 5 : 4), o);
   set(x0 - 1, faceBot - 1, o);
   set(x1 + 1, faceBot - 1, o);
+  set(mid - 1, faceBot, skM);
+  set(mid, faceBot, skS);
+  set(mid + 1, faceBot, skM);
 
   const eyeY = hy + (adult ? 7 : 5);
   const browY = eyeY - 1;
   const mouthY = hy + (adult ? 10 : 8);
 
-  // Thin light brows
+  // Thin light brows with slight arch
   set(x0 + 2, browY, brow);
   set(x0 + 3, browY, brow);
+  set(x0 + 4, browY - (adult ? 1 : 0), brow);
+  set(x1 - 4, browY - (adult ? 1 : 0), brow);
   set(x1 - 3, browY, brow);
   set(x1 - 2, browY, brow);
 
@@ -114,26 +138,36 @@ function drawBaldFace(
     return;
   }
 
-  // Light eyes + dark pupils (squint a bit on big smile / shout)
+  // Eyes: white + iris + pupil (squint on big smile / shout)
   const squint = mode === 'smile' || mode === 'shout';
   if (squint) {
     set(x0 + 2, eyeY, o);
     set(x0 + 3, eyeY, eye);
-    set(x1 - 3, eyeY, o);
-    set(x1 - 2, eyeY, eye);
+    set(x0 + 4, eyeY, pupil);
+    set(x1 - 4, eyeY, pupil);
+    set(x1 - 3, eyeY, eye);
+    set(x1 - 2, eyeY, o);
     set(x0 + 2, eyeY - 1, brow);
     set(x1 - 2, eyeY - 1, brow);
+    // Crow's feet / smile lift
+    set(x0 + 1, eyeY, skH);
+    set(x1 - 1, eyeY, skH);
   } else {
-    set(x0 + 2, eyeY, o);
+    set(x0 + 2, eyeY, eyeW);
     set(x0 + 3, eyeY, eye);
-    set(x0 + 4, eyeY, skH);
-    set(x1 - 4, eyeY, skH);
-    set(x1 - 3, eyeY, o);
-    set(x1 - 2, eyeY, eye);
+    set(x0 + 4, eyeY, pupil);
+    set(x0 + 5, eyeY, skH);
+    set(x1 - 5, eyeY, skH);
+    set(x1 - 4, eyeY, pupil);
+    set(x1 - 3, eyeY, eye);
+    set(x1 - 2, eyeY, eyeW);
   }
 
-  // Nose hint
+  // Nose — bridge + tip shadow
   set(mid, eyeY + 1, skM);
+  set(mid + 1, eyeY + 1, skS);
+  set(mid, eyeY + 2, skS);
+  if (adult) set(mid - 1, eyeY + 2, skM);
 
   // Mouth
   if (mode === 'shout') {
@@ -144,22 +178,21 @@ function drawBaldFace(
     set(mid, mouthY, teeth);
     set(mid + 1, mouthY, teeth);
     set(mid + 2, mouthY, teeth);
-    set(mid - 3, mouthY - 1, skS);
-    set(mid + 3, mouthY - 1, skS);
+    set(mid - 3, mouthY - 1, lip);
+    set(mid + 3, mouthY - 1, lip);
   } else if (mode === 'soft') {
-    // Softer idle grin — still teeth, slightly narrower
-    set(mid - 2, mouthY, o);
+    set(mid - 2, mouthY, lip);
     set(mid - 1, mouthY, teeth);
     set(mid, mouthY, teeth);
     set(mid + 1, mouthY, teeth);
-    set(mid + 2, mouthY, o);
+    set(mid + 2, mouthY, lip);
     set(mid - 1, mouthY + (adult ? 1 : 0), skM);
     set(mid + 1, mouthY + (adult ? 1 : 0), skM);
   } else {
-    // Wide friendly smile showing teeth
-    set(mid - 3, mouthY, o);
+    // Wide friendly smile showing teeth + lip corners
+    set(mid - 3, mouthY, lip);
     fillRect(set, mid - 2, mouthY, mid + 2, mouthY, teeth);
-    set(mid + 3, mouthY, o);
+    set(mid + 3, mouthY, lip);
     set(mid - 2, mouthY + (adult ? 1 : 0), o);
     set(mid - 1, mouthY + (adult ? 1 : 0), teeth);
     set(mid, mouthY + (adult ? 1 : 0), teeth);
@@ -168,6 +201,8 @@ function drawBaldFace(
     // Cheek lift
     set(x0 + 1, mouthY - 1, skH);
     set(x1 - 1, mouthY - 1, skH);
+    set(x0, mouthY - 1, skH);
+    set(x1, mouthY - 1, skH);
   }
 }
 
@@ -183,6 +218,7 @@ function adultIdle(frame: number): Cell[] {
 
   const o = A.outline;
   const sk = A.skin;
+  const skH = A.skinHi;
   const skM = A.skinMid;
   const skS = A.skinShadow;
   const shH = A.shirtHi;
@@ -218,28 +254,52 @@ function adultIdle(frame: number): Cell[] {
     set(10, y, shD);
     set(21, y, shD);
   }
+  // Fabric folds — knit highlight streak + armpit creases
   for (let y = ty + 2; y <= ty + 8; y++) set(12, y, shH);
   set(13, ty + 2, shH);
+  set(13, ty + 3, shH);
+  set(14, ty + 5, shM);
+  set(15, ty + 6, shD);
+  set(18, ty + 3, shH);
+  set(19, ty + 4, shM);
+  set(11, ty + 4, shD);
+  set(20, ty + 5, shD);
+  set(17, ty + 8, shM);
   // Small left-chest tag
   set(16, ty + 4, tag);
   set(17, ty + 4, tag);
   set(16, ty + 5, shM);
+  set(17, ty + 5, shD);
 
-  // Lean arms hang
+  // Lean arms + hands with finger tips
   fillRect(set, 6, ty + 1, 8, ty + 8, sk);
   set(5, ty + 3, sk);
   set(5, ty + 4, skM);
+  set(6, ty + 2, skH);
+  set(7, ty + 5, skM);
   set(6, ty + 9, skM);
   set(7, ty + 9, skS);
+  set(5, ty + 9, sk); // thumb
+  set(6, ty + 10, skH); // fingers
+  set(7, ty + 10, sk);
+  set(8, ty + 10, skM);
   fillRect(set, 23, ty + 1, 25, ty + 8, sk);
   set(26, ty + 3, sk);
   set(26, ty + 4, skM);
+  set(24, ty + 2, skH);
+  set(24, ty + 5, skM);
   set(24, ty + 9, skM);
   set(25, ty + 9, skS);
+  set(26, ty + 9, sk);
+  set(23, ty + 10, skM);
+  set(24, ty + 10, skH);
+  set(25, ty + 10, sk);
   set(9, ty + 1, sh);
   set(9, ty + 2, shM);
+  set(9, ty + 3, shD); // sleeve cuff shadow
   set(22, ty + 1, sh);
   set(22, ty + 2, shM);
+  set(22, ty + 3, shD);
 
   // Belt / waistband
   fillRect(set, 10, 27, 21, 27, blD);
@@ -247,7 +307,7 @@ function adultIdle(frame: number): Cell[] {
   set(15, 27, bl);
   set(16, 27, bl);
 
-  // Legs
+  // Legs with crease highlights
   for (let y = 28; y <= 36; y++) {
     set(12, y, pnH);
     set(13, y, pn);
@@ -260,16 +320,24 @@ function adultIdle(frame: number): Cell[] {
   }
   set(13, 32, pnH);
   set(17, 32, pnH);
+  set(12, 34, pnD);
+  set(19, 34, pnD);
 
-  // Shoes
+  // Shoes with sole + lace hint
   fillRect(set, 10, 37, 15, 39, shs);
   fillRect(set, 16, 37, 21, 39, shs);
   set(10, 37, shsH);
   set(16, 37, shsH);
+  set(12, 38, shsH);
+  set(18, 38, shsH);
   set(9, 39, shs);
   set(22, 39, shs);
   fillRect(set, 11, 40, 14, 41, shs);
   fillRect(set, 17, 40, 20, 41, shs);
+  set(11, 41, '#1a1410'); // sole
+  set(14, 41, '#1a1410');
+  set(17, 41, '#1a1410');
+  set(20, 41, '#1a1410');
 
   // Tiny outline accents on crown edge (smooth bald silhouette)
   set(9, hy + 2, o);
@@ -431,6 +499,7 @@ function teenBase(hy: number, lean = 0, face: FaceMode = 'smile'): Cell[] {
 
   const o = T.outline;
   const sk = T.skin;
+  const skH = T.skinHi;
   const skM = T.skinMid;
   const shH = T.shirtHi;
   const sh = T.shirt;
@@ -469,22 +538,39 @@ function teenBase(hy: number, lean = 0, face: FaceMode = 'smile'): Cell[] {
   fillRect(set, 8 + lx, 22, 19 + lx, 22, shD);
   for (let y = 14; y <= 18; y++) set(10 + lx, y, shH);
   set(11 + lx, 14, shH);
+  set(12 + lx, 16, shM);
+  set(13 + lx, 17, shD);
+  set(16 + lx, 15, shH);
+  set(17 + lx, 16, shM);
+  set(9 + lx, 15, shD);
+  set(18 + lx, 17, shD);
   // Chest tag
   set(14 + lx, 15, tag);
   set(15 + lx, 15, tag);
   set(14 + lx, 16, shM);
+  set(15 + lx, 16, shD);
 
-  // Default arms
+  // Default arms + finger tips
   set(5 + lx, 14, sk);
   set(4 + lx, 15, sk);
   set(4 + lx, 16, skM);
   set(3 + lx, 15, sk);
+  set(5 + lx, 17, skH);
+  set(4 + lx, 18, sk);
+  set(3 + lx, 18, skM);
+  set(5 + lx, 18, sk);
   set(22 + lx, 14, sk);
   set(23 + lx, 15, sk);
   set(23 + lx, 16, skM);
   set(24 + lx, 15, sk);
+  set(22 + lx, 17, skH);
+  set(23 + lx, 18, sk);
+  set(24 + lx, 18, skM);
+  set(22 + lx, 18, sk);
   set(7 + lx, 14, sh);
+  set(7 + lx, 15, shM);
   set(20 + lx, 14, sh);
+  set(20 + lx, 15, shM);
 
   // Legs default
   for (let y = 23; y <= 30; y++) {

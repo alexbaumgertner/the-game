@@ -13,7 +13,7 @@ import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
-import { ditherRect, fillBricks, fillSkyGradient, px, segaBox } from '@/art/pixelDraw';
+import { ditherRect, fillBricks, fillSkyGradient, px, segaBox, speckles, woodGrain } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
 import {
   drawUiText,
@@ -823,19 +823,21 @@ function drawMarketHallSegment(
   for (let col = 0; col < 10; col++) {
     const mx = x + 6 + col * Math.floor((w - 12) / 10);
     px(ctx, mx, glassTop, 2, glassH, R.hallFrame);
-    // Lit / cold panes
+    // Lit / cold panes with specular highlight
     const lit = col % 3 === 1;
+    const paneW = Math.max(4, Math.floor((w - 12) / 10) - 3);
     px(
       ctx,
       mx + 2,
       glassTop + 4,
-      Math.max(4, Math.floor((w - 12) / 10) - 3),
+      paneW,
       glassH - 8,
       lit ? R.hallGlassLit : R.hallGlassHi,
     );
+    px(ctx, mx + 3, glassTop + 6, Math.max(1, paneW - 4), 2, lit ? '#98c8e0' : '#5888a8');
     // Horizontal bars
     for (let row = 0; row < 4; row++) {
-      px(ctx, mx + 2, glassTop + 6 + row * 14, Math.max(4, Math.floor((w - 12) / 10) - 3), 1, R.hallFrameDark);
+      px(ctx, mx + 2, glassTop + 6 + row * 14, paneW, 1, R.hallFrameDark);
     }
   }
   // Outer frame rails
@@ -1013,7 +1015,7 @@ function kioskColors(theme: KioskTheme): { body: string; hi: string; dark: strin
   return { body: R.kioskGrey, hi: R.kioskGreyHi, dark: R.kioskGreyDark, roof: R.kioskGreyDark };
 }
 
-/** Corrugated metal street kiosk (1990s rynok). */
+/** Corrugated metal street kiosk (1990s rynok) — denser corrugation + goods. */
 function drawKiosk(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -1024,27 +1026,32 @@ function drawKiosk(
   const c = kioskColors(theme);
   const w = 64;
   const h = 44;
-  // Body
   px(ctx, x, floorY - h, w, h, c.body);
-  // Corrugation stripes
-  for (let i = 0; i < w; i += 4) {
-    px(ctx, x + i, floorY - h, 2, h, c.hi);
+  for (let i = 0; i < w; i += 3) {
+    px(ctx, x + i, floorY - h, 1, h, c.hi);
+    if (i % 6 === 0) px(ctx, x + i + 1, floorY - h, 1, h, c.dark);
   }
   px(ctx, x, floorY - h, w, 2, c.dark);
   px(ctx, x, floorY - 2, w, 2, c.dark);
-  // Shed / corrugated roof
   px(ctx, x - 2, floorY - h - 6, w + 4, 6, c.roof);
   px(ctx, x - 2, floorY - h - 6, w + 4, 2, R.kioskBlueHi);
+  for (let i = 0; i < w + 4; i += 4) {
+    px(ctx, x - 2 + i, floorY - h - 5, 2, 4, R.kioskBlue);
+  }
   px(ctx, x + 4, floorY - h - 8, 18, 2, R.snow);
   px(ctx, x + 36, floorY - h - 8, 12, 2, R.snowMid);
-  // Service window
   px(ctx, x + 10, floorY - 34, 28, 16, '#1c2838');
-  px(ctx, x + 12, floorY - 32, 24, 4, '#3a5068');
+  px(ctx, x + 12, floorY - 32, 24, 4, '#4a6880');
   px(ctx, x + 12, floorY - 26, 24, 6, '#283848');
-  // Counter ledge
-  px(ctx, x + 6, floorY - 18, 40, 4, R.wood);
-  px(ctx, x + 6, floorY - 18, 40, 1, R.woodHi);
-  // Sign
+  px(ctx, x + 14, floorY - 30, 8, 2, '#6890a8');
+  if (theme === 'tan') {
+    px(ctx, x + 14, floorY - 24, 6, 3, R.bread);
+    px(ctx, x + 22, floorY - 25, 8, 4, R.breadHi);
+  } else if (theme === 'grey') {
+    px(ctx, x + 14, floorY - 24, 8, 3, R.fish);
+    px(ctx, x + 24, floorY - 23, 6, 2, R.fishHi);
+  }
+  woodGrain(ctx, x + 6, floorY - 18, 40, 4, R.wood, R.woodHi, R.wood, R.woodDark, false);
   const sw = measureNesText(label, 1, 0) + 6;
   segaBox(ctx, x + Math.floor((w - sw) / 2), floorY - h - 18, sw, 11, R.uiBox, R.awningStripe, {
     borderDark: R.woodDeep,
@@ -1059,26 +1066,31 @@ function drawFatherKiosk(ctx: CanvasRenderingContext2D, x: number, floorY: numbe
   const h = 48;
   const c = kioskColors('rust');
   px(ctx, x, floorY - h, w, h, c.body);
-  for (let i = 0; i < w; i += 4) {
-    px(ctx, x + i, floorY - h, 2, h, c.hi);
+  for (let i = 0; i < w; i += 3) {
+    px(ctx, x + i, floorY - h, 1, h, c.hi);
+    if (i % 6 === 0) px(ctx, x + i + 1, floorY - h, 1, h, c.dark);
   }
-  // Blue corrugated roof (entrance-ref kiosk cue)
   px(ctx, x - 3, floorY - h - 7, w + 6, 7, R.kioskBlue);
   px(ctx, x - 3, floorY - h - 7, w + 6, 2, R.kioskBlueHi);
+  for (let i = 0; i < w + 6; i += 4) {
+    px(ctx, x - 3 + i, floorY - h - 6, 2, 5, R.kioskBlueDark);
+  }
   px(ctx, x + 8, floorY - h - 9, 16, 2, R.snow);
   px(ctx, x + 40, floorY - h - 9, 12, 2, R.snowMid);
-  // Open front with hanging furs
-  px(ctx, x + 6, floorY - 40, w - 12, 22, '#241818');
-  px(ctx, x + 10, floorY - 38, 14, 16, R.fur);
-  px(ctx, x + 12, floorY - 36, 10, 4, R.furHi);
-  px(ctx, x + 28, floorY - 36, 12, 14, R.furDark);
-  px(ctx, x + 44, floorY - 38, 10, 16, R.fur);
-  px(ctx, x + 46, floorY - 34, 6, 3, R.furHi);
-  // Counter
-  px(ctx, x + 4, floorY - 18, w - 8, 5, R.wood);
-  px(ctx, x + 4, floorY - 18, w - 8, 1, R.woodHi);
+  px(ctx, x + 6, floorY - 40, w - 12, 22, '#1a1010');
+  const furs = [
+    [10, -38, 14, 16, R.fur, R.furHi],
+    [28, -36, 12, 14, R.furDark, R.fur],
+    [44, -38, 10, 16, R.fur, R.furHi],
+  ] as const;
+  for (const [fx, fy, fw, fh, c0, c1] of furs) {
+    px(ctx, x + fx, floorY + fy, fw, fh, c0);
+    px(ctx, x + fx + 2, floorY + fy + 2, fw - 4, 3, c1);
+    speckles(ctx, x + fx, floorY + fy, fw, fh, R.furDark, 3, fx);
+    px(ctx, x + fx + 3, floorY + fy, 2, 1, '#2a1810');
+  }
+  woodGrain(ctx, x + 4, floorY - 18, w - 8, 5, R.wood, R.woodHi, R.wood, R.woodDark, false);
   px(ctx, x + 4, floorY - 14, w - 8, 2, R.woodDark);
-  // МЕХА sign (furs) — same stall role as legacy FURS
   segaBox(ctx, x + 14, floorY - h - 20, 40, 12, R.uiBox, R.awningBrownHi, {
     borderDark: R.woodDeep,
     inset: false,
@@ -1137,34 +1149,44 @@ function drawFather(
 ): void {
   const ox = Math.round(x);
   const oy = Math.round(floorY);
-  // Body
-  px(ctx, ox - 5, oy - 28, 10, 16, '#3a3048');
-  px(ctx, ox - 4, oy - 26, 3, 4, '#5a4868');
-  // Head
-  px(ctx, ox - 4, oy - 36, 8, 8, '#c89870');
-  px(ctx, ox - 3, oy - 38, 6, 3, '#2a2030');
-  // Eyes — wider when panicked
-  px(ctx, ox - 2, oy - 33, 2, 2, '#181018');
-  px(ctx, ox + 1, oy - 33, 2, 2, '#181018');
+  px(ctx, ox - 6, oy - 30, 12, 18, '#3a3048');
+  px(ctx, ox - 5, oy - 28, 4, 5, '#5a4868');
+  px(ctx, ox - 4, oy - 24, 3, 8, '#4a3858');
+  px(ctx, ox + 2, oy - 26, 3, 6, '#2a2038');
+  speckles(ctx, ox - 6, oy - 30, 12, 18, '#2a2038', 4, 2);
+  px(ctx, ox - 5, oy - 38, 10, 9, '#d0a878');
+  px(ctx, ox - 4, oy - 37, 3, 2, '#e8c898');
+  px(ctx, ox + 2, oy - 35, 2, 3, '#a87858');
+  px(ctx, ox - 4, oy - 40, 8, 3, '#3a2830');
+  px(ctx, ox - 3, oy - 40, 3, 1, '#4a3840');
+  px(ctx, ox - 3, oy - 34, 2, 2, '#181018');
+  px(ctx, ox + 1, oy - 34, 2, 2, '#181018');
+  px(ctx, ox - 3, oy - 35, 2, 1, '#c8c0b0');
+  px(ctx, ox + 1, oy - 35, 2, 1, '#c8c0b0');
+  px(ctx, ox - 1, oy - 35, 2, 1, '#808890');
   if (panic > 0.5) {
-    px(ctx, ox - 3, oy - 34, 1, 1, '#f0e0c0');
-    px(ctx, ox + 3, oy - 34, 1, 1, '#f0e0c0');
+    px(ctx, ox - 4, oy - 35, 1, 1, '#f0e0c0');
+    px(ctx, ox + 4, oy - 35, 1, 1, '#f0e0c0');
   }
-  // Arms — clutch counter when calm, flail when panic
+  px(ctx, ox - 1, oy - 32, 2, 1, '#a87858');
+  px(ctx, ox - 2, oy - 30, 4, 1, panic > 0.55 ? '#603030' : '#806050');
   if (panic > 0.55) {
-    px(ctx, ox - 9, oy - 24, 4, 3, '#c89870');
-    px(ctx, ox + 5, oy - 26, 4, 3, '#c89870');
+    px(ctx, ox - 10, oy - 26, 4, 4, '#d0a878');
+    px(ctx, ox + 6, oy - 28, 4, 4, '#d0a878');
+    px(ctx, ox - 9, oy - 25, 2, 1, '#e8c898');
   } else {
-    px(ctx, ox - 8, oy - 20, 3, 6, '#c89870');
-    px(ctx, ox + 5, oy - 20, 3, 6, '#c89870');
+    px(ctx, ox - 9, oy - 22, 3, 7, '#d0a878');
+    px(ctx, ox + 6, oy - 22, 3, 7, '#d0a878');
+    px(ctx, ox - 8, oy - 21, 1, 3, '#e8c898');
   }
-  // Legs
-  px(ctx, ox - 4, oy - 12, 3, 12, '#2a2838');
-  px(ctx, ox + 1, oy - 12, 3, 12, '#2a2838');
-  // Panic sweat / label
+  px(ctx, ox - 5, oy - 12, 4, 12, '#2a2838');
+  px(ctx, ox + 1, oy - 12, 4, 12, '#2a2838');
+  px(ctx, ox - 5, oy - 12, 1, 8, '#3a3850');
+  px(ctx, ox - 6, oy - 2, 5, 2, '#18141c');
+  px(ctx, ox + 1, oy - 2, 5, 2, '#18141c');
   if (panic > 0.6) {
-    px(ctx, ox + 5, oy - 36, 1, 2, '#80c0e0');
-    drawNesText(ctx, '!', ox + 7, oy - 40, '#e04040', 1, 1);
+    px(ctx, ox + 6, oy - 38, 1, 2, '#80c0e0');
+    drawNesText(ctx, '!', ox + 8, oy - 42, '#e04040', 1, 1);
   }
 }
 
