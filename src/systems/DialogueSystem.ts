@@ -1,6 +1,6 @@
 /**
  * DialogueSystem — modal overlays, typewriter, timed choice branches.
- * Phase 4: father-stall mid-fight choices that drain MF or calm panic.
+ * Level 1: mother-stall mid-fight choices that drain MF or calm panic.
  */
 
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
@@ -341,26 +341,26 @@ export class DialogueSystem {
   }
 }
 
-/** Level 1 father-stall script — timed reassurance branch. */
-export const FATHER_STALL_SCRIPT: DialogueScript = {
-  id: 'father_stall_midfight',
+/** Level 1 mother-stall script — timed reassurance after asking for directions. */
+export const MOTHER_STALL_SCRIPT: DialogueScript = {
+  id: 'mother_stall_midfight',
   start: 'intro',
   lines: {
     intro: {
-      speaker: 'Отец',
-      text: 'Шубу у мамы сперли! Я остолбенел - что делать?',
+      speaker: 'Мама',
+      text: 'Саша! Шубу сперли с лотка. Я одна — помоги!',
       next: 'choice',
     },
     choice: {
-      speaker: 'Отец',
-      text: 'Сынок - скажи что-нибудь. Быстро!',
+      speaker: 'Мама',
+      text: 'Дорогу нашёл? Скажи правду — быстро!',
       choiceTimeLimit: 7,
       timeoutChoiceIndex: 1,
       choices: [
         {
           id: 'steady',
-          label: 'Держись. Я разберусь.',
-          effect: 'calm_father',
+          label: 'Нашёл. Я разберусь.',
+          effect: 'calm_mother',
           next: 'calm_ok',
         },
         {
@@ -372,17 +372,20 @@ export const FATHER_STALL_SCRIPT: DialogueScript = {
       ],
     },
     calm_ok: {
-      speaker: 'Отец',
-      text: 'Да. Глаза востро. Забери шубу - я у лотка.',
+      speaker: 'Мама',
+      text: 'Хорошо. Глаза востро. Забери шубу — я у лотка.',
       next: null,
     },
     panic_worse: {
-      speaker: 'Отец',
-      text: 'Пустые слова! Они ещё злее - ДВИГАЙ!',
+      speaker: 'Мама',
+      text: 'Пустые слова! Они ещё злее — ДВИГАЙ!',
       next: null,
     },
   },
 };
+
+/** @deprecated Use MOTHER_STALL_SCRIPT — kept for older capture scripts. */
+export const FATHER_STALL_SCRIPT = MOTHER_STALL_SCRIPT;
 
 /** Level 2 mid-stair thug / mother timed branch (крыша shakedown). */
 export const PODEZD_LANDING_SCRIPT: DialogueScript = {

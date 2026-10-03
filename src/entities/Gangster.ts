@@ -15,13 +15,13 @@ export type GangsterAiState =
   | 'stun'
   | 'ko';
 
-export type GangsterVariant = 'thug' | 'tracksuit';
+export type GangsterVariant = 'thug' | 'tracksuit' | 'adult';
 
 export interface GangsterConfig {
   x?: number;
   y?: number;
   hp?: number;
-  /** Wave-2 track-suit extortionists. */
+  /** Wave-2 track-suit / adult market confrontations. */
   variant?: GangsterVariant;
   /** Drops mother's stolen coat on KO. */
   carriesCoat?: boolean;
@@ -48,24 +48,34 @@ function gangsterFrame(
   const skinH = '#e8c898';
   const skinD = '#906048';
   const track = variant === 'tracksuit';
-  const coat = track ? '#2a5888' : '#5a3038';
-  const coatH = track ? '#4a88c0' : '#8a5860';
-  const coatM = track ? '#3a70a8' : '#6a4048';
-  const coatD = track ? '#183858' : '#381820';
-  const pants = track ? '#1a4068' : '#2a2838';
-  const pantsH = track ? '#2a5888' : '#4a4860';
+  const adult = variant === 'adult';
+  const coat = track ? '#2a5888' : adult ? '#4a4038' : '#5a3038';
+  const coatH = track ? '#4a88c0' : adult ? '#6a5850' : '#8a5860';
+  const coatM = track ? '#3a70a8' : adult ? '#5a4840' : '#6a4048';
+  const coatD = track ? '#183858' : adult ? '#2a2420' : '#381820';
+  const pants = track ? '#1a4068' : adult ? '#2a2830' : '#2a2838';
+  const pantsH = track ? '#2a5888' : adult ? '#3a3848' : '#4a4860';
   const pantsD = track ? '#102848' : '#181820';
   const shoes = '#18141c';
   const shoesH = '#383038';
-  const hair = '#1a1420';
-  const hairH = '#2a2430';
+  const hair = adult ? '#3a3028' : '#1a1420';
+  const hairH = adult ? '#5a4840' : '#2a2430';
   const stripe = '#f0d040';
 
-  // Hair
-  for (let x = 4; x <= 11; x++) set(x, 0, hair);
-  for (let x = 3; x <= 12; x++) set(x, 1, hair);
-  set(6, 0, hairH);
-  set(7, 1, hairH);
+  // Hair / ushanka for market adults
+  if (adult) {
+    for (let x = 3; x <= 12; x++) set(x, 0, '#2a2420');
+    for (let x = 2; x <= 13; x++) set(x, 1, '#3a3430');
+    set(3, 2, '#2a2420');
+    set(12, 2, '#2a2420');
+    set(4, 0, '#5a5048');
+    set(8, 0, '#4a4038');
+  } else {
+    for (let x = 4; x <= 11; x++) set(x, 0, hair);
+    for (let x = 3; x <= 12; x++) set(x, 1, hair);
+    set(6, 0, hairH);
+    set(7, 1, hairH);
+  }
   // Head
   for (let y = 2; y <= 7; y++) {
     for (let x = 4; x <= 11; x++) set(x, y, skin);
@@ -120,6 +130,15 @@ function gangsterFrame(
     set(12, 10, stripe);
     set(12, 12, stripe);
     set(12, 13, stripe);
+  }
+  if (adult) {
+    // Fur collar + scarf tuck — market-day adult coat
+    for (let x = 4; x <= 11; x++) set(x, 8, '#a88868');
+    set(5, 8, '#c8a880');
+    set(8, 8, '#c8a880');
+    set(7, 9, '#3a2830');
+    set(8, 9, '#4a3040');
+    set(6, 10, '#3a2830');
   }
 
   // Arms
@@ -189,7 +208,7 @@ export class Gangster {
   carriesCoat: boolean;
   /** Set true once when KO if they carried the coat. */
   droppedCoat = false;
-  /** Chase speed multiplier (calm father → slightly slower wave 2). */
+  /** Chase speed multiplier (calm mother → slightly slower wave 2). */
   speedMul = 1;
   readonly width = GW;
   readonly height = GH;
