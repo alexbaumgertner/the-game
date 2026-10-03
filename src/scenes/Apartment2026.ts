@@ -41,6 +41,7 @@ import {
   drawRoomBottles,
   drawToiletRoom,
   preloadIppolitFace,
+  preloadKitchenFramePhoto,
 } from '@/art/apartmentExpand';
 import {
   ditherRect,
@@ -555,6 +556,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       preloadAerialsPoster();
       preloadApartmentPhotos();
       preloadIppolitFace();
+      preloadKitchenFramePhoto();
       beer.resetForApartment();
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });

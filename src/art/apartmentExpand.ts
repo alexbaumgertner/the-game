@@ -40,6 +40,9 @@ type FaceSlot = {
 const ippolitFace: FaceSlot = { img: null, ready: false };
 let faceLoadStarted = false;
 
+const kitchenFramePhoto: FaceSlot = { img: null, ready: false };
+let kitchenFrameLoadStarted = false;
+
 /** Preload photo-adjacent Ippolit face for bath cameo. */
 export function preloadIppolitFace(): void {
   if (faceLoadStarted) return;
@@ -54,6 +57,101 @@ export function preloadIppolitFace(): void {
   };
   img.src = `${BASE}art/face-ippolit.png`;
   ippolitFace.img = img;
+}
+
+/** Preload large wall photo by the газовая колонка. */
+export function preloadKitchenFramePhoto(): void {
+  if (kitchenFrameLoadStarted) return;
+  kitchenFrameLoadStarted = true;
+  const img = new Image();
+  img.decoding = 'async';
+  img.onload = () => {
+    kitchenFramePhoto.ready = true;
+  };
+  img.onerror = () => {
+    kitchenFramePhoto.ready = false;
+  };
+  img.src = `${BASE}art/kitchen-frame-photo.jpg`;
+  kitchenFramePhoto.img = img;
+}
+
+/**
+ * Large hi-detail wooden frame on the kitchen wall by the колонка.
+ * Photo face: public/art/kitchen-frame-photo.jpg
+ */
+function drawKitchenColumnFrame(
+  ctx: CanvasRenderingContext2D,
+  originX: number,
+): void {
+  preloadKitchenFramePhoto();
+  // Right of колонка, above sink clutter — large & clearly readable
+  const x = originX + 170;
+  const y = 28;
+  const w = 54;
+  const h = 42;
+
+  // Drop shadow into tiled wall
+  px(ctx, x + 3, y + 3, w, h, 'rgba(20,16,12,0.45)');
+
+  // Outer weathered wood moulding
+  woodGrain(ctx, x, y, w, h, '#5a4830', '#8a7048', '#6e5838', '#3a2c18', false);
+  px(ctx, x, y, w, 2, '#a88858');
+  px(ctx, x, y, 2, h, '#9a7850');
+  px(ctx, x + w - 2, y + 1, 2, h - 1, '#3a2814');
+  px(ctx, x + 1, y + h - 2, w - 1, 2, '#2a1c10');
+
+  // Mid bevel
+  px(ctx, x + 2, y + 2, w - 4, h - 4, '#7a6240');
+  px(ctx, x + 2, y + 2, w - 4, 1, '#c0a070');
+  px(ctx, x + 2, y + 2, 1, h - 4, '#b09060');
+  px(ctx, x + w - 3, y + 3, 1, h - 5, '#4a3820');
+  px(ctx, x + 3, y + h - 3, w - 5, 1, '#403018');
+
+  // Inner mat / rabbet
+  px(ctx, x + 4, y + 4, w - 8, h - 8, '#2a2014');
+  px(ctx, x + 5, y + 5, w - 10, h - 10, '#1a1410');
+  px(ctx, x + 5, y + 5, w - 10, 1, '#4a3828');
+  px(ctx, x + 5, y + 5, 1, h - 10, '#3a2c20');
+
+  const ix = x + 6;
+  const iy = y + 6;
+  const iw = w - 12;
+  const ih = h - 12;
+
+  if (kitchenFramePhoto.ready && kitchenFramePhoto.img) {
+    const prevSmooth = ctx.imageSmoothingEnabled;
+    const prevQuality = ctx.imageSmoothingQuality;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ix, iy, iw, ih);
+    ctx.clip();
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    const nw = kitchenFramePhoto.img.naturalWidth || kitchenFramePhoto.img.width;
+    const nh = kitchenFramePhoto.img.naturalHeight || kitchenFramePhoto.img.height;
+    const scale = Math.max(iw / nw, ih / nh);
+    const dw = nw * scale;
+    const dh = nh * scale;
+    const dx = ix + (iw - dw) / 2;
+    const dy = iy + (ih - dh) / 2;
+    ctx.drawImage(kitchenFramePhoto.img, dx, dy, dw, dh);
+    // Soft kitchen nicotine wash — grit without muddying the face
+    ctx.fillStyle = 'rgba(48, 36, 20, 0.12)';
+    ctx.fillRect(ix, iy, iw, ih);
+    ctx.restore();
+    ctx.imageSmoothingEnabled = prevSmooth;
+    ctx.imageSmoothingQuality = prevQuality;
+  } else {
+    px(ctx, ix, iy, iw, ih, '#4a4038');
+    px(ctx, ix + 8, iy + 6, 20, 24, '#6a6058');
+  }
+
+  // Frame grit / grease matching kitchen tiles
+  speckles(ctx, x + 1, y + 1, w - 2, h - 2, 'rgba(30,22,12,0.35)', 10, 13);
+  greaseStain(ctx, x + w - 14, y + h - 10, 10, 6, P.wallStainDeep, P.wallStainMid, P.wallStainEdge);
+  // Tiny brass hanging nail
+  px(ctx, x + Math.floor(w / 2) - 1, y - 2, 2, 2, '#c0a050');
+  px(ctx, x + Math.floor(w / 2), y - 1, 1, 3, '#808890');
 }
 
 function drawIppolitFace(
@@ -438,6 +536,9 @@ export function drawKitchen(
   px(ctx, kx + 15, fy - 118, 6, 2, '#808890');
   speckles(ctx, kx, fy - 100, 36, 52, '#6a5838', 8, 9);
   drawUiText(ctx, 'колонка', kx - 2, fy - 126, '#a09070', 5, 500);
+
+  // Large framed photo on the wall by the колонка (right side)
+  drawKitchenColumnFrame(ctx, ox);
 
   const wx = ox + 160;
   woodGrain(ctx, wx, fy - 36, 58, 26, '#6a6058', '#8a8070', '#7a7068', '#4a4038', false);
