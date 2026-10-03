@@ -88,6 +88,37 @@ const INTRO_SCRIPT: DialogueScript = {
   },
 };
 
+/** After Level 1 bus home — cat asks what is next. */
+const AFTER_LEVEL1_SCRIPT: DialogueScript = {
+  id: 'after_level1_cat',
+  start: 'back',
+  lines: {
+    back: {
+      speaker: 'Зуич',
+      text: 'Зелинского 2… 2026. Рынок, сестрёнка, семёрка через мост — всё это было.',
+      next: 'cat',
+    },
+    cat: {
+      speaker: 'Кошка',
+      text: 'Что дальше?',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Что ответить?',
+      choices: [
+        { id: 'diary', label: 'Открою дневник — выпускной.', effect: 'none', next: 'ok' },
+        { id: 'rest', label: 'Сначала побуду здесь.', effect: 'none', next: 'ok' },
+      ],
+    },
+    ok: {
+      speaker: 'Кошка',
+      text: 'Мяу. Комод не убежит.',
+      next: null,
+    },
+  },
+};
+
 export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const { states, player, hud, beer } = deps;
 
@@ -383,6 +414,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           refreshObjective();
         });
         introStarted = true;
+      } else if (ctx.data?.afterLevel1 && states.flags.level1Cleared) {
+        dialogue.open(AFTER_LEVEL1_SCRIPT, () => {
+          showToast('Дневник — ур. 2 выпускной.', 2.4);
+          refreshObjective();
+        });
+      } else if (ctx.data?.afterLevel2 && states.flags.level2Cleared) {
+        showToast('Выпускной закрыт. Что дальше — в дневнике.', 2.8);
+        refreshObjective();
       } else if (ctx.data?.epilogueFinale && states.flags.level8Cleared) {
         showToast('Долг закрыт. Зуич дочитал зиму.', 3.4);
       } else if (ctx.data?.epilogue && states.flags.level5Cleared) {
@@ -1057,17 +1096,17 @@ function drawDiarySelect(
 
   const levels = [
     {
-      title: 'Ур. 1 — Новгород рынок',
-      sub: progress.level1Cleared ? 'Пройден — повтор' : 'Зима 1995',
+      title: 'Ур. 1 — Рынок · рюкзак',
+      sub: progress.level1Cleared ? 'Пройден — повтор' : 'Сестрёнка · автобус',
       locked: false,
     },
     {
-      title: progress.level1Cleared ? 'Ур. 2 — Подъезд №7' : 'Ур. 2 — ???',
+      title: progress.level1Cleared ? 'Ур. 2 — Выпускной' : 'Ур. 2 — ???',
       sub: !progress.level1Cleared
         ? 'Закрыт — пройди ур. 1'
         : progress.level2Cleared
           ? 'Пройден — повтор'
-          : 'Зима 1995',
+          : 'Разговор с отцом',
       locked: !progress.level1Cleared,
     },
     {

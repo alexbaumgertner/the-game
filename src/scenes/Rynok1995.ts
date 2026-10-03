@@ -1,14 +1,12 @@
 /**
- * ERA_1995 — Level 1 “Novgorod Центральный рынок, Winter 1995” (Neo-Noir 16-bit).
- * Wave 1 adults (school quiz) → mother-stall timed dialogue → Wave 2 quizzes → mother’s coat.
- * Midground = wavy blue-glass market hall; gameplay = stalls / street / bus stop.
- * Parallax / lighting / MF Game Over → apartment snap-back preserved.
+ * ERA_1995 — Level 1 “Центральный рынок” narrative.
+ * Help мама → take сестрёнка → buy backpack ≤600₽ → keys → bus №7
+ * across мост А. Невского → парк 30-летия Октября. No combat.
  */
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
-import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
-import { Gangster } from '@/entities/Gangster';
+import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
@@ -26,34 +24,34 @@ import {
   applyLightingOverlay,
   type PointLight,
 } from '@/render/LightingOverlay';
+import { DialogueSystem, type DialogueEffect } from '@/systems/DialogueSystem';
+import { QuizSystem } from '@/systems/QuizSystem';
 import {
-  DialogueSystem,
-  MOTHER_STALL_SCRIPT,
-  type DialogueEffect,
-} from '@/systems/DialogueSystem';
-import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
-import { tickQuizEncounter } from '@/systems/quizEncounter';
+  STARTING_RUBLES,
+  MOM_START_SCRIPT,
+  MOM_RETURN_SCRIPT,
+  SELLER_A_SCRIPT,
+  SELLER_B_SCRIPT,
+  SELLER_C_SCRIPT,
+  BUS_ASK_SCRIPT,
+  BUS_BOARD_SCRIPT,
+} from '@/data/rynokNarrative';
 
 const FLOOR_Y = 188;
 const R = RYNOK_PAL;
 const WORLD_W = 560;
-/** Mother’s МЕХА stall X (awning left edge). */
 const MOTHER_STALL_X = 330;
 const MOTHER_STALL_W = 68;
-const WRONG_REASSURE_MF_DRAIN = 22;
+const BUS_STOP_X = 448;
 
 type LevelPhase =
-  | 'wave1'
-  | 'dialogue'
-  | 'wave2'
+  | 'mom_meet'
+  | 'shopping'
+  | 'return_mom'
+  | 'bus_stop'
+  | 'bus_ride'
   | 'cleared'
   | 'gameover';
-
-interface CoatPickup {
-  x: number;
-  y: number;
-  taken: boolean;
-}
 
 interface AmbientDog {
   x: number;
@@ -68,8 +66,10 @@ interface StallDef {
   x: number;
   label: string;
   theme: KioskTheme;
-  goods: 'bread' | 'fish' | 'seeds' | 'veg' | 'furs';
+  goods: 'bread' | 'fish' | 'seeds' | 'veg' | 'furs' | 'bags';
   seller: 'man' | 'woman' | 'aunt';
+  /** Backpack seller id for shopping dialogues. */
+  bagSeller?: 'a' | 'b' | 'c';
 }
 
 type KioskTheme = 'tan' | 'grey' | 'rust' | 'blue' | 'green';
@@ -85,23 +85,23 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   const { states, player, hud, beer } = deps;
 
   let camX = 0;
-  let gangsters: Gangster[] = [];
-  let phase: LevelPhase = 'wave1';
-  let gameOverTimer = 0;
+  let phase: LevelPhase = 'mom_meet';
   let toast = '';
   let toastTimer = 0;
   let time = 0;
-  let shake = 0;
   let dogs: AmbientDog[] = [];
-  let motherPanic = 1; // 0 calm … 1 panicked
-  let hasCoat = false;
-  let coat: CoatPickup | null = null;
   let winTimer = 0;
-  let dialogueStarted = false;
+  let rubles = STARTING_RUBLES;
+  let hasSister = false;
+  let sisterX = MOTHER_STALL_X + 20;
+  let hasBackpack = false;
+  let hasKeys = false;
+  let knowBus = false;
+  let busRideProgress = 0;
   const dialogue = new DialogueSystem();
+  /** Kept for main.ts sceneQuiz wiring — unused in L1 narrative. */
   const quiz = new QuizSystem();
 
-  /** Soft street-lamp pools — no trash-fire barrels. */
   const lampSpots: PointLight[] = [
     { kind: 'point', x: 300, y: FLOOR_Y - 70, radius: 42, color: 'rgba(240, 210, 140, 0.55)', phase: 0.2 },
     { kind: 'point', x: 140, y: FLOOR_Y - 58, radius: 28, color: 'rgba(220, 190, 120, 0.35)', phase: 1.1 },
@@ -110,10 +110,10 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   const stalls: StallDef[] = [
     { x: 72, label: 'ХЛЕБ', theme: 'tan', goods: 'bread', seller: 'aunt' },
-    { x: 148, label: 'РЫБА', theme: 'grey', goods: 'fish', seller: 'man' },
-    { x: 224, label: 'СЕМЕЧКИ', theme: 'green', goods: 'seeds', seller: 'woman' },
+    { x: 148, label: 'РЮКЗАКИ', theme: 'grey', goods: 'bags', seller: 'man', bagSeller: 'a' },
+    { x: 224, label: 'СЕМЕЧКИ', theme: 'green', goods: 'seeds', seller: 'woman', bagSeller: 'b' },
     { x: MOTHER_STALL_X, label: 'МЕХА', theme: 'rust', goods: 'furs', seller: 'woman' },
-    { x: 410, label: 'ОВОЩИ', theme: 'blue', goods: 'veg', seller: 'man' },
+    { x: 410, label: 'ОВОЩИ', theme: 'blue', goods: 'veg', seller: 'man', bagSeller: 'c' },
   ];
 
   const spawnDogs = (): void => {
@@ -123,56 +123,20 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     ];
   };
 
-  const spawnWave1 = (): void => {
-    gangsters = [
-      new Gangster({ x: 200, y: FLOOR_Y, hp: 34, variant: 'adult' }),
-      new Gangster({ x: 280, y: FLOOR_Y, hp: 30, variant: 'adult' }),
-      new Gangster({ x: 380, y: FLOOR_Y, hp: 36, variant: 'adult' }),
-    ];
-  };
-
-  const spawnWave2 = (): void => {
-    const speedMul = motherPanic < 0.4 ? 0.82 : motherPanic > 0.8 ? 1.15 : 1;
-    const hpBonus = motherPanic > 0.8 ? 6 : 0;
-    gangsters = [
-      new Gangster({
-        x: 300,
-        y: FLOOR_Y,
-        hp: 38 + hpBonus,
-        variant: 'adult',
-        carriesCoat: true,
-      }),
-      new Gangster({
-        x: 380,
-        y: FLOOR_Y,
-        hp: 34 + hpBonus,
-        variant: 'adult',
-      }),
-      new Gangster({
-        x: 460,
-        y: FLOOR_Y,
-        hp: 40 + hpBonus,
-        variant: 'adult',
-      }),
-      new Gangster({
-        x: 520,
-        y: FLOOR_Y,
-        hp: 32 + hpBonus,
-        variant: 'adult',
-      }),
-    ];
-    for (const g of gangsters) g.speedMul = speedMul;
-  };
-
   const objectiveForPhase = (): string => {
-    if (phase === 'wave1') return 'Ответь взрослым · к лотку МЕХА';
-    if (phase === 'dialogue') return 'Говори с мамой - таймер';
-    if (phase === 'wave2') {
-      if (!hasCoat) return 'Забери шубу + ответь на вопросы';
-      return 'Шуба есть - допроси остальных';
+    if (phase === 'mom_meet') return 'Поговори с мамой у МЕХА';
+    if (phase === 'shopping') {
+      if (!hasBackpack) return `Рюкзак ≤600₽ · ${rubles}₽`;
+      return 'Рюкзак есть — к маме';
     }
+    if (phase === 'return_mom') return 'Отдай рюкзак маме · ключи';
+    if (phase === 'bus_stop') {
+      if (!knowBus) return 'Узнай автобус до парка';
+      return 'Сядь на автобус №7';
+    }
+    if (phase === 'bus_ride') return 'Едем через мост…';
     if (phase === 'cleared') return 'УР. 1 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return '';
   };
 
   const syncHud = (objective?: string): void => {
@@ -181,75 +145,103 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       maxHp: MAX_FORTITUDE,
       fortitude: player.mentalFortitude,
       maxFortitude: MAX_FORTITUDE,
-      swagger: player.streetSwagger,
-      maxSwagger: MAX_SWAGGER,
-      showSwagger: true,
+      swagger: rubles,
+      maxSwagger: STARTING_RUBLES,
+      showSwagger: false,
       eraLabel: 'ЗУИЧ · 1995',
       levelTitle: 'Центральный рынок',
       objective: objective ?? objectiveForPhase(),
     });
   };
 
-  const clearCombatAndReturn = (): void => {
-    gangsters = [];
-    coat = null;
-    hasCoat = false;
-    phase = 'gameover';
-    gameOverTimer = 0;
-    if (dialogue.isOpen) dialogue.close();
-    quiz.closeSilent();
-    player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
-    states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
-  };
-
-  const nearMotherStall = (): boolean => {
+  const nearMother = (): boolean => {
     const cx = MOTHER_STALL_X + MOTHER_STALL_W / 2;
-    return Math.abs(player.x - cx) < 55;
+    return Math.abs(player.x - cx) < 40;
   };
 
-  const beginMotherDialogue = (): void => {
-    if (dialogueStarted || dialogue.isOpen) return;
-    dialogueStarted = true;
-    phase = 'dialogue';
-    gangsters = [];
-    quiz.closeSilent();
+  const nearBusStop = (): boolean => Math.abs(player.x - (BUS_STOP_X + 24)) < 36;
+
+  const nearestBagSeller = (): StallDef | null => {
+    let best: StallDef | null = null;
+    let bestD = 36;
+    for (const s of stalls) {
+      if (!s.bagSeller) continue;
+      const cx = s.x + 32;
+      const d = Math.abs(player.x - cx);
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return best;
+  };
+
+  const openScript = (script: typeof MOM_START_SCRIPT, onDone?: (choiceId: string | null, effect: DialogueEffect) => void): void => {
+    if (dialogue.isOpen) return;
     player.vx = 0;
-    toast = 'МАМА ЗОВЁТ';
-    toastTimer = 1.2;
-    dialogue.open(MOTHER_STALL_SCRIPT, (_id, result) => {
-      applyDialogueResult(result.effect, result.timedOut);
+    dialogue.open(script, (_id, result) => {
+      onDone?.(result.choiceId, result.effect);
+      syncHud();
     });
-    syncHud();
   };
 
-  const applyDialogueResult = (effect: DialogueEffect, timedOut: boolean): void => {
-    if (effect === 'calm_mother' || effect === 'calm_father') {
-      motherPanic = 0.25;
-      toast = 'МАМА УСПОКОИЛАСЬ';
+  const beginMomMeet = (): void => {
+    openScript(MOM_START_SCRIPT, () => {
+      hasSister = true;
+      sisterX = player.x - 14;
+      phase = 'shopping';
+      toast = 'СЕСТРЁНКА С ТОБОЙ';
       toastTimer = 1.4;
-    } else if (effect === 'wrong_reassure' || timedOut) {
-      motherPanic = 1;
-      player.takeDamage(WRONG_REASSURE_MF_DRAIN, -1);
-      player.vx = 0;
-      toast = timedOut ? 'ПОЗДНО - ПАНИКА' : 'ПУСТЫЕ СЛОВА - СД';
-      toastTimer = 1.6;
-    } else {
-      motherPanic = 0.7;
-    }
-
-    if (player.isKo) {
-      phase = 'gameover';
-      gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
-      return;
-    }
-
-    phase = 'wave2';
-    spawnWave2();
-    syncHud();
+      syncHud();
+    });
   };
 
-  /** Gameplay layer paint (world space; ParallaxStack already translates). */
+  const trySeller = (s: StallDef): void => {
+    if (!s.bagSeller || hasBackpack || !hasSister) return;
+    if (s.bagSeller === 'a') {
+      openScript(SELLER_A_SCRIPT, () => {
+        toast = 'ДОРОГО · ИЩЕМ ДАЛЬШЕ';
+        toastTimer = 1.2;
+      });
+    } else if (s.bagSeller === 'b') {
+      openScript(SELLER_B_SCRIPT, () => {
+        toast = 'НЕ ПОДОШЛО';
+        toastTimer = 1.2;
+      });
+    } else if (s.bagSeller === 'c') {
+      openScript(SELLER_C_SCRIPT, (choiceId, effect) => {
+        if (effect === 'calm_goods' || choiceId === 'buy') {
+          hasBackpack = true;
+          rubles -= 550;
+          phase = 'return_mom';
+          toast = 'РЮКЗАК КУПЛЕН · −550₽';
+          toastTimer = 1.6;
+        }
+      });
+    }
+  };
+
+  const beginMomReturn = (): void => {
+    openScript(MOM_RETURN_SCRIPT, () => {
+      hasKeys = true;
+      phase = 'bus_stop';
+      toast = 'КЛЮЧИ ОТ ДОМА';
+      toastTimer = 1.5;
+      syncHud();
+    });
+  };
+
+  const feedDialogueInput = (): void => {
+    const input = states.input;
+    if (!input || !dialogue.isOpen) return;
+    if (dialogue.hasChoices) {
+      if (input.justPressed('choice1')) dialogue.selectChoice(0);
+      else if (input.justPressed('choice2')) dialogue.selectChoice(1);
+    } else if (input.justPressed('confirm') || input.justPressed('interact')) {
+      dialogue.advance();
+    }
+  };
+
   const drawGameplayLayer = (
     ctx: CanvasRenderingContext2D,
     _scrollX: number,
@@ -265,25 +257,31 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     drawSnowPile(ctx, 48, FLOOR_Y, 28);
     drawSnowPile(ctx, 265, FLOOR_Y, 34);
     drawSnowPile(ctx, 500, FLOOR_Y, 30);
-    // Market stalls with goods + ambient sellers (mother drawn separately at МЕХА)
     for (const s of stalls) {
       if (s.goods === 'furs') {
         drawMotherKiosk(ctx, s.x, FLOOR_Y);
+      } else if (s.goods === 'bags') {
+        drawGoodsStall(ctx, s.x, FLOOR_Y, s.label, s.theme, 'bread');
+        // Bag shapes on counter
+        px(ctx, s.x + 14, FLOOR_Y - 28, 10, 8, '#2a5080');
+        px(ctx, s.x + 28, FLOOR_Y - 30, 12, 10, '#3a6040');
+        px(ctx, s.x + 44, FLOOR_Y - 27, 9, 7, '#603040');
+        drawStallSeller(ctx, s.x + 30, FLOOR_Y, s.seller, time);
       } else {
         drawGoodsStall(ctx, s.x, FLOOR_Y, s.label, s.theme, s.goods);
         drawStallSeller(ctx, s.x + 30, FLOOR_Y, s.seller, time);
       }
     }
-    drawMother(ctx, MOTHER_STALL_X + 34, FLOOR_Y, motherPanic);
+    drawMother(ctx, MOTHER_STALL_X + 34, FLOOR_Y, phase === 'mom_meet' ? 0.4 : 0.2);
     drawCrates(ctx, 168, FLOOR_Y);
     drawCrates(ctx, 478, FLOOR_Y);
-    drawBusStop(ctx, 448, FLOOR_Y);
+    drawBusStop(ctx, BUS_STOP_X, FLOOR_Y);
+    drawScheduleBoard(ctx, BUS_STOP_X + 52, FLOOR_Y);
     drawStreetLamp(ctx, 300, FLOOR_Y);
     drawGate(ctx);
-    // Ambient dogs scurrying behind combatants
     for (const d of dogs) drawDog(ctx, d, time);
-    if (coat && !coat.taken) drawCoatPickup(ctx, coat.x, coat.y);
-    for (const g of gangsters) g.render(ctx, alpha);
+    if (hasSister) drawSister(ctx, sisterX, FLOOR_Y, time);
+    if (hasBackpack) drawBackpackIcon(ctx, player.x + 10, player.y - 20);
     player.render(ctx, alpha);
   };
 
@@ -348,34 +346,32 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       preloadFamilyFaces();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
-      player.x = 60;
+      player.x = 350;
       player.setFloorY(FLOOR_Y);
       player.y = FLOOR_Y;
-      player.facing = 1;
-      player.walkSpeed = 60;
-      camX = 0;
-      phase = 'wave1';
-      gameOverTimer = 0;
+      player.facing = -1;
+      player.walkSpeed = 58;
+      camX = Math.max(0, player.x - 140);
+      phase = 'mom_meet';
       toast = '';
       toastTimer = 0;
       time = 0;
-      shake = 0;
-      motherPanic = 1;
-      hasCoat = false;
-      coat = null;
       winTimer = 0;
-      dialogueStarted = false;
+      rubles = STARTING_RUBLES;
+      hasSister = false;
+      sisterX = MOTHER_STALL_X + 20;
+      hasBackpack = false;
+      hasKeys = false;
+      knowBus = false;
+      busRideProgress = 0;
       dialogue.resetSilent();
       quiz.closeSilent();
-      spawnWave1();
       spawnDogs();
-      syncHud('Ответь взрослым · к лотку МЕХА');
+      syncHud('Поговори с мамой у МЕХА');
     },
 
     exit(): void {
-      gangsters = [];
       dogs = [];
-      coat = null;
       dialogue.resetSilent();
       quiz.closeSilent();
       hud.set({ showSwagger: false });
@@ -383,64 +379,34 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
     update(dt: number): void {
       time += dt;
-      if (shake > 0) shake = Math.max(0, shake - dt);
       if (toastTimer > 0) {
         toastTimer -= dt;
         if (toastTimer <= 0) toast = '';
       }
 
-      // Ambient dogs — scurry along snow, reverse at edges (non-combat)
       for (const d of dogs) {
         d.bob += dt;
         d.x += d.facing * d.speed * dt;
-        if (Math.sin(time * 1.3 + d.phase) > 0.92) {
-          d.facing = (d.facing * -1) as 1 | -1;
-        }
-        if (d.x < 40) {
-          d.x = 40;
-          d.facing = 1;
-        }
-        if (d.x > WORLD_W - 40) {
-          d.x = WORLD_W - 40;
-          d.facing = -1;
-        }
+        if (Math.sin(time * 1.3 + d.phase) > 0.92) d.facing = (d.facing * -1) as 1 | -1;
+        if (d.x < 40) { d.x = 40; d.facing = 1; }
+        if (d.x > WORLD_W - 40) { d.x = WORLD_W - 40; d.facing = -1; }
       }
 
-      // ── Dialogue modal: pause quiz sim, feed input to DialogueSystem ──
-      if (phase === 'dialogue' && dialogue.isOpen) {
-        dialogue.update(dt);
-        player.update(dt);
-        const input = states.input;
-        if (input) {
-          if (dialogue.hasChoices) {
-            if (input.justPressed('choice1')) {
-              dialogue.selectChoice(0);
-            } else if (input.justPressed('choice2')) {
-              dialogue.selectChoice(1);
-            }
-          } else if (
-            input.justPressed('confirm') ||
-            input.justPressed('interact')
-          ) {
-            dialogue.advance();
-          }
-        }
-        motherPanic = Math.min(1, motherPanic + dt * 0.02);
-        syncHud();
-        const target = player.x - 140;
-        camX += (target - camX) * Math.min(1, dt * 6);
-        if (camX < 0) camX = 0;
-        if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
-        return;
+      if (hasSister) {
+        const target = player.x - 16 * player.facing;
+        sisterX += (target - sisterX) * Math.min(1, dt * 4);
       }
 
-      if (phase === 'gameover') {
-        gameOverTimer -= dt;
+      if (phase === 'bus_ride') {
+        busRideProgress += dt / 7;
         player.update(dt);
-        if (gameOverTimer <= 0) {
-          clearCombatAndReturn();
+        syncHud('Едем через мост…');
+        if (busRideProgress >= 1) {
+          phase = 'cleared';
+          winTimer = 2.2;
+          toast = 'ПАРК 30-ЛЕТИЯ ОКТЯБРЯ';
+          toastTimer = 2.2;
         }
-        syncHud('КОНЕЦ ИГРЫ');
         return;
       }
 
@@ -451,96 +417,82 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         if (winTimer <= 0) {
           states.setFlag('level1Cleared', true);
           player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
-          states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.65 });
+          states.goto('apartment_2026', {
+            era: 'ERA_2026',
+            fadeSeconds: 0.65,
+            data: { afterLevel1: true },
+          });
         }
+        return;
+      }
+
+      if (dialogue.isOpen) {
+        dialogue.update(dt);
+        player.update(dt);
+        feedDialogueInput();
+        syncHud();
+        const target = player.x - 140;
+        camX += (target - camX) * Math.min(1, dt * 6);
+        if (camX < 0) camX = 0;
+        if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
         return;
       }
 
       player.update(dt);
       const input = states.input;
 
-      // School quiz with adults (replaces punch/kick)
-      if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
-        const qres = tickQuizEncounter({
-          quiz,
-          input,
-          player,
-          gangsters,
-          dt,
-          autoOpen: true,
-          swaggerOnCorrect: 14,
-        });
-        if (qres.toast) {
-          toast = qres.toast;
-          toastTimer = qres.toastTimer;
-        }
-      } else {
-        quiz.update(dt);
-      }
-
-      if (input && !player.isKo && !quiz.isOpen) {
+      if (input && !player.isKo) {
         if (input.justPressed('jump')) player.tryJump();
-        const axis = input.axisX();
-        player.applyWalk(axis, dt, 20, WORLD_W - 20);
+        player.applyWalk(input.axisX(), dt, 20, WORLD_W - 20);
+
+        if (input.justPressed('interact') || input.justPressed('confirm')) {
+          if (phase === 'mom_meet' && nearMother()) beginMomMeet();
+          else if (phase === 'shopping' && !hasBackpack) {
+            const s = nearestBagSeller();
+            if (s) trySeller(s);
+            else if (nearMother()) {
+              toast = 'СНАЧАЛА РЮКЗАК';
+              toastTimer = 1.0;
+            }
+          } else if ((phase === 'shopping' || phase === 'return_mom') && hasBackpack && nearMother()) {
+            beginMomReturn();
+          } else if (phase === 'bus_stop' && nearBusStop()) {
+            if (!knowBus) {
+              // Schedule board or ask
+              openScript(BUS_ASK_SCRIPT, (choiceId, effect) => {
+                if (effect === 'calm_bridge' || choiceId === 'got_it') {
+                  knowBus = true;
+                  toast = 'АВТОБУС №7';
+                  toastTimer = 1.3;
+                }
+              });
+            } else {
+              openScript(BUS_BOARD_SCRIPT, (choiceId, effect) => {
+                if (effect === 'calm_bridge' || choiceId === 'bus7') {
+                  phase = 'bus_ride';
+                  busRideProgress = 0;
+                  toast = 'СЕМЁРКА · ПОЕХАЛИ';
+                  toastTimer = 1.2;
+                }
+              });
+            }
+          }
+        }
       }
 
       player.applyPhysics(dt, 20, WORLD_W - 20);
 
-      for (const g of gangsters) {
-        g.update(dt, player.x, player.y, FLOOR_Y, 30, WORLD_W - 30);
-        const drop = g.consumeCoatDrop();
-        if (drop && !coat) {
-          coat = { x: drop.x, y: drop.y, taken: false };
-          toast = 'ШУБА УПАЛА!';
-          toastTimer = 1.2;
-        }
+      // Auto-prompt mom meet once at start if standing near
+      if (phase === 'mom_meet' && nearMother() && !dialogue.isOpen && time > 0.8 && time < 0.9) {
+        // soft nudge via toast
+        toast = 'E — ПОГОВОРИТЬ С МАМОЙ';
+        toastTimer = 1.5;
       }
 
-      // Pick up mother's coat
-      if (coat && !coat.taken && !hasCoat) {
-        const dx = Math.abs(player.x - coat.x);
-        const dy = Math.abs(player.y - coat.y);
-        if (dx < 18 && dy < 24) {
-          coat.taken = true;
-          hasCoat = true;
-          toast = 'ШУБА МАМЫ У ТЕБЯ';
-          toastTimer = 1.5;
-          motherPanic = Math.max(0.15, motherPanic - 0.35);
-        }
-      }
-
-      if (player.isKo) {
-        phase = 'gameover';
-        gameOverTimer = 1.8;
-        quiz.closeSilent();
-        toast = 'СИЛА ДУХА СЛОМЛЕНА';
-        toastTimer = 1.8;
-      }
-
-      const alive = gangsters.filter((g) => !g.isKo).length;
-
-      // After answering ≥1 adult near МЕХА, or clear wave 1
-      if (phase === 'wave1' && !dialogueStarted && !quiz.isOpen) {
-        const anyKo = gangsters.some((g) => g.isKo);
-        if ((nearMotherStall() && anyKo) || alive === 0) {
-          beginMotherDialogue();
-        } else {
-          syncHud(
-            alive === 1
-              ? 'Один вопрос - к маме'
-              : `Волна 1 · Вопросы ${alive} · К МЕХА`,
-          );
-        }
-      } else if (phase === 'wave2' && !quiz.isOpen) {
-        if (alive === 0 && hasCoat) {
-          phase = 'cleared';
-          winTimer = 2.4;
-          toast = 'ЛОТОК ЦЕЛ · ШУБА СПАСЕНА';
-          toastTimer = 2.4;
-          syncHud('УР. 1 ПРОЙДЕН');
-        } else {
-          syncHud();
-        }
+      if (phase === 'shopping' && hasBackpack) {
+        syncHud('Рюкзак есть — к маме');
+      } else {
+        syncHud();
       }
 
       const target = player.x - 140;
@@ -556,50 +508,53 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
-
-      ctx.save();
-      ctx.translate(shakeX, shakeY);
-
-      rebuildStack(alpha, width, height);
-      stack.render(ctx, camX, width, height);
-
-      ctx.restore();
-
-      if (phase === 'dialogue' && dialogue.isOpen) {
-        dialogue.render(ctx, width, height);
-      } else if (quiz.isOpen) {
-        quiz.render(ctx, width, height);
+      if (phase === 'bus_ride' || (phase === 'cleared' && busRideProgress > 0.99)) {
+        drawBusRideView(ctx, width, height, Math.min(1, busRideProgress));
+        if (hasSister) drawSister(ctx, width * 0.38, height - 42, time);
+        const savedX = player.x;
+        const savedY = player.y;
+        player.x = width * 0.52;
+        player.y = height - 40;
+        player.render(ctx, alpha);
+        player.x = savedX;
+        player.y = savedY;
       } else {
+        rebuildStack(alpha, width, height);
+        stack.render(ctx, camX, width, height);
+      }
+
+      if (dialogue.isOpen) {
+        dialogue.render(ctx, width, height);
+      } else if (phase !== 'bus_ride') {
         const hint =
-          phase === 'wave2' && !hasCoat
-            ? `${quizHudHint()} · Забери шубу`
-            : phase === 'wave1'
-              ? `${quizHudHint()} · К лотку МЕХА`
-              : `${quizHudHint()} · Пробел — прыжок`;
+          phase === 'mom_meet'
+            ? 'E — мама у лотка МЕХА'
+            : phase === 'shopping'
+              ? `E — спросить у продавца · ${rubles}₽`
+              : phase === 'return_mom'
+                ? 'E — к маме за ключами'
+                : phase === 'bus_stop'
+                  ? knowBus
+                    ? 'E — сесть на автобус'
+                    : 'E — расписание / спросить'
+                  : 'E — действие';
         const hw = measureUiText(ctx, hint, 6.5, 500) + 10;
         uiPanel(ctx, 4, height - 14, Math.min(hw, width - 8), 11, 'rgba(10,12,18,0.72)', 'rgba(120,100,60,0.45)');
         drawUiText(ctx, hint, 8, height - 11, R.uiBorder, 6.5, 500);
       }
 
-      if (phase === 'wave2' || phase === 'cleared') {
-        const status = hasCoat
-          ? 'Шуба: да'
-          : coat
-            ? 'Шуба: на земле'
-            : 'Шуба: украдена';
-        const sw = measureUiText(ctx, status, 6.5, 550) + 10;
-        uiPanel(
-          ctx,
-          width - sw - 4,
-          36,
-          sw,
-          11,
-          'rgba(16,12,28,0.85)',
-          hasCoat ? 'rgba(64,200,120,0.7)' : 'rgba(224,112,64,0.7)',
-        );
-        drawUiText(ctx, status, width - sw, 38, hasCoat ? '#a0f0c0' : '#f0c0a0', 6.5, 550);
+      // Money chip
+      if (phase === 'shopping' || phase === 'mom_meet') {
+        const m = `${rubles}₽`;
+        const mw = measureUiText(ctx, m, 7, 650) + 10;
+        uiPanel(ctx, width - mw - 4, 36, mw, 12, 'rgba(16,20,12,0.85)', 'rgba(200,168,80,0.7)');
+        drawUiText(ctx, m, width - mw, 38, '#f0e0a0', 7, 650);
+      }
+      if (hasKeys) {
+        drawUiText(ctx, 'Ключи', width - 40, 50, '#a0f0c0', 6.5, 550);
+      }
+      if (hasBackpack && phase !== 'bus_ride') {
+        drawUiText(ctx, 'Рюкзак', width - 44, hasKeys ? 60 : 50, '#80c0f0', 6.5, 550);
       }
 
       if (toast) {
@@ -616,23 +571,6 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
       }
 
-      if (phase === 'gameover') {
-        ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
-        ctx.fillRect(0, 0, width, height);
-        const gw = measureUiText(ctx, 'Конец игры', 12, 700) + 24;
-        uiPanel(
-          ctx,
-          Math.round((width - gw) / 2),
-          Math.round(height / 2 - 24),
-          gw,
-          40,
-          'rgba(20,10,14,0.92)',
-          'rgba(224,64,64,0.8)',
-        );
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, R.uiBorder, 7, 500);
-      }
-
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
@@ -647,11 +585,10 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           'rgba(64,200,120,0.8)',
         );
         drawUiTextCentered(ctx, 'Ур. 1 пройден', width / 2, height / 2 - 16, '#a0f0c0', 12, 700);
-        drawUiTextCentered(ctx, 'Шуба + лоток целы', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
+        drawUiTextCentered(ctx, 'Дом · Зелинского', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
       }
     },
 
-    /** Shared with TouchControls / canvas pointer hit-tests. */
     getDialogue(): DialogueSystem {
       return dialogue;
     },
@@ -660,51 +597,35 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       return quiz;
     },
 
-    /** Dev / capture helpers (wired via main `__novgorod.rynok`). */
     __debug: {
       getPhase: () => phase,
-      forceDialogue: () => beginMotherDialogue(),
-      forceWave2Calm: () => {
-        dialogue.resetSilent();
-        quiz.closeSilent();
-        motherPanic = 0.25;
-        hasCoat = false;
-        coat = null;
-        phase = 'wave2';
-        spawnWave2();
-        player.x = 280;
+      forceShopping: () => {
+        hasSister = true;
+        phase = 'shopping';
+        player.x = 180;
         syncHud();
       },
-      forceCoatDrop: () => {
-        coat = { x: player.x + 30, y: FLOOR_Y - 6, taken: false };
-        hasCoat = false;
-        toast = 'ШУБА УПАЛА!';
-        toastTimer = 1.2;
+      forceBackpack: () => {
+        hasSister = true;
+        hasBackpack = true;
+        rubles = 50;
+        phase = 'return_mom';
+        player.x = 350;
+        syncHud();
       },
-      pickCoat: () => {
-        if (coat) coat.taken = true;
-        hasCoat = true;
-        toast = 'ШУБА МАМЫ У ТЕБЯ';
-        toastTimer = 1.2;
+      forceBus: () => {
+        hasSister = true;
+        hasBackpack = true;
+        hasKeys = true;
+        knowBus = true;
+        phase = 'bus_stop';
+        player.x = BUS_STOP_X + 20;
+        syncHud();
       },
-      chooseSteady: () => {
-        if (dialogue.isOpen) {
-          if (!dialogue.revealComplete) dialogue.advance();
-          dialogue.selectChoice(0);
-        }
-      },
-      advanceDialogue: () => dialogue.advance(),
-      skipToChoices: () => {
-        if (!dialogue.isOpen) beginMotherDialogue();
-        dialogue.advance();
-        dialogue.advance();
-        dialogue.advance();
-      },
-      answerCorrect: () => {
-        if (!quiz.isOpen) return;
-        for (let i = 0; i < 4; i++) {
-          if (quiz.selectAnswer(i) === 'correct') break;
-        }
+      forceRide: () => {
+        hasSister = true;
+        phase = 'bus_ride';
+        busRideProgress = 0.2;
       },
     },
   };
@@ -1200,18 +1121,6 @@ function drawStreetLamp(ctx: CanvasRenderingContext2D, x: number, floorY: number
   px(ctx, x - 2, floorY - 73, 6, 1, '#fff8d0');
 }
 
-function drawCoatPickup(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  const ox = Math.round(x);
-  const oy = Math.round(y);
-  px(ctx, ox - 8, oy - 4, 16, 6, '#6a4838');
-  px(ctx, ox - 7, oy - 5, 14, 2, '#8a6850');
-  px(ctx, ox - 6, oy - 2, 12, 2, '#4a3028');
-  px(ctx, ox - 4, oy - 6, 4, 2, '#c8a070');
-  if (Math.floor(performance.now() / 200) % 2 === 0) {
-    px(ctx, ox + 6, oy - 7, 2, 2, '#f0e080');
-  }
-}
-
 function drawGate(ctx: CanvasRenderingContext2D): void {
   px(ctx, 514, FLOOR_Y - 68, 12, 68, R.gate);
   px(ctx, 516, FLOOR_Y - 66, 2, 64, R.gateHi);
@@ -1238,4 +1147,98 @@ function drawSnowParticles(
     ctx.fillStyle = big ? R.snowHi : i % 3 === 0 ? R.snow : R.snowMid;
     ctx.fillRect(Math.round(sx), Math.round(sy), big ? 2 : 1, big ? 2 : 1);
   }
+}
+
+/** Sister companion — photo face from family portrait. */
+function drawSister(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  floorY: number,
+  t: number,
+): void {
+  const ox = Math.round(x);
+  const oy = Math.round(floorY);
+  const bob = Math.sin(t * 6) > 0 ? 1 : 0;
+  // Smaller winter coat
+  px(ctx, ox - 5, oy - 26 + bob, 10, 16, '#5a7898');
+  px(ctx, ox - 4, oy - 24 + bob, 3, 4, '#7898b0');
+  px(ctx, ox - 4, oy - 28 + bob, 8, 3, '#c8a878');
+  // Photo face
+  px(ctx, ox - 4, oy - 36 + bob, 8, 10, '#d0a878');
+  if (!drawFamilyFaceWithRim(ctx, 'sister', ox - 4, oy - 37 + bob, 8, 10)) {
+    px(ctx, ox - 2, oy - 32 + bob, 1, 1, '#181018');
+    px(ctx, ox + 1, oy - 32 + bob, 1, 1, '#181018');
+  }
+  // Blonde bangs rim
+  px(ctx, ox - 4, oy - 38 + bob, 8, 2, '#c8b070');
+  px(ctx, ox - 5, oy - 36 + bob, 1, 4, '#b8a060');
+  // Boots
+  px(ctx, ox - 4, oy - 10 + bob, 3, 6, '#3a3048');
+  px(ctx, ox + 1, oy - 10 + bob, 3, 6, '#3a3048');
+  px(ctx, ox - 5, oy - 4 + bob, 4, 4, '#18141c');
+  px(ctx, ox + 1, oy - 4 + bob, 4, 4, '#18141c');
+}
+
+function drawBackpackIcon(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  const ox = Math.round(x);
+  const oy = Math.round(y);
+  px(ctx, ox - 5, oy - 10, 10, 10, '#2a5080');
+  px(ctx, ox - 4, oy - 9, 8, 3, '#4080c0');
+  px(ctx, ox - 3, oy - 5, 6, 4, '#1a3870');
+  px(ctx, ox - 2, oy - 11, 2, 2, '#f0d060');
+}
+
+function drawScheduleBoard(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
+  px(ctx, x, floorY - 40, 28, 22, '#2a2830');
+  px(ctx, x + 1, floorY - 39, 26, 20, '#e8e0c8');
+  drawNesText(ctx, 'АВТ', x + 6, floorY - 36, '#181018', 1, 0);
+  drawNesText(ctx, '7→ПАРК', x + 2, floorY - 28, '#204080', 1, 0);
+  drawNesText(ctx, '12→ВКЗ', x + 2, floorY - 22, '#603020', 1, 0);
+}
+
+/** Bus-ride cinematic: bridge + Kremlin + Sophia. */
+function drawBusRideView(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  progress: number,
+): void {
+  fillSkyGradient(
+    ctx,
+    width,
+    [
+      { y: 0, h: 50, color: '#142038' },
+      { y: 50, h: 40, color: '#243858' },
+      { y: 90, h: height - 90, color: '#3a5068' },
+    ],
+    [
+      { y: 49, a: '#142038', b: '#243858' },
+      { y: 89, a: '#243858', b: '#3a5068' },
+    ],
+  );
+  const scroll = progress * 220;
+  // Volkhov ice
+  px(ctx, 0, 120, width, height - 120, '#6a8098');
+  ditherRect(ctx, 0, 118, width, 8, '#8aa0b8', '#6a8098');
+  // Bridge deck
+  px(ctx, 0, 110, width, 12, '#4a4850');
+  px(ctx, 0, 110, width, 2, '#6a6870');
+  for (let x = -((scroll * 0.5) % 40); x < width; x += 40) {
+    px(ctx, Math.round(x), 100, 3, 12, '#3a3840');
+  }
+  // Kremlin / Sophia drifting past
+  const kx = Math.round(width * 0.55 - scroll * 0.35);
+  px(ctx, kx, 48, 50, 62, '#1a2030');
+  px(ctx, kx + 8, 30, 14, 40, '#222838');
+  px(ctx, kx + 12, 18, 6, 14, '#d8b050'); // Sophia dome gold
+  px(ctx, kx + 28, 36, 16, 36, '#1a2030');
+  px(ctx, kx + 32, 24, 8, 14, '#c0a040');
+  drawNesText(ctx, 'КРЕМЛЬ', kx - 4, 42, '#c8b878', 1, 0);
+  // Bus interior frame
+  px(ctx, 0, 0, 10, height, '#2a2420');
+  px(ctx, width - 10, 0, 10, height, '#2a2420');
+  px(ctx, 0, 0, width, 8, '#3a3428');
+  px(ctx, 0, height - 36, width, 36, '#3a3830');
+  drawUiTextCentered(ctx, 'Автобус №7 · мост А. Невского', width / 2, height - 28, '#e8d8a0', 7, 600);
+  drawUiTextCentered(ctx, 'Вид: Кремль и Софийский собор', width / 2, height - 16, '#a0b8d0', 6.5, 500);
 }

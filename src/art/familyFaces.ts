@@ -5,7 +5,7 @@
 
 const BASE = import.meta.env.BASE_URL;
 
-export type FamilyFaceId = 'hero' | 'mother' | 'father';
+export type FamilyFaceId = 'hero' | 'mother' | 'father' | 'sister';
 
 type FaceSlot = {
   url: string;
@@ -17,6 +17,7 @@ const faces: Record<FamilyFaceId, FaceSlot> = {
   hero: { url: `${BASE}art/face-hero.png`, img: null, ready: false },
   mother: { url: `${BASE}art/face-mother.png`, img: null, ready: false },
   father: { url: `${BASE}art/face-father.png`, img: null, ready: false },
+  sister: { url: `${BASE}art/face-sister.png`, img: null, ready: false },
 };
 
 let loadStarted = false;

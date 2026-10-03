@@ -5,7 +5,7 @@
 
 import { drawUiText, drawUiTextCentered, measureUiText, uiPanel } from '@/art/uiFont';
 import { GANGSTER_PUNCH_MF } from '@/systems/CombatMath';
-import { nextSchoolQuestion } from '@/data/schoolQuestions';
+import { nextSchoolQuestion, shuffleQuestion, type SchoolQuestion } from '@/data/schoolQuestions';
 
 /** Same absolute MF as one gangster punch (`Gangster.consumeAttackHit`). */
 export const QUIZ_MF_COST = GANGSTER_PUNCH_MF; // 14
@@ -47,7 +47,25 @@ export class QuizSystem {
   }
 
   open(speaker: string, onCorrect?: () => void): void {
-    const q = nextSchoolQuestion();
+    this.begin(speaker, nextSchoolQuestion(), onCorrect);
+  }
+
+  /** Open with a specific bank question (e.g. graduation «почему такой выбор»). */
+  openFromBank(
+    speaker: string,
+    bank: readonly SchoolQuestion[],
+    index: number,
+    onCorrect?: () => void,
+  ): void {
+    const raw = bank[index % bank.length]!;
+    this.begin(speaker, shuffleQuestion(raw), onCorrect);
+  }
+
+  private begin(
+    speaker: string,
+    q: ReturnType<typeof shuffleQuestion>,
+    onCorrect?: () => void,
+  ): void {
     this.speaker = speaker;
     this.question = q.question;
     this.subject = q.subject;
