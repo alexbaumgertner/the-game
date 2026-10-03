@@ -45,13 +45,14 @@ src/
   art/        Palettes, sprites, pixel helpers, bitmap font
   core/       GameLoop, StateManager, Input (+ virtual/touch)
   entities/   Player, Gangster, BazarBubble
-  scenes/     Apartment2026, Rynok1995, Podezd1995, Vokzal1995, Garazhi1995, Dvor1995
+  scenes/     Apartment2026, Rynok1995, Podezd1995, Vokzal1995, Garazhi1995,
+              Dvor1995, Most1995, Diskoteka1995, Detinets1995
   systems/    DialogueSystem, CombatMath, BeerSystem
   ui/         HUD, TouchControls
   main.ts     Bootstrap — GameLoop → StateManager
 ```
 
-**Levels:** Diary Level Select — L1 рынок → L2 подъезд → L3 вокзал → L4 гаражи → L5 двор/крыша (unlock chain via clear flags). See project docs `level2-podezd.md`, `levels-3-5.md`.
+**Levels:** Diary Level Select — L1 рынок → L2 подъезд → L3 вокзал → L4 гаражи → L5 двор/крыша → L6 мост/Волхов → L7 дискотека «Орбита» → L8 детинец (unlock chain via clear flags). See project docs `level2-podezd.md`, `levels-3-5.md`, `levels-6-8.md`.
 
 **Art:** Sega Genesis / Mega Drive 16-bit pass (procedural pixels). See project docs `sega-16bit-art.md`.
 

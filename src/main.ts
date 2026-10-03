@@ -22,6 +22,9 @@ import { createPodezd1995Scene } from './scenes/Podezd1995';
 import { createVokzal1995Scene } from './scenes/Vokzal1995';
 import { createGarazhi1995Scene } from './scenes/Garazhi1995';
 import { createDvor1995Scene } from './scenes/Dvor1995';
+import { createMost1995Scene } from './scenes/Most1995';
+import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
+import { createDetinets1995Scene } from './scenes/Detinets1995';
 import type { DialogueSystem } from './systems/DialogueSystem';
 
 function bootstrap(): void {
@@ -62,6 +65,9 @@ function bootstrap(): void {
   const vokzal = createVokzal1995Scene({ states, player, hud, beer });
   const garazhi = createGarazhi1995Scene({ states, player, hud, beer });
   const dvor = createDvor1995Scene({ states, player, hud, beer });
+  const most = createMost1995Scene({ states, player, hud, beer });
+  const diskoteka = createDiskoteka1995Scene({ states, player, hud, beer });
+  const detinets = createDetinets1995Scene({ states, player, hud, beer });
 
   states.register('apartment_2026', apartment);
   states.register('rynok_1995', rynok);
@@ -69,6 +75,9 @@ function bootstrap(): void {
   states.register('vokzal_1995', vokzal);
   states.register('garazhi_1995', garazhi);
   states.register('dvor_1995', dvor);
+  states.register('most_1995', most);
+  states.register('diskoteka_1995', diskoteka);
+  states.register('detinets_1995', detinets);
   states.boot('apartment_2026', { era: 'ERA_2026' });
 
   const loop = new GameLoop({
@@ -115,6 +124,9 @@ function bootstrap(): void {
     if (scene === 'vokzal_1995') return vokzal.getDialogue();
     if (scene === 'garazhi_1995') return garazhi.getDialogue();
     if (scene === 'dvor_1995') return dvor.getDialogue();
+    if (scene === 'most_1995') return most.getDialogue();
+    if (scene === 'diskoteka_1995') return diskoteka.getDialogue();
+    if (scene === 'detinets_1995') return detinets.getDialogue();
     if (scene === 'apartment_2026') return apartment.getDialogue();
     return null;
   };
@@ -179,6 +191,9 @@ function bootstrap(): void {
     vokzal,
     garazhi,
     dvor,
+    most,
+    diskoteka,
+    detinets,
     touch,
     canvas,
     display: {
@@ -216,6 +231,36 @@ function bootstrap(): void {
       states.setFlag('level3Cleared', true);
       states.setFlag('level4Cleared', true);
       states.goto('dvor_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into мост Level 6. */
+    gotoMost: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.setFlag('level3Cleared', true);
+      states.setFlag('level4Cleared', true);
+      states.setFlag('level5Cleared', true);
+      states.goto('most_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into дискотека Level 7. */
+    gotoDiskoteka: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.setFlag('level3Cleared', true);
+      states.setFlag('level4Cleared', true);
+      states.setFlag('level5Cleared', true);
+      states.setFlag('level6Cleared', true);
+      states.goto('diskoteka_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    },
+    /** Debug: jump straight into детинец Level 8. */
+    gotoDetinets: () => {
+      states.setFlag('level1Cleared', true);
+      states.setFlag('level2Cleared', true);
+      states.setFlag('level3Cleared', true);
+      states.setFlag('level4Cleared', true);
+      states.setFlag('level5Cleared', true);
+      states.setFlag('level6Cleared', true);
+      states.setFlag('level7Cleared', true);
+      states.goto('detinets_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
     },
     captureCanvas: () => canvas.toDataURL('image/png'),
   };

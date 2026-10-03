@@ -130,6 +130,15 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     } else if (!states.flags.level5Cleared) {
       prompt = 'ДНЕВНИК - УРОВЕНЬ 5 ГОТОВ';
       hud.set({ objective: 'Дневник - ур. 5' });
+    } else if (!states.flags.level6Cleared) {
+      prompt = 'ДНЕВНИК - УРОВЕНЬ 6 ГОТОВ';
+      hud.set({ objective: 'Дневник - ур. 6' });
+    } else if (!states.flags.level7Cleared) {
+      prompt = 'ДНЕВНИК - УРОВЕНЬ 7 ГОТОВ';
+      hud.set({ objective: 'Дневник - ур. 7' });
+    } else if (!states.flags.level8Cleared) {
+      prompt = 'ДНЕВНИК - УРОВЕНЬ 8 ГОТОВ';
+      hud.set({ objective: 'Дневник - ур. 8' });
     } else {
       prompt = 'ДНЕВНИК - ВОСПОМИНАНИЯ';
       hud.set({ objective: 'Дневник - повтор' });
@@ -219,8 +228,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const level3Unlocked = (): boolean => states.flags.level2Cleared;
   const level4Unlocked = (): boolean => states.flags.level3Cleared;
   const level5Unlocked = (): boolean => states.flags.level4Cleared;
+  const level6Unlocked = (): boolean => states.flags.level5Cleared;
+  const level7Unlocked = (): boolean => states.flags.level6Cleared;
+  const level8Unlocked = (): boolean => states.flags.level7Cleared;
 
   const maxDiaryCursor = (): number => {
+    if (level8Unlocked()) return 7;
+    if (level7Unlocked()) return 6;
+    if (level6Unlocked()) return 5;
     if (level5Unlocked()) return 4;
     if (level4Unlocked()) return 3;
     if (level3Unlocked()) return 2;
@@ -235,6 +250,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!states.flags.level3Cleared) return 2;
     if (!states.flags.level4Cleared) return 3;
     if (!states.flags.level5Cleared) return 4;
+    if (!states.flags.level6Cleared) return 5;
+    if (!states.flags.level7Cleared) return 6;
+    if (!states.flags.level8Cleared) return 7;
     return 0;
   };
 
@@ -281,6 +299,24 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         states.setFlag('level5Selected', true);
         overlay = 'none';
         states.goto('dvor_1995', { era: 'ERA_1995', data: { level: 5 }, fadeSeconds: 0.55 });
+        return;
+      }
+      if (diaryCursor === 5 && level6Unlocked()) {
+        states.setFlag('level6Selected', true);
+        overlay = 'none';
+        states.goto('most_1995', { era: 'ERA_1995', data: { level: 6 }, fadeSeconds: 0.55 });
+        return;
+      }
+      if (diaryCursor === 6 && level7Unlocked()) {
+        states.setFlag('level7Selected', true);
+        overlay = 'none';
+        states.goto('diskoteka_1995', { era: 'ERA_1995', data: { level: 7 }, fadeSeconds: 0.55 });
+        return;
+      }
+      if (diaryCursor === 7 && level8Unlocked()) {
+        states.setFlag('level8Selected', true);
+        overlay = 'none';
+        states.goto('detinets_1995', { era: 'ERA_1995', data: { level: 8 }, fadeSeconds: 0.55 });
       }
     }
   };
@@ -339,6 +375,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           refreshObjective();
         });
         introStarted = true;
+      } else if (ctx.data?.epilogueFinale && states.flags.level8Cleared) {
+        showToast('Долг закрыт. Зуич дочитал зиму.', 3.4);
       } else if (ctx.data?.epilogue && states.flags.level5Cleared) {
         showToast('Зима 1995 закрыта. Зуич помнит.', 3.2);
       }
@@ -473,6 +511,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           level3Cleared: states.flags.level3Cleared,
           level4Cleared: states.flags.level4Cleared,
           level5Cleared: states.flags.level5Cleared,
+          level6Cleared: states.flags.level6Cleared,
+          level7Cleared: states.flags.level7Cleared,
+          level8Cleared: states.flags.level8Cleared,
         });
       }
 
@@ -1048,21 +1089,24 @@ function drawDiarySelect(
     level3Cleared: boolean;
     level4Cleared: boolean;
     level5Cleared: boolean;
+    level6Cleared: boolean;
+    level7Cleared: boolean;
+    level8Cleared: boolean;
   },
 ): void {
   ctx.fillStyle = 'rgba(6, 4, 10, 0.9)';
   ctx.fillRect(0, 0, width, height);
 
-  const bx = 20;
-  const by = 10;
-  const bw = width - 40;
-  const bh = height - 20;
+  const bx = 16;
+  const by = 6;
+  const bw = width - 32;
+  const bh = height - 12;
   segaBox(ctx, bx, by, bw, bh, '#2a1810', P.brass, { borderDark: P.brassDim });
   px(ctx, bx + 4, by + 4, bw - 8, bh - 8, '#5a3a20');
   px(ctx, bx + 6, by + 6, bw - 12, 2, '#7a5a38');
 
-  drawUiTextCentered(ctx, 'Дневник — уровни', width / 2, by + 10, P.diaryPages, 9, 650);
-  px(ctx, bx + 16, by + 24, bw - 32, 1, '#8a6a48');
+  drawUiTextCentered(ctx, 'Дневник — уровни', width / 2, by + 8, P.diaryPages, 8, 650);
+  px(ctx, bx + 14, by + 20, bw - 28, 1, '#8a6a48');
 
   const levels = [
     {
@@ -1106,21 +1150,48 @@ function drawDiarySelect(
           : 'Финал блока',
       locked: !progress.level4Cleared,
     },
+    {
+      title: progress.level5Cleared ? 'Ур. 6 — Мост / Волхов' : 'Ур. 6 — ???',
+      sub: !progress.level5Cleared
+        ? 'Закрыт — пройди ур. 5'
+        : progress.level6Cleared
+          ? 'Пройден — повтор'
+          : 'Зима 1995',
+      locked: !progress.level5Cleared,
+    },
+    {
+      title: progress.level6Cleared ? 'Ур. 7 — Дискотека «Орбита»' : 'Ур. 7 — ???',
+      sub: !progress.level6Cleared
+        ? 'Закрыт — пройди ур. 6'
+        : progress.level7Cleared
+          ? 'Пройден — повтор'
+          : 'Зима 1995',
+      locked: !progress.level6Cleared,
+    },
+    {
+      title: progress.level7Cleared ? 'Ур. 8 — Детинец' : 'Ур. 8 — ???',
+      sub: !progress.level7Cleared
+        ? 'Закрыт — пройди ур. 7'
+        : progress.level8Cleared
+          ? 'Пройден — повтор'
+          : 'Финал зимы',
+      locked: !progress.level7Cleared,
+    },
   ];
 
-  const rowH = 28;
+  const rowH = 20;
   levels.forEach((lvl, i) => {
-    const ly = by + 34 + i * rowH;
+    const ly = by + 26 + i * rowH;
     const selected = !lvl.locked && i === cursor;
     if (selected) {
-      segaBox(ctx, bx + 10, ly - 4, bw - 20, 26, '#3a2818', P.brass, {
+      segaBox(ctx, bx + 8, ly - 2, bw - 16, 18, '#3a2818', P.brass, {
         borderDark: P.brassDim,
         inset: false,
       });
     }
     const titleColor = lvl.locked ? '#6a5a50' : selected ? P.brassHi : P.diaryPages;
-    drawUiText(ctx, `${selected ? '›' : ' '} ${lvl.title}`, bx + 14, ly, titleColor, 7.5, 600);
-    drawUiText(ctx, lvl.sub, bx + 26, ly + 11, lvl.locked ? '#5a4a40' : '#a09080', 6.5, 500);
+    drawUiText(ctx, `${selected ? '›' : ' '} ${lvl.title}`, bx + 12, ly, titleColor, 6.5, 600);
+    drawUiText(ctx, lvl.sub, bx + 24, ly + 8, lvl.locked ? '#5a4a40' : '#a09080', 5.5, 500);
   });
 
   const hints = [
@@ -1129,7 +1200,10 @@ function drawDiarySelect(
     'Enter / E — начать ур. 3',
     'Enter / E — начать ур. 4',
     'Enter / E — начать ур. 5',
+    'Enter / E — начать ур. 6',
+    'Enter / E — начать ур. 7',
+    'Enter / E — начать ур. 8',
   ];
   const hint = hints[cursor] ?? hints[0]!;
-  drawUiTextCentered(ctx, hint, width / 2, by + bh - 14, P.uiText, 7, 550);
+  drawUiTextCentered(ctx, hint, width / 2, by + bh - 12, P.uiText, 6.5, 550);
 }

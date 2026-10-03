@@ -17,7 +17,10 @@ export type SceneId =
   | 'podezd_1995'
   | 'vokzal_1995'
   | 'garazhi_1995'
-  | 'dvor_1995';
+  | 'dvor_1995'
+  | 'most_1995'
+  | 'diskoteka_1995'
+  | 'detinets_1995';
 
 export interface SceneContext {
   era: GameEra;
@@ -68,8 +71,17 @@ export interface ProgressFlags {
   /** Set when Level 4 гаражи is cleared — unlocks diary Level 5. */
   level4Cleared: boolean;
   level5Selected: boolean;
-  /** Set when Level 5 двор/крыша (блок финал) is cleared. */
+  /** Set when Level 5 двор/крыша (блок финал) is cleared — unlocks diary Level 6. */
   level5Cleared: boolean;
+  level6Selected: boolean;
+  /** Set when Level 6 мост/Волхов is cleared — unlocks diary Level 7. */
+  level6Cleared: boolean;
+  level7Selected: boolean;
+  /** Set when Level 7 дискотека is cleared — unlocks diary Level 8. */
+  level7Cleared: boolean;
+  level8Selected: boolean;
+  /** Set when Level 8 детинец (финал зимы) is cleared. */
+  level8Cleared: boolean;
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
@@ -86,6 +98,12 @@ const DEFAULT_FLAGS: ProgressFlags = {
   level4Cleared: false,
   level5Selected: false,
   level5Cleared: false,
+  level6Selected: false,
+  level6Cleared: false,
+  level7Selected: false,
+  level7Cleared: false,
+  level8Selected: false,
+  level8Cleared: false,
 };
 
 export class StateManager {

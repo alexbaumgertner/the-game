@@ -9,6 +9,9 @@ export type DialogueEffect =
   | 'calm_mother'
   | 'calm_relative'
   | 'calm_goods'
+  | 'calm_bridge'
+  | 'calm_disco'
+  | 'calm_detinets'
   | 'wrong_reassure'
   | 'none';
 
@@ -558,6 +561,135 @@ export const DVOR_ROOF_SCRIPT: DialogueScript = {
     panic_worse: {
       speaker: 'Старший',
       text: 'Слабо. Ребята — разнесите его.',
+      next: null,
+    },
+  },
+};
+
+/** Level 6 мост — Volkhov bridge shakedown / father’s letter. */
+export const MOST_BRIDGE_SCRIPT: DialogueScript = {
+  id: 'most_bridge_midfight',
+  start: 'thug_intro',
+  lines: {
+    thug_intro: {
+      speaker: 'Гопник',
+      text: 'Мост наш. Конверт отца — наш. Прыгай в Волхов или отдавай.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Лёд трещит. Что ответить?',
+      choiceTimeLimit: 7,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Конверт мой. С дороги.',
+          effect: 'calm_bridge',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, поделим…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Зуич',
+      text: 'Тогда через мост — и письмо домой.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Гопник',
+      text: 'Делить? Нет. Ломаем — потом конверт.',
+      next: null,
+    },
+  },
+};
+
+/** Level 7 дискотека — bouncer / dance-floor crew. */
+export const DISKO_CLUB_SCRIPT: DialogueScript = {
+  id: 'disko_club_midfight',
+  start: 'bouncer_intro',
+  lines: {
+    bouncer_intro: {
+      speaker: 'Вышибала',
+      text: '«Орбита» — не для пацанов с района. Кассета старшего — внутри.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Неон режет глаза. Как войти?',
+      choiceTimeLimit: 7,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Я за кассетой. Пусти.',
+          effect: 'calm_disco',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, договоримся…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Вышибала',
+      text: 'Смелый. Тогда на танцпол — сами разберётесь.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Вышибала',
+      text: 'Слабак. Ребята — снимите его с ритма.',
+      next: null,
+    },
+  },
+};
+
+/** Level 8 детинец — final winter showdown on the wall. */
+export const DETINETS_WALL_SCRIPT: DialogueScript = {
+  id: 'detinets_wall_midfight',
+  start: 'intro',
+  lines: {
+    intro: {
+      speaker: 'Старший',
+      text: 'Детинец. Стена. Дальше бежать некуда, Зуич.',
+      next: 'choice',
+    },
+    choice: {
+      speaker: 'Зуич',
+      text: 'Финал зимы — что скажешь?',
+      choiceTimeLimit: 6,
+      timeoutChoiceIndex: 1,
+      choices: [
+        {
+          id: 'stand',
+          label: 'Долг закрываю сам.',
+          effect: 'calm_detinets',
+          next: 'stand_ok',
+        },
+        {
+          id: 'empty',
+          label: 'Может, хватит…',
+          effect: 'wrong_reassure',
+          next: 'panic_worse',
+        },
+      ],
+    },
+    stand_ok: {
+      speaker: 'Старший',
+      text: 'Тогда на стену. Покажи, кто ты.',
+      next: null,
+    },
+    panic_worse: {
+      speaker: 'Старший',
+      text: 'Хватит? Нет. Стена запомнит тебя.',
       next: null,
     },
   },
