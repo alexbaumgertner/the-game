@@ -18,7 +18,7 @@ export interface TouchControlsOptions {
     | { active: boolean; labels?: [string, string] }
     | null
     | undefined;
-  /** School quiz: 4 answers + hint strip. */
+  /** Philosophy quiz: 4 answers + hint strip. */
   getQuizChoices?: () =>
     | { active: boolean; labels?: [string, string, string, string] }
     | null

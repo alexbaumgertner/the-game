@@ -1,7 +1,8 @@
 /**
  * ERA_1995 — Level 1 “Центральный рынок” narrative.
- * Help мама → take сестрёнка → buy backpack ≤600₽ → keys → bus №7
- * across мост А. Невского → парк 30-летия Октября. No combat.
+ * Help мама → take сестрёнка → buy backpack ≤600₽ (market philosophy quiz
+ * at the vegetable stall) → keys → bus №7 across мост А. Невского →
+ * парк 30-летия Октября. No combat.
  */
 
 import type { StateManager } from '@/core/StateManager';
@@ -27,7 +28,8 @@ import {
   type PointLight,
 } from '@/render/LightingOverlay';
 import { DialogueSystem, type DialogueEffect } from '@/systems/DialogueSystem';
-import { QuizSystem } from '@/systems/QuizSystem';
+import { QuizSystem, QUIZ_MF_COST } from '@/systems/QuizSystem';
+import { MARKET_QUESTIONS } from '@/data/philosophyQuestions';
 import {
   STARTING_RUBLES,
   MOM_START_SCRIPT,
@@ -93,6 +95,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   let time = 0;
   let dogs: AmbientDog[] = [];
   let winTimer = 0;
+  let gameOverTimer = 0;
   let rubles = STARTING_RUBLES;
   let hasSister = false;
   let sisterX = MOTHER_STALL_X + 20;
@@ -101,8 +104,9 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   let knowBus = false;
   let busRideProgress = 0;
   const dialogue = new DialogueSystem();
-  /** Kept for main.ts sceneQuiz wiring — unused in L1 narrative. */
+  /** Market philosophy quiz (economist-philosophers) at the vegetable stall. */
   const quiz = new QuizSystem();
+  let marketQuizIndex = 0;
 
   const lampSpots: PointLight[] = [
     { kind: 'point', x: 300, y: FLOOR_Y - 70, radius: 42, color: 'rgba(240, 210, 140, 0.55)', phase: 0.2 },
@@ -213,13 +217,56 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     } else if (s.bagSeller === 'c') {
       openScript(SELLER_C_SCRIPT, (choiceId, effect) => {
         if (effect === 'calm_goods' || choiceId === 'buy') {
-          hasBackpack = true;
-          rubles -= 550;
-          phase = 'return_mom';
-          toast = 'РЮКЗАК КУПЛЕН · −550₽';
-          toastTimer = 1.6;
+          openMarketBuyQuiz();
         }
       });
+    }
+  };
+
+  const completeBackpackPurchase = (): void => {
+    hasBackpack = true;
+    rubles -= 550;
+    phase = 'return_mom';
+    toast = 'РЮКЗАК КУПЛЕН · −550₽';
+    toastTimer = 1.6;
+    syncHud();
+  };
+
+  /** Дядя at ОВОЩИ: one market-philosophy question before the sale. */
+  const openMarketBuyQuiz = (): void => {
+    const idx = marketQuizIndex % MARKET_QUESTIONS.length;
+    marketQuizIndex += 1;
+    toast = 'ВОПРОС ПРО РЫНОК!';
+    toastTimer = 0.8;
+    quiz.openFromBank('Дядя', MARKET_QUESTIONS, idx, () => {
+      completeBackpackPurchase();
+    });
+  };
+
+  const tickMarketQuizInput = (): void => {
+    const input = states.input;
+    if (!input || !quiz.isOpen) return;
+    const tryAns = (i: number): void => {
+      const r = quiz.selectAnswer(i);
+      if (r === 'wrong') {
+        player.takeDamage(QUIZ_MF_COST, player.facing === 1 ? -1 : 1);
+        toast = `−${QUIZ_MF_COST} СД`;
+        toastTimer = 0.8;
+      } else if (r === 'correct') {
+        toast = 'ОТВЕЧЕНО';
+        toastTimer = 0.6;
+      }
+    };
+    if (input.justPressed('choice1')) tryAns(0);
+    else if (input.justPressed('choice2')) tryAns(1);
+    else if (input.justPressed('choice3')) tryAns(2);
+    else if (input.justPressed('choice4')) tryAns(3);
+    else if (input.justPressed('hint') || input.justPressed('special')) {
+      if (quiz.takeHint()) {
+        player.takeDamage(QUIZ_MF_COST, player.facing === 1 ? -1 : 1);
+        toast = `ПОДСКАЗКА −${QUIZ_MF_COST} СД`;
+        toastTimer = 0.9;
+      }
     }
   };
 
@@ -363,6 +410,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       toastTimer = 0;
       time = 0;
       winTimer = 0;
+      gameOverTimer = 0;
       rubles = STARTING_RUBLES;
       hasSister = false;
       sisterX = MOTHER_STALL_X + 20;
@@ -372,6 +420,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       busRideProgress = 0;
       dialogue.resetSilent();
       quiz.closeSilent();
+      marketQuizIndex = 0;
       spawnDogs();
       syncHud('Поговори с мамой у МЕХА');
     },
@@ -401,6 +450,18 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (hasSister) {
         const target = player.x - 16 * player.facing;
         sisterX += (target - sisterX) * Math.min(1, dt * 4);
+      }
+
+      if (phase === 'gameover') {
+        gameOverTimer -= dt;
+        player.update(dt);
+        quiz.closeSilent();
+        syncHud('КОНЕЦ ИГРЫ');
+        if (gameOverTimer <= 0) {
+          player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
+          states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
+        }
+        return;
       }
 
       if (phase === 'bus_ride') {
@@ -439,6 +500,25 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         syncHud();
         const target = player.x - 140;
         camX += (target - camX) * Math.min(1, dt * 6);
+        if (camX < 0) camX = 0;
+        if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
+        return;
+      }
+
+      if (quiz.isOpen) {
+        quiz.update(dt);
+        tickMarketQuizInput();
+        player.update(dt);
+        if (player.isKo) {
+          phase = 'gameover';
+          gameOverTimer = 1.8;
+          quiz.closeSilent();
+          toast = 'СИЛА ДУХА СЛОМЛЕНА';
+          toastTimer = 1.8;
+        }
+        syncHud(quiz.isOpen ? 'Вопрос дяди у овощей' : undefined);
+        const targetQ = player.x - 140;
+        camX += (targetQ - camX) * Math.min(1, dt * 6);
         if (camX < 0) camX = 0;
         if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
         return;
@@ -532,6 +612,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
       if (dialogue.isOpen) {
         dialogue.render(ctx, width, height);
+      } else if (quiz.isOpen) {
+        quiz.render(ctx, width, height);
       } else if (phase !== 'bus_ride') {
         const hint =
           phase === 'mom_meet'
@@ -578,6 +660,13 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
       }
 
+      if (phase === 'gameover') {
+        ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
+        ctx.fillRect(0, 0, width, height);
+        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, R.uiBorder, 7, 500);
+      }
+
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
@@ -611,6 +700,15 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         phase = 'shopping';
         player.x = 180;
         syncHud();
+      },
+      /** Open Adam Smith / market philosophy quiz (index 0 = «невидимая рука»). */
+      forceMarketQuiz: (index = 0) => {
+        hasSister = true;
+        phase = 'shopping';
+        player.x = 420;
+        dialogue.resetSilent();
+        quiz.openFromBank('Дядя', MARKET_QUESTIONS, index);
+        syncHud('Вопрос дяди у овощей');
       },
       forceBackpack: () => {
         hasSister = true;

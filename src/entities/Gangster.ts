@@ -27,7 +27,7 @@ export interface GangsterConfig {
   carriesCoat?: boolean;
   /**
    * Quiz encounter mode: approach / face player, never punch.
-   * Default true — school quiz replaces combat.
+   * Default true — philosophy quiz replaces combat.
    */
   quizOnly?: boolean;
 }
@@ -215,7 +215,7 @@ export class Gangster {
   droppedCoat = false;
   /** Chase speed multiplier (calm mother → slightly slower wave 2). */
   speedMul = 1;
-  /** When true, NPC never attacks — player answers a school quiz instead. */
+  /** When true, NPC never attacks — player answers a philosophy quiz instead. */
   quizOnly: boolean;
   readonly width = GW;
   readonly height = GH;

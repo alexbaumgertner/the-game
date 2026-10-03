@@ -153,8 +153,8 @@ export const SELLER_C_SCRIPT: DialogueScript = {
     },
     sold: {
       speaker: 'Дядя',
-      text: 'Забирайте. Удачи в школе, малышка!',
-      next: 'sis_happy',
+      text: 'Стой. На рынке без ума не торгуют — ответь на вопрос, тогда рюкзак твой.',
+      next: null,
     },
     sis_happy: {
       speaker: 'Сестрёнка',

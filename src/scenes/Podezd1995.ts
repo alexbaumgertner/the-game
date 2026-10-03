@@ -1,6 +1,6 @@
 /**
  * ERA_1995 — Level 2 “Выпускной / разговор с отцом”.
- * Apartment memory → hard talk with father → quiz quest «почему такой выбор».
+ * Apartment memory → hard talk with father → pedagogy quiz (Пиаже, Выготский…).
  * No fighting. Wrong/hint = 14 MF (gangster punch).
  */
 

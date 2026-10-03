@@ -1,11 +1,16 @@
 /**
- * School quiz modal — 4 answers, paid hint, MF drain on wrong/hint.
+ * Philosophy quiz modal — 4 answers, paid hint, MF drain on wrong/hint.
  * Replaces punch/kick combat as the primary NPC interaction.
  */
 
 import { drawUiText, drawUiTextCentered, measureUiText, uiPanel } from '@/art/uiFont';
 import { GANGSTER_PUNCH_MF } from '@/systems/CombatMath';
-import { nextSchoolQuestion, shuffleQuestion, type SchoolQuestion } from '@/data/schoolQuestions';
+import {
+  nextMarketQuestion,
+  nextPhilosophyQuestion,
+  shuffleQuestion,
+  type QuizQuestion,
+} from '@/data/philosophyQuestions';
 
 /** Same absolute MF as one gangster punch (`Gangster.consumeAttackHit`). */
 export const QUIZ_MF_COST = GANGSTER_PUNCH_MF; // 14
@@ -46,14 +51,20 @@ export class QuizSystem {
     return this.eliminated;
   }
 
+  /** Default deck: light general philosophy (L3+ encounters). */
   open(speaker: string, onCorrect?: () => void): void {
-    this.begin(speaker, nextSchoolQuestion(), onCorrect);
+    this.begin(speaker, nextPhilosophyQuestion(), onCorrect);
   }
 
-  /** Open with a specific bank question (e.g. graduation «почему такой выбор»). */
+  /** Market / economist-philosophers deck (L1 theme). */
+  openMarket(speaker: string, onCorrect?: () => void): void {
+    this.begin(speaker, nextMarketQuestion(), onCorrect);
+  }
+
+  /** Open with a specific bank question (e.g. L2 pedagogy / father). */
   openFromBank(
     speaker: string,
-    bank: readonly SchoolQuestion[],
+    bank: readonly QuizQuestion[],
     index: number,
     onCorrect?: () => void,
   ): void {

@@ -1,9 +1,12 @@
 /**
- * Level 2 — выпускной / разговор с отцом + квиз «почему такой выбор».
+ * Level 2 — выпускной / разговор с отцом + квиз по педагогике.
  */
 
 import type { DialogueScript } from '@/systems/DialogueSystem';
-import type { SchoolQuestion } from '@/data/schoolQuestions';
+import {
+  PEDAGOGY_QUESTIONS,
+  type QuizQuestion,
+} from '@/data/philosophyQuestions';
 
 /** Walk memory → father hard talk. */
 export const FATHER_TALK_SCRIPT: DialogueScript = {
@@ -47,68 +50,21 @@ export const FATHER_TALK_SCRIPT: DialogueScript = {
     },
     ok: {
       speaker: 'Отец',
-      text: 'Хорошо. Теперь докажи себе: ответь честно на вопросы — зачем ты так решил.',
+      text: 'Хорошо. Теперь не отговорки — вопросы о том, как люди учатся и растут. Пиаже, Выготский… отвечай честно.',
       next: null,
     },
   },
 };
 
-/** Why-that-choice quiz bank (life/school reasoning), 1 correct + 3 wrong. */
-export const GRADUATION_QUESTIONS: SchoolQuestion[] = [
-  {
-    id: 'grad-why-path',
-    subject: 'литература',
-    grade: 11,
-    question: 'Почему ты сказал отцу про «свой путь», а не «как получится»?',
-    answers: [
-      'Потому что выбор — это ответственность, не отговорка',
-      'Чтобы быстрее закончить разговор',
-      'Потому что так сказали одноклассники',
-      'Чтобы не получать домашку',
-    ],
-    correctIndex: 0,
-    hintClue: 'Дело не в красивых словах — в том, что ты берёшь на себя решение.',
-  },
-  {
-    id: 'grad-school',
-    subject: 'история',
-    grade: 11,
-    question: 'Что из школы ты хочешь унести дальше всего?',
-    answers: [
-      'Умение учиться и держать слово',
-      'Только оценки в аттестате',
-      'Сплетни выпускного',
-      'Право больше ничего не делать',
-    ],
-    correctIndex: 0,
-    hintClue: 'Аттестат важен, но привычка учиться важнее одной цифры.',
-  },
-  {
-    id: 'grad-family',
-    subject: 'русский',
-    grade: 11,
-    question: 'Как честно говорить с отцом о будущем?',
-    answers: [
-      'Прямо: что хочешь и чего боишься',
-      'Молчать, пока не спросят',
-      'Обещать всё подряд',
-      'Свалить вину на учителей',
-    ],
-    correctIndex: 0,
-    hintClue: 'Правда короче отговорки — и её слышат.',
-  },
-  {
-    id: 'grad-next',
-    subject: 'география',
-    grade: 11,
-    question: 'Что значит «дальше» после школы в Новгороде 1995?',
-    answers: [
-      'Шаг, который выбираешь сам — учёба, дело, путь',
-      'Только уехать любой ценой',
-      'Ждать, пока решат за тебя',
-      'Забыть всё, что было',
-    ],
-    correctIndex: 0,
-    hintClue: '«Дальше» — глагол действия, не ожидания.',
-  },
+/**
+ * Father quest uses a focused pedagogy slice (full bank: PEDAGOGY_QUESTIONS).
+ * Order: Piaget → Vygotsky → dialogue/experience theorists.
+ */
+export const GRADUATION_QUESTIONS: readonly QuizQuestion[] = [
+  PEDAGOGY_QUESTIONS[0]!, // piaget-stages
+  PEDAGOGY_QUESTIONS[1]!, // piaget-assim
+  PEDAGOGY_QUESTIONS[3]!, // vygotsky-zpd
+  PEDAGOGY_QUESTIONS[4]!, // vygotsky-social
+  PEDAGOGY_QUESTIONS[6]!, // dewey-exp
+  PEDAGOGY_QUESTIONS[9]!, // ped-dialogue
 ];

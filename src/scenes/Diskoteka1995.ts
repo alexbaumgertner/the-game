@@ -335,7 +335,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       player.update(dt);
       const input = states.input;
 
-      // School quiz replaces punch/kick/bazar
+      // Philosophy quiz replaces punch/kick/bazar
       if ((phase === 'wave1' || phase === 'wave2') && !player.isKo) {
         const qres = tickQuizEncounter({
           quiz,
