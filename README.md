@@ -27,7 +27,16 @@ Open the URL Vite prints (default `http://localhost:5173`).
 
 ## GitHub Pages
 
-Push `main` to GitHub, then set **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for the full checklist (`VITE_BASE`, URL patterns).
+Live site: https://alexbaumgertner.github.io/the-game/
+
+**Agent / workflow rule:** if local `npm run build` (and tests, when present) pass, push `main` to both remotes — do not wait for a manual sync request:
+
+```bash
+git push origin main
+git push github main   # → alexbaumgertner/the-game (Actions deploys Pages)
+```
+
+Repo **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for `VITE_BASE` / URL patterns. Cursor rule: `.cursor/rules/github-pages-push.mdc`.
 
 ## Layout
 

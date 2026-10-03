@@ -1,0 +1,20 @@
+---
+description: After a green local build/tests, push main to GitHub for Pages
+alwaysApply: true
+---
+
+# Deploy to GitHub Pages
+
+When local verification succeeds:
+
+1. Run `npm run build` (and `npm test` / `npm run build:gh` if relevant).
+2. If green, commit on `main` (or merge to `main`), then **push to GitHub without waiting for the user to ask**:
+
+```bash
+git push origin main
+git push github main
+```
+
+- Remote `github` → `https://github.com/alexbaumgertner/the-game.git`
+- GitHub Actions deploys Pages to https://alexbaumgertner.github.io/the-game/
+- Do **not** push a broken build. Fix first, then push.
