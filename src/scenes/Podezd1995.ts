@@ -18,6 +18,7 @@ import {
   drawFatherRoomWallPhotos,
   preloadFatherRoomPhotos,
 } from '@/art/fatherRoomPhotos';
+import { drawFatherTv, preloadFatherTv } from '@/art/fatherTv';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import {
@@ -177,6 +178,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       beer.pauseForFlashback();
       preloadApartmentPhotos();
       preloadFatherRoomPhotos();
+      preloadFatherTv();
       preloadFamilyFaces();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -363,6 +365,10 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
     __debug: {
       getPhase: () => phase,
+      getTime: () => time,
+      setTime: (t: number) => {
+        time = t;
+      },
       forceTalk: () => beginTalk(),
       forceQuiz: () => {
         phase = 'quiz';
@@ -388,14 +394,16 @@ function drawGradRoom(
   px(ctx, 44, 40, 48, 40, '#2a4058');
   px(ctx, 66, 40, 2, 40, '#1a2838');
   px(ctx, 44, 60, 48, 2, '#1a2838');
-  // Soft lamp
-  px(ctx, 280, 50, 8, 8, '#f0d080');
-  px(ctx, 278, 58, 12, 40, '#5a4830');
+  // Soft floor lamp (between wall photos and father — CRT owns the right wall)
+  px(ctx, 226, 52, 8, 8, '#f0d080');
+  px(ctx, 224, 60, 12, 40, '#5a4830');
   // Graduation banner
   px(ctx, 100, 28, 120, 14, '#4a2040');
   drawUiText(ctx, 'ВЫПУСКНОЙ — 1995', 110, 32, '#f0d0e0', 7, 650);
   // Framed Solaris stills on the wall (Kelvin window + house porch)
   drawFatherRoomWallPhotos(ctx);
+  // CRT TV — Stierlitz → Putin after 5s
+  drawFatherTv(ctx, t);
   // Floor speckles
   speckles(ctx, 0, FLOOR_Y, width, 20, '#2a2418', 5, Math.floor(t));
 }
@@ -409,26 +417,36 @@ function drawFather(
   const ox = Math.round(x);
   const oy = Math.round(floorY);
   const bob = Math.sin(t * 1.5) > 0.7 ? 1 : 0;
-  // Charcoal polo body
-  px(ctx, ox - 7, oy - 34 + bob, 14, 22, '#3a3a40');
-  px(ctx, ox - 5, oy - 32 + bob, 4, 6, '#505058');
-  px(ctx, ox - 4, oy - 34 + bob, 8, 3, '#c8c0b0'); // collar
-  // Photo face
-  px(ctx, ox - 5, oy - 44 + bob, 10, 12, '#d0a878');
-  if (!drawFamilyFaceWithRim(ctx, 'father', ox - 5, oy - 45 + bob, 10, 12)) {
-    px(ctx, ox - 3, oy - 40 + bob, 2, 2, '#181018');
-    px(ctx, ox + 1, oy - 40 + bob, 2, 2, '#181018');
+  // Facing right toward the CRT on the right wall
+  // Charcoal polo body (weight shifted toward TV)
+  px(ctx, ox - 5, oy - 34 + bob, 14, 22, '#3a3a40');
+  px(ctx, ox + 1, oy - 32 + bob, 4, 6, '#505058');
+  px(ctx, ox - 2, oy - 34 + bob, 8, 3, '#c8c0b0'); // collar
+  // Near arm / shoulder toward screen
+  px(ctx, ox + 7, oy - 30 + bob, 4, 10, '#3a3a40');
+  // Photo face flipped so gaze reads toward the CRT
+  px(ctx, ox - 2, oy - 44 + bob, 10, 12, '#d0a878');
+  const fx = ox - 2;
+  const fy = oy - 45 + bob;
+  ctx.save();
+  ctx.translate(fx + 5, fy);
+  ctx.scale(-1, 1);
+  const drew = drawFamilyFaceWithRim(ctx, 'father', -5, 0, 10, 12);
+  ctx.restore();
+  if (!drew) {
+    px(ctx, ox + 2, oy - 40 + bob, 2, 2, '#181018');
+    px(ctx, ox + 5, oy - 40 + bob, 2, 2, '#181018');
   }
   // Hair rim
-  px(ctx, ox - 5, oy - 46 + bob, 10, 3, '#2a2420');
-  px(ctx, ox - 4, oy - 47 + bob, 8, 2, '#3a3430');
-  // Legs / shoes
-  px(ctx, ox - 5, oy - 12, 4, 8, '#2a2830');
-  px(ctx, ox + 1, oy - 12, 4, 8, '#2a2830');
-  px(ctx, ox - 6, oy - 4, 5, 4, '#18141c');
-  px(ctx, ox + 1, oy - 4, 5, 4, '#18141c');
+  px(ctx, ox - 2, oy - 46 + bob, 10, 3, '#2a2420');
+  px(ctx, ox - 1, oy - 47 + bob, 8, 2, '#3a3430');
+  // Legs / shoes (stance toward TV)
+  px(ctx, ox - 3, oy - 12, 4, 8, '#2a2830');
+  px(ctx, ox + 3, oy - 12, 4, 8, '#2a2830');
+  px(ctx, ox - 4, oy - 4, 5, 4, '#18141c');
+  px(ctx, ox + 3, oy - 4, 5, 4, '#18141c');
   // Prompt pip
   if (Math.floor(t * 2) % 2 === 0) {
-    drawUiText(ctx, '!', ox + 8, oy - 48, '#e04040', 8, 700);
+    drawUiText(ctx, '!', ox - 12, oy - 48, '#e04040', 8, 700);
   }
 }
