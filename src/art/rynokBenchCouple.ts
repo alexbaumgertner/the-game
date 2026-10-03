@@ -9,15 +9,34 @@ type Slot = {
   url: string;
   img: HTMLImageElement | null;
   ready: boolean;
+  /** Pre-washed plate (dusk tint clipped to cutout alpha). */
+  washed: HTMLCanvasElement | null;
 };
 
 const slot: Slot = {
   url: `${BASE}art/rynok-bench-couple.png`,
   img: null,
   ready: false,
+  washed: null,
 };
 
 let loadStarted = false;
+
+function buildWashedPlate(img: HTMLImageElement): HTMLCanvasElement | null {
+  const nw = img.naturalWidth || img.width;
+  const nh = img.naturalHeight || img.height;
+  if (nw <= 0 || nh <= 0) return null;
+  const off = document.createElement('canvas');
+  off.width = nw;
+  off.height = nh;
+  const octx = off.getContext('2d');
+  if (!octx) return null;
+  octx.drawImage(img, 0, 0);
+  octx.globalCompositeOperation = 'source-atop';
+  octx.fillStyle = 'rgba(28, 40, 56, 0.16)';
+  octx.fillRect(0, 0, nw, nh);
+  return off;
+}
 
 function ensure(): void {
   if (slot.img) return;
@@ -25,6 +44,7 @@ function ensure(): void {
   img.decoding = 'async';
   img.onload = () => {
     slot.ready = true;
+    slot.washed = buildWashedPlate(img);
   };
   img.onerror = () => {
     slot.ready = false;
@@ -57,8 +77,15 @@ export function drawRynokBenchCouple(
   preloadRynokBenchCouple();
   if (!slot.ready || !slot.img) return;
 
-  const nw = slot.img.naturalWidth || slot.img.width;
-  const nh = slot.img.naturalHeight || slot.img.height;
+  const plate = slot.washed ?? slot.img;
+  const nw =
+    plate instanceof HTMLCanvasElement
+      ? plate.width
+      : plate.naturalWidth || plate.width;
+  const nh =
+    plate instanceof HTMLCanvasElement
+      ? plate.height
+      : plate.naturalHeight || plate.height;
   if (nw <= 0 || nh <= 0) return;
 
   // Sit under the blue-glass shelter; wide enough to read faces + melon.
@@ -78,10 +105,7 @@ export function drawRynokBenchCouple(
   ctx.beginPath();
   ctx.ellipse(dx + drawW * 0.5, floorY - 1, drawW * 0.42, 3.2, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.drawImage(slot.img, dx, dy, drawW, drawH);
-  // Cool dusk wash so photo sits in market evening light
-  ctx.fillStyle = 'rgba(28, 40, 56, 0.12)';
-  ctx.fillRect(dx, dy, drawW, drawH);
+  ctx.drawImage(plate, dx, dy, drawW, drawH);
   ctx.restore();
   ctx.imageSmoothingEnabled = prevSmooth;
   ctx.imageSmoothingQuality = prevQuality;
