@@ -43,8 +43,11 @@ export interface GotoOptions {
 type FadePhase = 'idle' | 'out' | 'in';
 
 export interface ProgressFlags {
-  hasKey: boolean;
+  /** Cat + Zuich intro dialogue finished; player can walk. */
+  introDone: boolean;
+  /** Family photo / diary opened from the dresser (комод). */
   seenPhoto: boolean;
+  /** Diary level-select unlocked (same beat as finding diary in dresser). */
   diaryUnlocked: boolean;
   level1Selected: boolean;
   /** Set when Level 1 rynok is cleared — unlocks diary Level 2. */
@@ -55,7 +58,7 @@ export interface ProgressFlags {
 }
 
 const DEFAULT_FLAGS: ProgressFlags = {
-  hasKey: false,
+  introDone: false,
   seenPhoto: false,
   diaryUnlocked: false,
   level1Selected: false,

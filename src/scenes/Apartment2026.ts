@@ -1,35 +1,35 @@
 /**
- * ERA_2026 framing apartment — Genesis tiled Khrushchyovka.
- * Flow unchanged: key → photo → diary → Level Select → fade to rynok.
+ * ERA_2026 — хрущёвка Зуича.
+ * Интро: за компом → рыжая кошка → комод → дневник 1995 → Level Select.
+ * Пиво: pickups + BeerSystem («Применить бухло»).
  */
 
 import type { StateManager } from '@/core/StateManager';
 import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
+import type { BeerSystem } from '@/systems/BeerSystem';
 import { APT_PAL } from '@/art/segaPalette';
 import { ditherRect, fillPattern, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import { applyLightingOverlay } from '@/render/LightingOverlay';
+import { DialogueSystem, type DialogueScript } from '@/systems/DialogueSystem';
 
 const WIDTH = LOGICAL_WIDTH;
 const FLOOR_Y = 192;
 const PROMPT_Y = 210;
 const P = APT_PAL;
+/** Desk / PC seat X. */
+const DESK_X = 92;
+/** Dresser (комод) hotspot. */
+const DRESSER_X = 236;
+const DRESSER_W = 70;
 
-interface Hotspot {
-  id: 'key' | 'photo' | 'diary';
+interface BeerCan {
   x: number;
-  w: number;
-  label: string;
+  taken: boolean;
 }
-
-const HOTSPOTS: readonly Hotspot[] = [
-  { id: 'key', x: 230, w: 75, label: 'E - SEARCH DRAWER' },
-  { id: 'photo', x: 138, w: 52, label: 'E - INSPECT PHOTO' },
-  { id: 'diary', x: 38, w: 52, label: 'E - OPEN DIARY' },
-];
 
 export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary';
 
@@ -37,20 +37,50 @@ export interface ApartmentSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
+  beer: BeerSystem;
 }
 
+const INTRO_SCRIPT: DialogueScript = {
+  id: 'zuich_intro',
+  start: 'hello',
+  lines: {
+    hello: {
+      speaker: 'Зуич',
+      text: 'Я — Зуич.',
+      next: 'cat_ask',
+    },
+    cat_ask: {
+      speaker: 'Кошка',
+      text: 'Как дела?',
+      next: 'pupupu',
+    },
+    pupupu: {
+      speaker: 'Зуич',
+      text: 'Пу-пу-пу.',
+      next: 'cat_feed',
+    },
+    cat_feed: {
+      speaker: 'Кошка',
+      text: 'Посмотри в комоде корм.',
+      next: null,
+    },
+  },
+};
+
 export function createApartment2026Scene(deps: ApartmentSceneDeps) {
-  const { states, player, hud } = deps;
+  const { states, player, hud, beer } = deps;
 
   let overlay: OverlayMode = 'none';
   let toast = '';
   let toastTimer = 0;
   let diaryCursor = 0;
-  let prompt = 'EXPLORE THE APARTMENT';
+  let prompt = 'ИССЛЕДУЙ КВАРТИРУ';
   let time = 0;
-  /** Subtle camera parallax from player X (apartment is mostly static depth). */
   let depthCam = 0;
   const stack = new ParallaxStack();
+  const dialogue = new DialogueSystem();
+  let introStarted = false;
+  let beerCans: BeerCan[] = [];
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
@@ -58,53 +88,46 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     overlay = 'toast';
   };
 
-  const maybeUnlockDiary = (): void => {
-    if (states.flags.hasKey && states.flags.seenPhoto && !states.flags.diaryUnlocked) {
-      states.setFlag('diaryUnlocked', true);
-      showToast('The diary unlocks.');
-      refreshObjective();
-    }
-  };
-
   const refreshObjective = (): void => {
-    if (!states.flags.hasKey) {
-      prompt = 'FIND SOMETHING FORGOTTEN';
-      hud.set({ objective: 'Search the room' });
-    } else if (!states.flags.seenPhoto) {
-      prompt = 'THAT PHOTO ON THE WALL';
-      hud.set({ objective: 'Inspect the photo' });
-    } else if (!states.flags.diaryUnlocked) {
-      prompt = 'THE DIARY ANSWERS THE KEY';
-      hud.set({ objective: 'Unlock the Diary' });
-    } else if (states.flags.level1Cleared && !states.flags.level2Cleared) {
-      prompt = 'OPEN THE DIARY - LEVEL 2 READY';
-      hud.set({ objective: 'Open Diary - Level 2' });
+    if (!states.flags.introDone) {
+      prompt = 'Я — ЗУИЧ';
+      hud.set({ objective: 'Слушай диалог' });
+      return;
+    }
+    if (!states.flags.diaryUnlocked) {
+      prompt = 'ВСТАНЬ И ПОДОЙДИ К КОМОДУ';
+      hud.set({ objective: 'Открой комод' });
+      return;
+    }
+    if (states.flags.level1Cleared && !states.flags.level2Cleared) {
+      prompt = 'ДНЕВНИК - УРОВЕНЬ 2 ГОТОВ';
+      hud.set({ objective: 'Дневник - ур. 2' });
     } else if (states.flags.level2Cleared) {
-      prompt = 'DIARY - MEMORIES CLEARED';
-      hud.set({ objective: 'Open Diary - replay' });
+      prompt = 'ДНЕВНИК - ВОСПОМИНАНИЯ';
+      hud.set({ objective: 'Дневник - повтор' });
     } else {
-      prompt = 'OPEN THE DIARY - LEVEL SELECT';
-      hud.set({ objective: 'Open Diary - Level 1' });
+      prompt = 'ДНЕВНИК - ВЫБОР УРОВНЯ';
+      hud.set({ objective: 'Дневник - ур. 1' });
     }
   };
 
-  const near = (id: Hotspot['id']): boolean => {
-    const h = HOTSPOTS.find((s) => s.id === id);
-    if (!h) return false;
-    return player.x >= h.x && player.x <= h.x + h.w;
+  const nearDresser = (): boolean =>
+    player.x >= DRESSER_X && player.x <= DRESSER_X + DRESSER_W;
+
+  const nearBeer = (): BeerCan | null => {
+    for (const c of beerCans) {
+      if (!c.taken && Math.abs(player.x - c.x) < 18) return c;
+    }
+    return null;
   };
 
   const activePrompt = (): string | null => {
-    if (overlay !== 'none') return null;
-    if (near('key') && !states.flags.hasKey) return HOTSPOTS[0]!.label;
-    if (near('photo') && !states.flags.seenPhoto) return HOTSPOTS[1]!.label;
-    if (near('photo') && states.flags.seenPhoto) return 'PHOTO - ALREADY SEEN';
-    if (near('diary') && states.flags.diaryUnlocked) return HOTSPOTS[2]!.label;
-    if (near('diary') && !states.flags.diaryUnlocked) {
-      if (!states.flags.hasKey) return 'DIARY - LOCKED';
-      if (!states.flags.seenPhoto) return 'DIARY - LOOK AT PHOTO FIRST';
-    }
-    if (near('key') && states.flags.hasKey) return 'EMPTY DRAWER';
+    if (overlay !== 'none' || dialogue.isOpen) return null;
+    if (!states.flags.introDone) return null;
+    if (nearDresser() && !states.flags.diaryUnlocked) return 'E - ОТКРЫТЬ КОМОД';
+    if (nearDresser() && states.flags.diaryUnlocked) return 'E - ДНЕВНИК';
+    const can = nearBeer();
+    if (can) return 'E - ВЗЯТЬ ПИВО';
     return null;
   };
 
@@ -113,10 +136,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!input) return;
     if (!input.justPressed('interact') && !input.justPressed('confirm')) return;
     if (player.inspecting) return;
+    if (dialogue.isOpen) return;
 
     if (overlay === 'photo') {
-      overlay = 'none';
-      refreshObjective();
+      // After photo → level select
+      overlay = 'diary';
+      diaryCursor =
+        states.flags.level1Cleared && !states.flags.level2Cleared ? 1 : 0;
+      hud.set({ objective: 'Выбери воспоминание' });
       return;
     }
     if (overlay === 'toast') {
@@ -124,42 +151,44 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       toastTimer = 0;
       return;
     }
-    if (overlay === 'diary') {
-      return;
-    }
+    if (overlay === 'diary') return;
 
-    if (near('key') && !states.flags.hasKey) {
-      player.beginInspect(0.5);
-      states.setFlag('hasKey', true);
-      showToast('Found a brass key.');
-      refreshObjective();
-      return;
-    }
+    if (!states.flags.introDone) return;
 
-    if (near('photo') && !states.flags.seenPhoto) {
-      player.beginInspect(0.55);
-      states.setFlag('seenPhoto', true);
-      overlay = 'photo';
-      refreshObjective();
-      return;
-    }
-
-    if (near('diary') && states.flags.diaryUnlocked) {
+    // Beer pickup
+    const can = nearBeer();
+    if (can) {
       player.beginInspect(0.35);
+      can.taken = true;
+      beer.pickup(1);
+      showToast('Банка пива.');
+      return;
+    }
+
+    if (nearDresser()) {
+      player.beginInspect(0.4);
+      if (!states.flags.diaryUnlocked) {
+        states.setFlag('diaryUnlocked', true);
+        states.setFlag('seenPhoto', true);
+        overlay = 'photo';
+        refreshObjective();
+        return;
+      }
       overlay = 'diary';
-      // Prefer Level 2 cursor once unlocked and not yet cleared
       diaryCursor =
         states.flags.level1Cleared && !states.flags.level2Cleared ? 1 : 0;
-      hud.set({ objective: 'Choose a memory' });
-      return;
+      hud.set({ objective: 'Выбери воспоминание' });
     }
+  };
 
-    if (near('diary') && !states.flags.diaryUnlocked) {
-      showToast(
-        !states.flags.hasKey
-          ? 'The diary is locked.'
-          : 'Something about that photo…',
-      );
+  const tryDrink = (): void => {
+    const input = states.input;
+    if (!input?.justPressed('beer')) return;
+    if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo') return;
+    if (beer.drink()) {
+      showToast('Бухло принято.');
+    } else if (beer.cans <= 0) {
+      showToast('Нет пива. Ищи банки.');
     }
   };
 
@@ -194,12 +223,25 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     }
   };
 
+  const updateIntroDialogue = (): void => {
+    const input = states.input;
+    if (!input || !dialogue.isOpen) return;
+    if (
+      input.justPressed('confirm') ||
+      input.justPressed('interact') ||
+      input.justPressed('punch')
+    ) {
+      dialogue.advance();
+    }
+  };
+
   return {
     enter(): void {
+      beer.resetForApartment();
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.setFloorY(FLOOR_Y);
-      player.x = 100;
+      player.x = DESK_X;
       player.y = FLOOR_Y;
       player.facing = 1;
       player.walkSpeed = 52;
@@ -207,28 +249,62 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       toast = '';
       toastTimer = 0;
       diaryCursor = 0;
+      dialogue.resetSilent();
+      introStarted = false;
+      beerCans = [
+        { x: 48, taken: false },
+        { x: 168, taken: false },
+        { x: 300, taken: false },
+      ];
       hud.set({
         hp: player.hp,
         maxHp: MAX_FORTITUDE,
         maxFortitude: MAX_FORTITUDE,
-        eraLabel: 'ADULT · 2026',
+        eraLabel: 'ЗУИЧ · 2026',
         fortitude: player.mentalFortitude,
         swagger: 0,
         showSwagger: false,
         paused: false,
       });
       refreshObjective();
+
+      if (!states.flags.introDone) {
+        dialogue.open(INTRO_SCRIPT, () => {
+          states.setFlag('introDone', true);
+          showToast('Встань и подойди к комоду.');
+          refreshObjective();
+        });
+        introStarted = true;
+      }
     },
 
     exit(): void {
       overlay = 'none';
+      dialogue.resetSilent();
     },
 
     update(dt: number): void {
       time += dt;
       player.update(dt);
-      // Soft parallax bias from walk position (room stays framed)
       depthCam += ((player.x - WIDTH / 2) * 0.08 - depthCam) * Math.min(1, dt * 4);
+
+      // Thirst only after the player can walk / explore
+      if (states.flags.introDone) beer.update(dt);
+
+      if (!introStarted && !states.flags.introDone) {
+        dialogue.open(INTRO_SCRIPT, () => {
+          states.setFlag('introDone', true);
+          showToast('Встань и подойди к комоду.');
+          refreshObjective();
+        });
+        introStarted = true;
+      }
+
+      if (dialogue.isOpen) {
+        dialogue.update(dt);
+        updateIntroDialogue();
+        return;
+      }
 
       if (overlay === 'diary') {
         updateDiarySelect(dt);
@@ -240,20 +316,19 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         return;
       }
 
+      tryDrink();
+
       if (overlay === 'toast') {
         toastTimer -= dt;
         if (toastTimer <= 0) overlay = 'none';
-        const axisToast = states.input?.axisX() ?? 0;
-        player.applyWalk(axisToast, dt, 28, WIDTH - 28);
-        tryInteract();
-        maybeUnlockDiary();
-        return;
       }
 
-      const axis = states.input?.axisX() ?? 0;
-      player.applyWalk(axis, dt, 28, WIDTH - 28);
+      const frozen = beer.isFrozen;
+      const axis = frozen ? 0 : (states.input?.axisX() ?? 0);
+      if (states.flags.introDone) {
+        player.applyWalk(axis, dt, 28, WIDTH - 28);
+      }
       tryInteract();
-      maybeUnlockDiary();
     },
 
     render(
@@ -269,8 +344,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           speedRatio: 0,
           zIndex: 0,
           screenSpace: true,
-          draw: (c) =>
-            drawApartment(c, width, height, states.flags.hasKey, states.flags.diaryUnlocked, depthCam),
+          draw: (c) => drawApartment(c, width, height, depthCam, beerCans),
         },
         {
           id: 'gameplay',
@@ -279,7 +353,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           screenSpace: true,
           draw: (c) => {
             player.render(c, alpha);
-            drawHotspotHints(c, states);
+            drawCat(c, time);
+            drawHotspotHints(c, states, beerCans);
           },
         },
         {
@@ -289,7 +364,6 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
             applyLightingOverlay(c, 0, w, h, {
-              // Softer multiply — warm lamp / walls readable, still night
               ambient: { color: 'rgba(34, 30, 54, 0.40)' },
               points: [
                 {
@@ -317,8 +391,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       ]);
       stack.render(ctx, depthCam, width, height);
 
-      const p = activePrompt() ?? (overlay === 'none' ? prompt : null);
-      if (p && overlay === 'none') {
+      const p = activePrompt() ?? (overlay === 'none' && !dialogue.isOpen ? prompt : null);
+      if (p && overlay === 'none' && !dialogue.isOpen) {
         drawPromptBar(ctx, width, p);
       }
 
@@ -330,6 +404,19 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           level2Cleared: states.flags.level2Cleared,
         });
       }
+
+      if (dialogue.isOpen) {
+        dialogue.render(ctx, width, height);
+      }
+
+      if (states.flags.introDone) {
+        beer.renderHud(ctx, width);
+        beer.renderCrisis(ctx, width, height);
+      }
+    },
+
+    getDialogue(): DialogueSystem {
+      return dialogue;
     },
   };
 }
@@ -338,62 +425,156 @@ function drawApartment(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  hasKey: boolean,
-  diaryUnlocked: boolean,
-  depthCam = 0,
+  depthCam: number,
+  beerCans: BeerCan[],
 ): void {
   px(ctx, 0, 0, width, height, P.wallDeep);
 
-  // Wallpaper with diamond motif + panel seams
+  // Greasy / stained wallpaper
   fillPattern(ctx, 0, 0, width, FLOOR_Y - 10, P.wallBase, P.wallpaperMotif, 14, 'diamonds');
-  // Soft vertical panels
   for (let x = 36; x < width; x += 52) {
     px(ctx, x, 10, 2, FLOOR_Y - 24, P.wallpaperShadow);
     px(ctx, x + 1, 10, 1, FLOOR_Y - 24, P.wallpaper);
   }
-  // Ceiling shadow band
+  // Oil / nicotine stains
+  ditherRect(ctx, 20, 40, 40, 50, P.wallBase, '#6a5840');
+  ditherRect(ctx, 160, 20, 50, 36, P.wallDark, '#5a4838');
+  ditherRect(ctx, 260, 50, 36, 40, P.wallpaperShadow, '#4a3a28');
   ditherRect(ctx, 0, 0, width, 10, P.wallDeep, P.wallDark);
 
   drawWindow(ctx, depthCam);
+  drawRedDoor(ctx);
+  drawNuMetalPoster(ctx);
   drawFloor(ctx, width, height);
   drawBed(ctx);
-  drawDeskAndDiary(ctx, diaryUnlocked);
-  drawWallPhoto(ctx);
-  drawDresser(ctx, hasKey);
-  drawPlant(ctx);
+  drawDeskAndPc(ctx);
+  drawComputerJunk(ctx);
+  drawBeerCorner(ctx);
+  drawDresser(ctx);
   drawLamp(ctx);
   drawBaseboard(ctx, width);
 
-  // Warm lamp dither glow seeds (lighting overlay adds multiply/screen wash)
+  for (const c of beerCans) {
+    if (!c.taken) drawBeerCan(ctx, c.x, FLOOR_Y - 8);
+  }
+
+  // Lamp glow seeds
   ctx.fillStyle = P.lampGlow;
   const glowDots = [
     [88, 78], [96, 86], [104, 74], [112, 92], [120, 80],
     [128, 98], [136, 84], [100, 108], [116, 100], [140, 94],
-    [92, 96], [108, 88], [124, 110], [132, 76],
   ] as const;
   for (const [gx, gy] of glowDots) {
     ctx.fillRect(gx, gy, 1, 1);
   }
-  ctx.fillStyle = P.lampGlowDim;
-  for (const [gx, gy] of glowDots) {
-    if ((gx + gy) % 3 === 0) ctx.fillRect(gx + 1, gy + 1, 1, 1);
+}
+
+function drawRedDoor(ctx: CanvasRenderingContext2D): void {
+  // Old Soviet red apartment door (left wall)
+  px(ctx, 0, FLOOR_Y - 86, 22, 76, '#6a2020');
+  px(ctx, 2, FLOOR_Y - 84, 18, 72, '#8a2828');
+  px(ctx, 3, FLOOR_Y - 82, 16, 2, '#a83838');
+  px(ctx, 3, FLOOR_Y - 82, 2, 68, '#a04040');
+  px(ctx, 4, FLOOR_Y - 70, 14, 40, '#782020');
+  // Peephole + handle
+  px(ctx, 10, FLOOR_Y - 58, 4, 4, '#303038');
+  px(ctx, 11, FLOOR_Y - 57, 2, 2, '#808890');
+  px(ctx, 16, FLOOR_Y - 48, 5, 3, P.brass);
+  px(ctx, 17, FLOOR_Y - 47, 3, 1, P.brassHi);
+}
+
+function drawNuMetalPoster(ctx: CanvasRenderingContext2D): void {
+  // Stylized nu-metal 2000s / Aerials-vibe tribute — desert + lone figure, NO logo/brand
+  const x = 142;
+  const y = 22;
+  // Paper + black frame
+  px(ctx, x, y, 50, 46, '#100818');
+  px(ctx, x + 2, y + 2, 46, 42, '#c8b090');
+  px(ctx, x + 3, y + 3, 44, 40, '#2a1848');
+  // Purple/orange sky wash
+  ditherRect(ctx, x + 4, y + 4, 42, 18, '#3a2060', '#e07038');
+  px(ctx, x + 4, y + 4, 42, 6, '#504888');
+  // Desert dunes
+  px(ctx, x + 4, y + 24, 42, 16, '#c08848');
+  px(ctx, x + 4, y + 22, 42, 4, '#e0a858');
+  ditherRect(ctx, x + 4, y + 28, 42, 10, '#c08848', '#8a6030');
+  // Lone figure, arms wide (aerial silhouette — original pixel tribute)
+  px(ctx, x + 24, y + 14, 3, 12, '#101018');
+  px(ctx, x + 16, y + 16, 20, 2, '#101018');
+  px(ctx, x + 14, y + 15, 3, 2, '#181820');
+  px(ctx, x + 34, y + 15, 3, 2, '#181820');
+  px(ctx, x + 24, y + 10, 3, 4, '#181820');
+  // Tiny sun
+  px(ctx, x + 36, y + 8, 4, 4, '#f0c060');
+  // Torn corners
+  px(ctx, x + 46, y + 4, 2, 2, P.wallBase);
+  px(ctx, x + 2, y + 40, 2, 2, P.wallBase);
+}
+
+function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
+  // Pile of PC junk under / near window
+  const baseX = 200;
+  const fy = FLOOR_Y;
+  // Case
+  px(ctx, baseX, fy - 28, 22, 18, '#3a3a48');
+  px(ctx, baseX + 2, fy - 26, 18, 2, '#585868');
+  px(ctx, baseX + 4, fy - 20, 8, 6, '#202028');
+  px(ctx, baseX + 14, fy - 18, 4, 2, '#40c040');
+  // CRT monitor
+  px(ctx, baseX + 24, fy - 34, 20, 16, '#2a2a38');
+  px(ctx, baseX + 26, fy - 32, 16, 10, '#1a2838');
+  px(ctx, baseX + 28, fy - 30, 4, 2, '#406080');
+  px(ctx, baseX + 28, fy - 18, 12, 4, '#484858');
+  // Motherboard slab
+  px(ctx, baseX + 10, fy - 12, 28, 6, '#204028');
+  px(ctx, baseX + 12, fy - 11, 3, 3, '#c0a040');
+  px(ctx, baseX + 18, fy - 11, 3, 3, '#c0a040');
+  px(ctx, baseX + 24, fy - 10, 8, 2, '#808890');
+  // Cables
+  px(ctx, baseX - 4, fy - 8, 10, 2, '#282830');
+  px(ctx, baseX + 40, fy - 14, 2, 12, '#282830');
+  px(ctx, baseX + 42, fy - 10, 8, 2, '#383840');
+  // Second CRT sideways
+  px(ctx, baseX + 46, fy - 22, 14, 12, '#303040');
+  px(ctx, baseX + 48, fy - 20, 10, 6, '#182028');
+}
+
+function drawBeerCorner(ctx: CanvasRenderingContext2D): void {
+  // Bottle pile left of bed
+  const bx = 28;
+  const fy = FLOOR_Y;
+  const bottles = [
+    [0, -18, '#3a6028'],
+    [6, -20, '#2a4820'],
+    [12, -16, '#4a7030'],
+    [4, -12, '#305028'],
+    [10, -14, '#284020'],
+  ] as const;
+  for (const [ox, oy, col] of bottles) {
+    px(ctx, bx + ox, fy + oy, 4, 12, col);
+    px(ctx, bx + ox + 1, fy + oy - 2, 2, 3, '#808890');
+    px(ctx, bx + ox + 1, fy + oy + 2, 2, 2, '#a0c060');
   }
 }
 
+function drawBeerCan(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  px(ctx, x - 3, y - 8, 6, 10, '#d8a040');
+  px(ctx, x - 2, y - 7, 4, 2, '#f0c868');
+  px(ctx, x - 2, y - 9, 4, 2, '#808890');
+  px(ctx, x - 1, y - 4, 2, 3, '#c04040');
+}
+
 function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
-  // Outer wood frame with bevel
   px(ctx, 200, 28, 92, 72, P.woodDark);
   px(ctx, 202, 30, 88, 68, P.wood);
   px(ctx, 204, 32, 84, 2, P.woodHi);
   px(ctx, 204, 32, 2, 64, P.woodHi);
   px(ctx, 204, 34, 80, 60, P.woodDeep);
 
-  // Night glass + gradient sky
   px(ctx, 208, 38, 72, 52, P.nightSky);
   ditherRect(ctx, 208, 38, 72, 8, P.nightSky, P.nightSkyMid);
   px(ctx, 208, 70, 72, 20, P.nightSkyMid);
 
-  // City skyline — subtle parallax vs room (depthCam)
   const ox = Math.round(depthCam * 0.35);
   px(ctx, 212 + ox, 62, 14, 28, P.city);
   px(ctx, 214 + ox, 58, 10, 4, P.cityMid);
@@ -402,9 +583,6 @@ function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
   px(ctx, 248 + ox, 66, 12, 24, P.city);
   px(ctx, 262 + ox, 54, 14, 36, P.cityMid);
   px(ctx, 264 + ox, 50, 10, 4, P.cityHi);
-  // Distant Kremlin hint through glass
-  px(ctx, 240 + Math.round(depthCam * 0.15), 48, 8, 20, '#0a1018');
-  px(ctx, 242 + Math.round(depthCam * 0.15), 42, 4, 8, '#121820');
 
   const lights = [
     [216, 66], [220, 74], [232, 56], [238, 66], [242, 76],
@@ -412,27 +590,16 @@ function drawWindow(ctx: CanvasRenderingContext2D, depthCam = 0): void {
   ] as const;
   for (const [lx, ly] of lights) {
     px(ctx, lx + ox, ly, 2, 2, P.windowLight);
-    px(ctx, lx + ox, ly, 2, 1, P.windowLightDim);
   }
 
-  // Mullion
   px(ctx, 242, 38, 3, 52, P.woodMid);
   px(ctx, 243, 38, 1, 52, P.woodHi);
   px(ctx, 208, 62, 72, 3, P.woodMid);
-  px(ctx, 208, 63, 72, 1, P.woodHi);
-
-  // Curtains — left / right with folds
   px(ctx, 206, 36, 14, 58, P.curtain);
   px(ctx, 208, 40, 3, 50, P.curtainHi);
-  px(ctx, 212, 44, 3, 46, P.curtainFold);
-  px(ctx, 216, 48, 2, 40, P.curtainDark);
   px(ctx, 278, 36, 14, 58, P.curtain);
   px(ctx, 280, 40, 3, 50, P.curtainHi);
-  px(ctx, 284, 44, 3, 46, P.curtainFold);
-  px(ctx, 288, 48, 2, 40, P.curtainDark);
-  // Rod
   px(ctx, 204, 34, 84, 3, P.woodHi);
-  px(ctx, 204, 36, 84, 1, P.woodDark);
 }
 
 function drawFloor(ctx: CanvasRenderingContext2D, width: number, height: number): void {
@@ -441,174 +608,121 @@ function drawFloor(ctx: CanvasRenderingContext2D, width: number, height: number)
     const light = x % 36 === 0;
     px(ctx, x, FLOOR_Y - 10, 17, height - (FLOOR_Y - 10), light ? P.floorLight : P.floorMid);
     px(ctx, x + 17, FLOOR_Y - 10, 1, height - (FLOOR_Y - 10), P.floorDark);
-    // Grain
     px(ctx, x + 4, FLOOR_Y + 2, 8, 1, P.floorGrain);
-    px(ctx, x + 8, FLOOR_Y + 12, 6, 1, P.floorDark);
-  }
-  ctx.fillStyle = P.floorDark;
-  for (let x = 8; x < width; x += 18) {
-    ctx.fillRect(x, FLOOR_Y + 6, 1, 1);
-    ctx.fillRect(x + 2, FLOOR_Y + 18, 1, 1);
   }
 }
 
 function drawBaseboard(ctx: CanvasRenderingContext2D, width: number): void {
   px(ctx, 0, FLOOR_Y - 12, width, 2, P.woodDark);
   px(ctx, 0, FLOOR_Y - 14, width, 2, P.wood);
-  px(ctx, 0, FLOOR_Y - 14, width, 1, P.woodHi);
 }
 
 function drawBed(ctx: CanvasRenderingContext2D): void {
-  // Frame + legs
   px(ctx, 8, FLOOR_Y - 24, 68, 14, P.woodDark);
   px(ctx, 10, FLOOR_Y - 22, 64, 2, P.woodHi);
   px(ctx, 8, FLOOR_Y - 10, 68, 6, P.wood);
-  px(ctx, 10, FLOOR_Y - 10, 3, 10, P.woodDeep);
-  px(ctx, 70, FLOOR_Y - 10, 3, 10, P.woodDeep);
-
-  // Mattress / sheet
   px(ctx, 12, FLOOR_Y - 30, 60, 8, P.bedSheet);
-  px(ctx, 14, FLOOR_Y - 28, 56, 2, P.bedSheetHi);
-  for (let x = 16; x < 70; x += 7) {
-    px(ctx, x, FLOOR_Y - 27, 1, 4, P.wallpaper);
-  }
-
-  // Folded blanket with bevel
   px(ctx, 30, FLOOR_Y - 34, 42, 10, P.bedBlanket);
   px(ctx, 32, FLOOR_Y - 32, 38, 2, P.bedBlanketHi);
-  px(ctx, 30, FLOOR_Y - 26, 42, 2, P.bedBlanketDark);
-  px(ctx, 48, FLOOR_Y - 30, 8, 1, P.bedBlanketDark);
-
-  // Pillow
   px(ctx, 12, FLOOR_Y - 38, 20, 10, P.pillow);
   px(ctx, 14, FLOOR_Y - 36, 16, 3, P.pillowHi);
-  px(ctx, 12, FLOOR_Y - 30, 20, 2, P.pillowShadow);
-  px(ctx, 12, FLOOR_Y - 38, 20, 1, P.wood);
-
-  // Headboard carved detail
   px(ctx, 8, FLOOR_Y - 46, 6, 24, P.wood);
-  px(ctx, 9, FLOOR_Y - 44, 4, 2, P.woodHi);
-  px(ctx, 10, FLOOR_Y - 40, 2, 6, P.woodMid);
-  px(ctx, 9, FLOOR_Y - 32, 4, 2, P.woodHi);
 }
 
-function drawDeskAndDiary(ctx: CanvasRenderingContext2D, diaryUnlocked: boolean): void {
-  // Desk body with bevels
-  px(ctx, 44, FLOOR_Y - 42, 54, 32, P.wood);
-  px(ctx, 46, FLOOR_Y - 40, 50, 2, P.woodHi);
-  px(ctx, 46, FLOOR_Y - 40, 2, 28, P.woodHi);
-  px(ctx, 94, FLOOR_Y - 40, 2, 28, P.woodDark);
-  px(ctx, 46, FLOOR_Y - 12, 50, 2, P.woodDark);
+function drawDeskAndPc(ctx: CanvasRenderingContext2D): void {
+  // Desk
+  px(ctx, 70, FLOOR_Y - 42, 58, 32, P.wood);
+  px(ctx, 72, FLOOR_Y - 40, 54, 2, P.woodHi);
+  px(ctx, 72, FLOOR_Y - 40, 2, 28, P.woodHi);
+  px(ctx, 74, FLOOR_Y - 12, 50, 2, P.woodDark);
+  px(ctx, 74, FLOOR_Y - 10, 5, 10, P.woodDeep);
+  px(ctx, 116, FLOOR_Y - 10, 5, 10, P.woodDeep);
 
-  // Drawers
-  px(ctx, 50, FLOOR_Y - 28, 42, 1, P.woodDark);
-  px(ctx, 50, FLOOR_Y - 16, 42, 1, P.woodDark);
-  px(ctx, 66, FLOOR_Y - 26, 8, 3, P.brass);
-  px(ctx, 68, FLOOR_Y - 25, 4, 1, P.brassHi);
-  px(ctx, 66, FLOOR_Y - 14, 8, 3, P.brass);
-  px(ctx, 68, FLOOR_Y - 13, 4, 1, P.brassHi);
+  // CRT on desk
+  px(ctx, 78, FLOOR_Y - 70, 28, 26, '#2a2a38');
+  px(ctx, 80, FLOOR_Y - 68, 24, 18, '#102028');
+  px(ctx, 82, FLOOR_Y - 66, 8, 4, '#306050');
+  px(ctx, 82, FLOOR_Y - 60, 14, 2, '#204038');
+  px(ctx, 82, FLOOR_Y - 56, 10, 2, '#204038');
+  px(ctx, 86, FLOOR_Y - 44, 12, 4, '#484858');
 
-  // Legs
-  px(ctx, 48, FLOOR_Y - 10, 5, 10, P.woodDeep);
-  px(ctx, 88, FLOOR_Y - 10, 5, 10, P.woodDeep);
+  // Keyboard
+  px(ctx, 78, FLOOR_Y - 46, 30, 5, '#3a3a48');
+  px(ctx, 80, FLOOR_Y - 45, 26, 1, '#585868');
 
-  // Diary
-  if (diaryUnlocked) {
-    px(ctx, 54, FLOOR_Y - 56, 20, 14, P.diaryOpen);
-    px(ctx, 54, FLOOR_Y - 56, 4, 14, P.brass);
-    px(ctx, 56, FLOOR_Y - 55, 2, 2, P.brassHi);
-    px(ctx, 60, FLOOR_Y - 54, 12, 10, P.diaryPages);
-    px(ctx, 62, FLOOR_Y - 52, 8, 1, P.diaryInk);
-    px(ctx, 62, FLOOR_Y - 50, 10, 1, P.diaryInk);
-    px(ctx, 62, FLOOR_Y - 48, 6, 1, P.diaryInk);
-    px(ctx, 62, FLOOR_Y - 46, 9, 1, P.diaryInk);
-  } else {
-    px(ctx, 54, FLOOR_Y - 56, 20, 14, P.diaryLocked);
-    px(ctx, 54, FLOOR_Y - 56, 3, 14, P.diaryLockedHi);
-    px(ctx, 66, FLOOR_Y - 50, 6, 6, '#909098');
-    px(ctx, 67, FLOOR_Y - 52, 4, 3, P.brassDim);
-    px(ctx, 68, FLOOR_Y - 48, 2, 2, P.woodDeep);
-  }
+  // Tower under desk
+  px(ctx, 108, FLOOR_Y - 38, 14, 26, '#303040');
+  px(ctx, 110, FLOOR_Y - 36, 10, 4, '#202028');
+  px(ctx, 112, FLOOR_Y - 28, 3, 2, '#40a040');
 }
 
-function drawWallPhoto(ctx: CanvasRenderingContext2D): void {
-  // Ornate frame
-  px(ctx, 148, 40, 42, 36, P.frameDark);
-  px(ctx, 150, 42, 38, 32, P.frame);
-  px(ctx, 152, 44, 34, 2, P.frameHi);
-  px(ctx, 152, 44, 2, 28, P.frameHi);
-  px(ctx, 152, 46, 34, 26, P.frameInner);
-
-  // Photo — tiny rynok with more detail
-  px(ctx, 154, 48, 30, 22, P.photoSky);
-  ditherRect(ctx, 154, 48, 30, 4, P.photoSkyHi, P.photoSky);
-  px(ctx, 154, 62, 30, 8, P.photoSnow);
-  px(ctx, 156, 58, 7, 10, P.photoStall);
-  px(ctx, 165, 54, 9, 14, '#5a4838');
-  px(ctx, 176, 60, 6, 8, P.photoStall);
-  px(ctx, 156, 56, 7, 2, '#b04848');
-  px(ctx, 165, 52, 9, 2, '#b04848');
-  px(ctx, 170, 60, 2, 5, '#3a4860');
-  px(ctx, 170, 59, 2, 1, '#e8c898');
-  px(ctx, 158, 50, 1, 1, P.photoSnow);
-  px(ctx, 168, 51, 1, 1, P.photoSnow);
-  px(ctx, 178, 49, 1, 1, P.photoSnow);
-  px(ctx, 154, 66, 30, 4, '#b0a080');
-  px(ctx, 156, 67, 3, 1, P.woodDark);
-  px(ctx, 161, 67, 4, 1, P.woodDark);
-  px(ctx, 167, 67, 6, 1, P.woodDark);
-}
-
-function drawDresser(ctx: CanvasRenderingContext2D, hasKey: boolean): void {
+function drawDresser(ctx: CanvasRenderingContext2D): void {
   px(ctx, 244, FLOOR_Y - 54, 58, 44, P.wood);
   px(ctx, 246, FLOOR_Y - 52, 54, 2, P.woodHi);
   px(ctx, 246, FLOOR_Y - 52, 2, 40, P.woodHi);
   px(ctx, 298, FLOOR_Y - 52, 2, 40, P.woodDark);
-  px(ctx, 244, FLOOR_Y - 54, 58, 1, P.woodHi);
 
   const rows = [FLOOR_Y - 46, FLOOR_Y - 34, FLOOR_Y - 22];
   for (const ry of rows) {
     px(ctx, 248, ry, 50, 10, P.woodDark);
     px(ctx, 250, ry + 1, 46, 8, P.wood);
     px(ctx, 252, ry + 2, 42, 1, P.woodHi);
-    const handle = hasKey && ry === rows[0] ? '#555555' : P.brass;
-    px(ctx, 266, ry + 4, 12, 3, handle);
-    if (handle === P.brass) px(ctx, 268, ry + 4, 8, 1, P.brassHi);
+    px(ctx, 266, ry + 4, 12, 3, P.brass);
+    px(ctx, 268, ry + 4, 8, 1, P.brassHi);
   }
-}
-
-function drawPlant(ctx: CanvasRenderingContext2D): void {
-  px(ctx, 116, FLOOR_Y - 12, 14, 12, P.plantPot);
-  px(ctx, 118, FLOOR_Y - 10, 10, 2, P.plantPotHi);
-  px(ctx, 118, FLOOR_Y - 4, 10, 2, P.woodDark);
-  px(ctx, 118, FLOOR_Y - 28, 10, 16, P.plant);
-  px(ctx, 120, FLOOR_Y - 26, 6, 2, P.plantHi);
-  px(ctx, 112, FLOOR_Y - 22, 8, 8, P.plantHi);
-  px(ctx, 126, FLOOR_Y - 24, 8, 10, P.plantDark);
-  px(ctx, 120, FLOOR_Y - 34, 6, 6, P.plantHi);
-  px(ctx, 122, FLOOR_Y - 36, 2, 2, P.plant);
 }
 
 function drawLamp(ctx: CanvasRenderingContext2D): void {
-  // Desk lamp near bed / desk
-  px(ctx, 98, FLOOR_Y - 48, 4, 18, P.woodDark);
-  px(ctx, 94, FLOOR_Y - 56, 12, 8, P.brass);
-  px(ctx, 96, FLOOR_Y - 54, 8, 2, P.brassHi);
-  px(ctx, 97, FLOOR_Y - 58, 6, 2, P.lampGlow);
+  px(ctx, 130, FLOOR_Y - 48, 4, 18, P.woodDark);
+  px(ctx, 126, FLOOR_Y - 56, 12, 8, P.brass);
+  px(ctx, 128, FLOOR_Y - 54, 8, 2, P.brassHi);
+  px(ctx, 129, FLOOR_Y - 58, 6, 2, P.lampGlow);
 }
 
-function drawHotspotHints(ctx: CanvasRenderingContext2D, states: StateManager): void {
-  const pulse = Math.floor(performance.now() / 380) % 2 === 0;
-  if (!pulse) return;
+/** Simple orange ginger cat NPC near the desk. */
+function drawCat(ctx: CanvasRenderingContext2D, time: number): void {
+  const bob = Math.floor(time * 2) % 2;
+  const x = 58;
+  const y = FLOOR_Y - 10 + bob;
+  // Body
+  px(ctx, x, y - 10, 14, 8, '#e07828');
+  px(ctx, x + 1, y - 9, 12, 2, '#f09848');
+  px(ctx, x + 2, y - 6, 10, 3, '#c06020');
+  // Head
+  px(ctx, x + 10, y - 16, 8, 7, '#e07828');
+  px(ctx, x + 11, y - 15, 6, 2, '#f09848');
+  // Ears
+  px(ctx, x + 10, y - 19, 3, 3, '#e07828');
+  px(ctx, x + 15, y - 19, 3, 3, '#e07828');
+  px(ctx, x + 11, y - 18, 1, 1, '#f8b070');
+  px(ctx, x + 16, y - 18, 1, 1, '#f8b070');
+  // Eyes + nose
+  px(ctx, x + 12, y - 14, 1, 1, '#203020');
+  px(ctx, x + 15, y - 14, 1, 1, '#203020');
+  px(ctx, x + 13, y - 12, 2, 1, '#d04040');
+  // Tail
+  px(ctx, x - 4, y - 12, 5, 2, '#e07828');
+  px(ctx, x - 5, y - 16, 2, 5, '#c06020');
+  // Stripes
+  px(ctx, x + 4, y - 8, 2, 1, '#a04818');
+  px(ctx, x + 8, y - 7, 2, 1, '#a04818');
+}
 
-  if (!states.flags.hasKey) {
+function drawHotspotHints(
+  ctx: CanvasRenderingContext2D,
+  states: StateManager,
+  beerCans: BeerCan[],
+): void {
+  const pulse = Math.floor(performance.now() / 380) % 2 === 0;
+  if (!pulse || !states.flags.introDone) return;
+
+  if (!states.flags.diaryUnlocked) {
     px(ctx, 270, FLOOR_Y - 42, 3, 3, P.brassHi);
+  } else {
+    px(ctx, 270, FLOOR_Y - 58, 3, 3, '#70d0ff');
   }
-  if (!states.flags.seenPhoto) {
-    px(ctx, 166, 36, 3, 3, P.diaryPages);
-  }
-  if (states.flags.diaryUnlocked) {
-    px(ctx, 62, FLOOR_Y - 60, 3, 3, '#70d0ff');
+  for (const c of beerCans) {
+    if (!c.taken) px(ctx, c.x - 1, FLOOR_Y - 20, 2, 2, '#f0d878');
   }
 }
 
@@ -621,6 +735,7 @@ function drawPromptBar(ctx: CanvasRenderingContext2D, width: number, text: strin
   drawNesTextCentered(ctx, text, width / 2, PROMPT_Y - 6, P.uiText, 1, 1);
 }
 
+/** Family photo frame — young happy family, 1995. */
 function drawPhotoOverlay(ctx: CanvasRenderingContext2D, width: number, height: number): void {
   ctx.fillStyle = 'rgba(6, 6, 12, 0.88)';
   ctx.fillRect(0, 0, width, height);
@@ -633,45 +748,30 @@ function drawPhotoOverlay(ctx: CanvasRenderingContext2D, width: number, height: 
     borderDark: P.woodDeep,
     inset: false,
   });
-  px(ctx, bx, by, bw, bh, P.photoSky);
-  ditherRect(ctx, bx, by, bw, 12, P.photoSkyHi, P.photoSky);
+  // Warm outdoor / park feel
+  px(ctx, bx, by, bw, bh, '#88b070');
+  ditherRect(ctx, bx, by, bw, 40, '#a0c888', '#88b070');
+  px(ctx, bx, by + 70, bw, 40, '#70a058');
 
-  px(ctx, bx, by + 80, bw, 48, P.photoSnow);
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 14; col++) {
-      const ox = (row % 2) * 5;
-      px(
-        ctx,
-        bx + 6 + col * 15 + ox,
-        by + 52 + row * 6,
-        13,
-        5,
-        row % 2 ? '#7a5840' : '#8a6850',
-      );
-      px(ctx, bx + 6 + col * 15 + ox, by + 52 + row * 6, 13, 1, '#a88868');
-    }
-  }
-  drawMiniStall(ctx, bx + 20, by + 108, '#b04848');
-  drawMiniStall(ctx, bx + 88, by + 108, '#4060a8');
-  drawMiniStall(ctx, bx + 156, by + 108, '#a06840');
-  for (let i = 0; i < 16; i++) {
-    px(ctx, bx + 14 + (i * 19) % 190, by + 14 + (i * 11) % 44, 1, 1, P.photoSnow);
-  }
-  px(ctx, bx, by + bh - 18, bw, 18, '#b09870');
-  drawNesTextCentered(ctx, 'NOVGOROD - WINTER 1995', width / 2, by + bh - 12, '#3a2a18', 1, 1);
-  drawNesTextCentered(ctx, 'E / ENTER - CLOSE', width / 2, height - 16, P.uiText, 1, 1);
-}
+  // Family silhouettes — parents + child, joyful
+  // Father
+  px(ctx, bx + 60, by + 48, 14, 28, '#3a4860');
+  px(ctx, bx + 63, by + 40, 8, 10, '#e8c898');
+  // Mother
+  px(ctx, bx + 90, by + 50, 14, 26, '#a04860');
+  px(ctx, bx + 93, by + 42, 8, 10, '#e8c898');
+  px(ctx, bx + 92, by + 40, 10, 4, '#603040');
+  // Child (young Zuich)
+  px(ctx, bx + 78, by + 62, 10, 16, '#406080');
+  px(ctx, bx + 80, by + 56, 6, 7, '#f0d0b0');
+  // Hearts / love sparkles
+  px(ctx, bx + 120, by + 36, 3, 3, '#e06070');
+  px(ctx, bx + 140, by + 48, 2, 2, '#e08090');
+  px(ctx, bx + 50, by + 44, 2, 2, '#e08090');
 
-function drawMiniStall(ctx: CanvasRenderingContext2D, x: number, floorY: number, awning: string): void {
-  px(ctx, x, floorY - 32, 44, 8, awning);
-  px(ctx, x, floorY - 32, 44, 2, '#f0ece0');
-  px(ctx, x + 2, floorY - 24, 3, 24, P.woodDark);
-  px(ctx, x + 39, floorY - 24, 3, 24, P.woodDark);
-  px(ctx, x + 2, floorY - 14, 40, 10, P.wood);
-  px(ctx, x + 4, floorY - 12, 36, 2, P.woodHi);
-  px(ctx, x + 8, floorY - 18, 8, 4, P.brass);
-  px(ctx, x + 20, floorY - 17, 10, 3, P.plant);
-  px(ctx, x + 32, floorY - 18, 8, 4, '#a07050');
+  px(ctx, bx, by + bh - 22, bw, 22, '#b09870');
+  drawNesTextCentered(ctx, 'ГОД 1995, МЫ СЧАСТЛИВЫ', width / 2, by + bh - 14, '#3a2a18', 1, 1);
+  drawNesTextCentered(ctx, 'E / ENTER - ДАЛЬШЕ', width / 2, height - 16, P.uiText, 1, 1);
 }
 
 function drawToast(
@@ -707,22 +807,22 @@ function drawDiarySelect(
   px(ctx, bx + 4, by + 4, bw - 8, bh - 8, '#5a3a20');
   px(ctx, bx + 6, by + 6, bw - 12, 2, '#7a5a38');
 
-  drawNesTextCentered(ctx, 'DIARY - LEVEL SELECT', width / 2, by + 14, P.diaryPages, 1, 1);
+  drawNesTextCentered(ctx, 'ДНЕВНИК - УРОВНИ', width / 2, by + 14, P.diaryPages, 1, 1);
   px(ctx, bx + 16, by + 28, bw - 32, 1, '#8a6a48');
 
   const levels = [
     {
-      title: 'LEVEL 1 - NOVGOROD RYNOK',
-      sub: progress.level1Cleared ? 'CLEARED - REPLAY' : 'WINTER 1995',
+      title: 'УР. 1 - НОВГОРОД РЫНОК',
+      sub: progress.level1Cleared ? 'ПРОЙДЕН - ПОВТОР' : 'ЗИМА 1995',
       locked: false,
     },
     {
-      title: progress.level1Cleared ? 'LEVEL 2 - ПОДЪЕЗД №7' : 'LEVEL 2 - ???',
+      title: progress.level1Cleared ? 'УР. 2 - ПОДЪЕЗД №7' : 'УР. 2 - ???',
       sub: !progress.level1Cleared
-        ? 'LOCKED - CLEAR LEVEL 1'
+        ? 'ЗАКРЫТ - ПРОЙДИ УР. 1'
         : progress.level2Cleared
-          ? 'CLEARED - REPLAY'
-          : 'WINTER 1995',
+          ? 'ПРОЙДЕН - ПОВТОР'
+          : 'ЗИМА 1995',
       locked: !progress.level1Cleared,
     },
   ];
@@ -743,7 +843,7 @@ function drawDiarySelect(
 
   const hint =
     cursor === 1 && progress.level1Cleared
-      ? 'ENTER / E - BEGIN LEVEL 2'
-      : 'ENTER / E - BEGIN LEVEL 1';
+      ? 'ENTER / E - НАЧАТЬ УР. 2'
+      : 'ENTER / E - НАЧАТЬ УР. 1';
   drawNesTextCentered(ctx, hint, width / 2, by + bh - 16, P.uiText, 1, 1);
 }

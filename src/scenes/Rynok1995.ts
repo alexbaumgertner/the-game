@@ -11,6 +11,7 @@ import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/
 import { Gangster } from '@/entities/Gangster';
 import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
+import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, fillSkyGradient, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
@@ -63,10 +64,11 @@ export interface RynokSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
+  beer: BeerSystem;
 }
 
 export function createRynok1995Scene(deps: RynokSceneDeps) {
-  const { states, player, hud } = deps;
+  const { states, player, hud, beer } = deps;
 
   let camX = 0;
   let gangsters: Gangster[] = [];
@@ -142,14 +144,14 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   };
 
   const objectiveForPhase = (): string => {
-    if (phase === 'wave1') return 'Protect father stall';
-    if (phase === 'dialogue') return 'Talk to Father - timed';
+    if (phase === 'wave1') return 'Защити лоток отца';
+    if (phase === 'dialogue') return 'Говори с отцом - таймер';
     if (phase === 'wave2') {
-      if (!hasCoat) return 'Get mother coat + clear wave';
-      return 'Coat secured - finish thugs';
+      if (!hasCoat) return 'Забери шубу + зачисти волну';
+      return 'Шуба есть - добей гопников';
     }
-    if (phase === 'cleared') return 'LEVEL 1 CLEAR';
-    return 'GAME OVER';
+    if (phase === 'cleared') return 'УР. 1 ПРОЙДЕН';
+    return 'КОНЕЦ ИГРЫ';
   };
 
   const syncHud = (objective?: string): void => {
@@ -161,7 +163,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       swagger: player.streetSwagger,
       maxSwagger: MAX_SWAGGER,
       showSwagger: true,
-      eraLabel: 'TEEN · 1995',
+      eraLabel: 'ЗУИЧ · 1995',
       objective: objective ?? objectiveForPhase(),
     });
   };
@@ -191,7 +193,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     gangsters = [];
     bubbles = [];
     player.vx = 0;
-    toast = 'FATHER NEEDS YOU';
+    toast = 'ОТЕЦ ЗОВЁТ';
     toastTimer = 1.2;
     dialogue.open(FATHER_STALL_SCRIPT, (_id, result) => {
       applyDialogueResult(result.effect, result.timedOut);
@@ -202,13 +204,13 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
   const applyDialogueResult = (effect: DialogueEffect, timedOut: boolean): void => {
     if (effect === 'calm_father') {
       fatherPanic = 0.25;
-      toast = 'FATHER STEADIES';
+      toast = 'ОТЕЦ УСПОКОИЛСЯ';
       toastTimer = 1.4;
     } else if (effect === 'wrong_reassure' || timedOut) {
       fatherPanic = 1;
       player.takeDamage(WRONG_REASSURE_MF_DRAIN, -1);
       player.vx = 0;
-      toast = timedOut ? 'TOO SLOW - PANIC SPIKES' : 'EMPTY WORDS - MF DRAIN';
+      toast = timedOut ? 'ПОЗДНО - ПАНИКА' : 'ПУСТЫЕ СЛОВА - СД';
       toastTimer = 1.6;
     } else {
       fatherPanic = 0.7;
@@ -217,7 +219,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('GAME OVER');
+      syncHud('КОНЕЦ ИГРЫ');
       return;
     }
 
@@ -333,6 +335,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   return {
     enter(): void {
+      beer.pauseForFlashback();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 60;
@@ -356,7 +359,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       dialogue.resetSilent();
       spawnWave1();
       spawnCars();
-      syncHud('Protect father stall');
+      syncHud('Защити лоток отца');
     },
 
     exit(): void {
@@ -422,14 +425,14 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         if (gameOverTimer <= 0) {
           clearCombatAndReturn();
         }
-        syncHud('GAME OVER');
+        syncHud('КОНЕЦ ИГРЫ');
         return;
       }
 
       if (phase === 'cleared') {
         winTimer -= dt;
         player.update(dt);
-        syncHud('LEVEL 1 CLEAR');
+        syncHud('УР. 1 ПРОЙДЕН');
         if (winTimer <= 0) {
           states.setFlag('level1Cleared', true);
           // Soft return to apartment with progress kept (combat meters reset)
@@ -454,7 +457,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
             toastTimer = 0.9;
             shake = Math.max(shake, 0.28);
           } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `NEED ${BAZAR_COST} SWAG`;
+            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
             toastTimer = 0.7;
           }
         }
@@ -503,7 +506,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         const drop = g.consumeCoatDrop();
         if (drop && !coat) {
           coat = { x: drop.x, y: drop.y, taken: false };
-          toast = 'COAT DROPPED!';
+          toast = 'ШУБА УПАЛА!';
           toastTimer = 1.2;
         }
         if (player.invuln > 0 || player.isKo || g.isKo) continue;
@@ -524,7 +527,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         if (dx < 18 && dy < 24) {
           coat.taken = true;
           hasCoat = true;
-          toast = 'MOTHER COAT SECURED';
+          toast = 'ШУБА МАМЫ У ТЕБЯ';
           toastTimer = 1.5;
           fatherPanic = Math.max(0.15, fatherPanic - 0.35);
         }
@@ -533,7 +536,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
-        toast = 'MENTAL FORTITUDE BROKEN';
+        toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
@@ -548,17 +551,17 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         } else {
           syncHud(
             alive === 1
-              ? 'One thug - reach Father'
-              : `Wave 1 · Thugs ${alive} · Reach МЕХА`,
+              ? 'Один гопник - к отцу'
+              : `Волна 1 · Гопники ${alive} · К МЕХА`,
           );
         }
       } else if (phase === 'wave2') {
         if (alive === 0 && hasCoat) {
           phase = 'cleared';
           winTimer = 2.4;
-          toast = 'STALL SAFE · COAT RECOVERED';
+          toast = 'ЛОТОК ЦЕЛ · ШУБА СПАСЕНА';
           toastTimer = 2.4;
-          syncHud('LEVEL 1 CLEAR');
+          syncHud('УР. 1 ПРОЙДЕН');
         } else {
           syncHud();
         }
@@ -601,8 +604,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       } else {
         const hint =
           phase === 'wave2' && !hasCoat
-            ? 'J PUNCH  K KICK  L BAZAR  GET COAT'
-            : 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
+            ? 'J УДАР  K НОГА  L БАЗАР  ЗАБЕРИ ШУБУ'
+            : 'J УДАР  K НОГА  L БАЗАР  ПРОБЕЛ ПРЫЖОК';
         const hw = measureNesText(hint, 1, 1) + 10;
         segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, R.uiBox, R.uiBorderDark, {
           inset: false,
@@ -613,10 +616,10 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       // Coat / panic status chips (non-hero clutter avoided — single status line)
       if (phase === 'wave2' || phase === 'cleared') {
         const status = hasCoat
-          ? 'COAT: YES'
+          ? 'ШУБА: ДА'
           : coat
-            ? 'COAT: DROP'
-            : 'COAT: STOLEN';
+            ? 'ШУБА: НА ЗЕМЛЕ'
+            : 'ШУБА: УКРАДЕНА';
         const sw = measureNesText(status, 1, 1) + 10;
         segaBox(ctx, width - sw - 4, 24, sw, 12, '#181028', hasCoat ? '#40c878' : '#e07040', {
           inset: false,
@@ -642,7 +645,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('GAME OVER', 2, 1) + 24;
+        const gw = measureNesText('КОНЕЦ ИГРЫ', 2, 1) + 24;
         segaBox(
           ctx,
           Math.round((width - gw) / 2),
@@ -653,14 +656,14 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           '#e04040',
           { borderDark: '#802020', fillHi: '#281018' },
         );
-        drawNesTextCentered(ctx, 'GAME OVER', width / 2, height / 2 - 16, '#f08080', 2, 1);
-        drawNesTextCentered(ctx, 'BACK TO 2026...', width / 2, height / 2 + 2, R.uiBorder, 1, 1);
+        drawNesTextCentered(ctx, 'КОНЕЦ ИГРЫ', width / 2, height / 2 - 16, '#f08080', 2, 1);
+        drawNesTextCentered(ctx, 'НАЗАД В 2026...', width / 2, height / 2 + 2, R.uiBorder, 1, 1);
       }
 
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('LEVEL 1 CLEAR', 2, 1) + 24;
+        const gw = measureNesText('УР. 1 ПРОЙДЕН', 2, 1) + 24;
         segaBox(
           ctx,
           Math.round((width - gw) / 2),
@@ -671,8 +674,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           '#40c878',
           { borderDark: '#206040', fillHi: '#102818' },
         );
-        drawNesTextCentered(ctx, 'LEVEL 1 CLEAR', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
-        drawNesTextCentered(ctx, 'COAT + STALL SAFE', width / 2, height / 2 + 4, R.uiBorder, 1, 1);
+        drawNesTextCentered(ctx, 'УР. 1 ПРОЙДЕН', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
+        drawNesTextCentered(ctx, 'ШУБА + ЛОТОК ЦЕЛЫ', width / 2, height / 2 + 4, R.uiBorder, 1, 1);
       }
     },
 
@@ -698,13 +701,13 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       forceCoatDrop: () => {
         coat = { x: player.x + 30, y: FLOOR_Y - 6, taken: false };
         hasCoat = false;
-        toast = 'COAT DROPPED!';
+        toast = 'ШУБА УПАЛА!';
         toastTimer = 1.2;
       },
       pickCoat: () => {
         if (coat) coat.taken = true;
         hasCoat = true;
-        toast = 'MOTHER COAT SECURED';
+        toast = 'ШУБА МАМЫ У ТЕБЯ';
         toastTimer = 1.2;
       },
       chooseSteady: () => {

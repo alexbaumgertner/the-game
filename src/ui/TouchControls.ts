@@ -66,8 +66,8 @@ export class TouchControls {
     this.toggleBtn = document.createElement('button');
     this.toggleBtn.type = 'button';
     this.toggleBtn.className = 'tc-toggle';
-    this.toggleBtn.textContent = this.visible ? 'HIDE PAD' : 'SHOW PAD';
-    this.toggleBtn.title = 'Toggle on-screen controls';
+    this.toggleBtn.textContent = this.visible ? 'СКРЫТЬ' : 'ПАД';
+    this.toggleBtn.title = 'Экранные кнопки';
     this.toggleBtn.addEventListener('click', (e) => {
       e.preventDefault();
       this.forced = true;
@@ -78,30 +78,31 @@ export class TouchControls {
     this.pad.className = 'tc-pad';
     this.pad.innerHTML = `
       <div class="tc-cluster tc-left">
-        <button type="button" class="tc-btn tc-dir" data-action="left" aria-label="Move left">◀</button>
-        <button type="button" class="tc-btn tc-dir" data-action="right" aria-label="Move right">▶</button>
-        <button type="button" class="tc-btn tc-jump" data-action="jump" aria-label="Jump">JUMP</button>
+        <button type="button" class="tc-btn tc-dir" data-action="left" aria-label="Влево">◀</button>
+        <button type="button" class="tc-btn tc-dir" data-action="right" aria-label="Вправо">▶</button>
+        <button type="button" class="tc-btn tc-jump" data-action="jump" aria-label="Прыжок">ПРЫГ</button>
       </div>
       <div class="tc-cluster tc-right">
-        <button type="button" class="tc-btn tc-act" data-action="punch" aria-label="Punch">A<br><span>PUNCH</span></button>
-        <button type="button" class="tc-btn tc-act" data-action="kick" aria-label="Kick">B<br><span>KICK</span></button>
-        <button type="button" class="tc-btn tc-act tc-special" data-action="special" aria-label="Bazar">C<br><span>BAZAR</span></button>
-        <button type="button" class="tc-btn tc-act tc-interact" data-action="interact" aria-label="Interact">E<br><span>USE</span></button>
+        <button type="button" class="tc-btn tc-act" data-action="punch" aria-label="Удар">A<br><span>УДАР</span></button>
+        <button type="button" class="tc-btn tc-act" data-action="kick" aria-label="Нога">B<br><span>НОГА</span></button>
+        <button type="button" class="tc-btn tc-act tc-special" data-action="special" aria-label="Базар">C<br><span>БАЗАР</span></button>
+        <button type="button" class="tc-btn tc-act tc-interact" data-action="interact" aria-label="Действие">E<br><span>ВЗЯТЬ</span></button>
+        <button type="button" class="tc-btn tc-act tc-beer" data-action="beer" aria-label="Применить бухло">П<br><span>БУХЛО</span></button>
       </div>
-      <button type="button" class="tc-btn tc-pause" data-pause="1" aria-label="Pause">II</button>
+      <button type="button" class="tc-btn tc-pause" data-pause="1" aria-label="Пауза">II</button>
     `;
 
     this.choiceBar = document.createElement('div');
     this.choiceBar.className = 'tc-choices';
     this.choiceBar.hidden = true;
     this.choiceBar.innerHTML = `
-      <button type="button" class="tc-btn tc-choice" data-action="choice1" aria-label="Choice 1">
+      <button type="button" class="tc-btn tc-choice" data-action="choice1" aria-label="Выбор 1">
         <span class="tc-choice-key">1</span>
-        <span class="tc-choice-label" data-choice-label="0">CHOICE 1</span>
+        <span class="tc-choice-label" data-choice-label="0">ВЫБОР 1</span>
       </button>
-      <button type="button" class="tc-btn tc-choice" data-action="choice2" aria-label="Choice 2">
+      <button type="button" class="tc-btn tc-choice" data-action="choice2" aria-label="Выбор 2">
         <span class="tc-choice-key">2</span>
-        <span class="tc-choice-label" data-choice-label="1">CHOICE 2</span>
+        <span class="tc-choice-label" data-choice-label="1">ВЫБОР 2</span>
       </button>
     `;
 
@@ -146,7 +147,7 @@ export class TouchControls {
   private applyVisibility(): void {
     this.shell.classList.toggle('tc-visible', this.visible);
     this.shell.setAttribute('aria-hidden', this.visible ? 'false' : 'true');
-    this.toggleBtn.textContent = this.visible ? 'HIDE PAD' : 'SHOW PAD';
+    this.toggleBtn.textContent = this.visible ? 'СКРЫТЬ' : 'ПАД';
     // Toggle stays discoverable even when pad is hidden (desktop opt-in).
     this.toggleBtn.classList.toggle('tc-toggle-alone', !this.visible);
   }
@@ -300,16 +301,20 @@ export function injectTouchControlStyles(): void {
 .tc-left .tc-btn[data-action="jump"] { grid-area: jump; }
 .tc-right {
   right: calc(10px + var(--tc-safe-r));
-  grid-template-columns: var(--tc-btn) var(--tc-btn);
+  grid-template-columns: var(--tc-btn) var(--tc-btn) var(--tc-btn);
   grid-template-rows: var(--tc-btn) var(--tc-btn);
   grid-template-areas:
-    "punch kick"
-    "special interact";
+    "punch kick beer"
+    "special interact interact";
 }
 .tc-right .tc-btn[data-action="punch"] { grid-area: punch; }
 .tc-right .tc-btn[data-action="kick"] { grid-area: kick; }
 .tc-right .tc-btn[data-action="special"] { grid-area: special; }
 .tc-right .tc-btn[data-action="interact"] { grid-area: interact; }
+.tc-right .tc-btn[data-action="beer"] { grid-area: beer; }
+.tc-beer {
+  border-color: #d8a040 !important;
+}
 .tc-btn {
   pointer-events: auto;
   min-width: var(--tc-btn);

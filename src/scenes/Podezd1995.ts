@@ -9,6 +9,7 @@ import { BAZAR_COST, MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/
 import { Gangster } from '@/entities/Gangster';
 import { BazarBubble } from '@/entities/BazarBubble';
 import type { HUD } from '@/ui/HUD';
+import type { BeerSystem } from '@/systems/BeerSystem';
 import { PODEZD_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, segaBox } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
@@ -58,10 +59,11 @@ export interface PodezdSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
+  beer: BeerSystem;
 }
 
 export function createPodezd1995Scene(deps: PodezdSceneDeps) {
-  const { states, player, hud } = deps;
+  const { states, player, hud, beer } = deps;
 
   let camX = 0;
   let gangsters: Gangster[] = [];
@@ -127,14 +129,14 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
   };
 
   const objectiveForPhase = (): string => {
-    if (phase === 'wave1') return 'Clear entrance - escort Mother';
-    if (phase === 'dialogue') return 'Talk - timed kryusha';
+    if (phase === 'wave1') return 'Зачисти вход - веди маму';
+    if (phase === 'dialogue') return 'Разговор - крыша, таймер';
     if (phase === 'wave2') {
-      if (!wave2Cleared) return 'Upper landing - clear thugs';
-      return 'Reach apartment door';
+      if (!wave2Cleared) return 'Верхняя площадка - гопники';
+      return 'Доберись до двери';
     }
-    if (phase === 'cleared') return 'LEVEL 2 CLEAR';
-    return 'GAME OVER';
+    if (phase === 'cleared') return 'УР. 2 ПРОЙДЕН';
+    return 'КОНЕЦ ИГРЫ';
   };
 
   const syncHud = (objective?: string): void => {
@@ -146,7 +148,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       swagger: player.streetSwagger,
       maxSwagger: MAX_SWAGGER,
       showSwagger: true,
-      eraLabel: 'TEEN · 1995',
+      eraLabel: 'ЗУИЧ · 1995',
       objective: objective ?? objectiveForPhase(),
     });
   };
@@ -176,7 +178,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
     gangsters = [];
     bubbles = [];
     player.vx = 0;
-    toast = 'KRYUSHA DEMAND';
+    toast = 'КРЫША ТРЕБУЕТ';
     toastTimer = 1.2;
     dialogue.open(PODEZD_LANDING_SCRIPT, (_id, result) => {
       applyDialogueResult(result.effect, result.timedOut);
@@ -187,13 +189,13 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
   const applyDialogueResult = (effect: DialogueEffect, timedOut: boolean): void => {
     if (effect === 'calm_mother') {
       motherFear = 0.25;
-      toast = 'MOTHER STEADIES';
+      toast = 'МАМА ДЕРЖИТСЯ';
       toastTimer = 1.4;
     } else if (effect === 'wrong_reassure' || timedOut) {
       motherFear = 1;
       player.takeDamage(WRONG_REASSURE_MF_DRAIN, -1);
       player.vx = 0;
-      toast = timedOut ? 'TOO SLOW - FEAR SPIKES' : 'EMPTY WORDS - MF DRAIN';
+      toast = timedOut ? 'ПОЗДНО - СТРАХ' : 'ПУСТЫЕ СЛОВА - СД';
       toastTimer = 1.6;
     } else {
       motherFear = 0.7;
@@ -202,7 +204,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('GAME OVER');
+      syncHud('КОНЕЦ ИГРЫ');
       return;
     }
 
@@ -339,6 +341,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
   return {
     enter(): void {
+      beer.pauseForFlashback();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -365,7 +368,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       carFacing = 1;
       dialogue.resetSilent();
       spawnWave1();
-      syncHud('Clear entrance - escort Mother');
+      syncHud('Зачисти вход - веди маму');
     },
 
     exit(): void {
@@ -429,14 +432,14 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('GAME OVER');
+        syncHud('КОНЕЦ ИГРЫ');
         return;
       }
 
       if (phase === 'cleared') {
         winTimer -= dt;
         player.update(dt);
-        syncHud('LEVEL 2 CLEAR');
+        syncHud('УР. 2 ПРОЙДЕН');
         if (winTimer <= 0) {
           states.setFlag('level2Cleared', true);
           player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -461,7 +464,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
             toastTimer = 0.9;
             shake = Math.max(shake, 0.28);
           } else if (player.streetSwagger < BAZAR_COST) {
-            toast = `NEED ${BAZAR_COST} SWAG`;
+            toast = `НУЖНО ${BAZAR_COST} ПОНТА`;
             toastTimer = 0.7;
           }
         }
@@ -526,7 +529,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       if (player.isKo) {
         phase = 'gameover';
         gameOverTimer = 1.8;
-        toast = 'MENTAL FORTITUDE BROKEN';
+        toast = 'СИЛА ДУХА СЛОМЛЕНА';
         toastTimer = 1.8;
       }
 
@@ -539,16 +542,16 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
             beginLandingDialogue();
           } else {
             if (toastTimer <= 0) {
-              toast = 'CLIMB - ESCORT MOTHER';
+              toast = 'НАВЕРХ - ВЕДИ МАМУ';
               toastTimer = 1.2;
             }
-            syncHud('Climb stairs to landing');
+            syncHud('Поднимись на площадку');
           }
         } else {
           syncHud(
             alive === 1
-              ? 'One thug - then climb'
-              : `Wave 1 · Thugs ${alive} · Entrance`,
+              ? 'Один гопник - потом вверх'
+              : `Волна 1 · Гопники ${alive} · Вход`,
           );
         }
       } else if (phase === 'wave2') {
@@ -557,14 +560,14 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
           if (nearDoor()) {
             phase = 'cleared';
             winTimer = 2.4;
-            toast = 'HOME - DOOR REACHED';
+            toast = 'ДОМ - ДВЕРЬ ДОСТИГНУТА';
             toastTimer = 2.4;
-            syncHud('LEVEL 2 CLEAR');
+            syncHud('УР. 2 ПРОЙДЕН');
           } else {
-            syncHud('Reach apartment door');
-            toast = toast || 'DOOR AHEAD';
+            syncHud('Доберись до двери');
+            toast = toast || 'ДВЕРЬ ВПЕРЕДИ';
             if (toastTimer <= 0) {
-              toast = 'DOOR AHEAD';
+              toast = 'ДВЕРЬ ВПЕРЕДИ';
               toastTimer = 1.0;
             }
           }
@@ -608,8 +611,8 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       } else {
         const hint =
           phase === 'wave2' && wave2Cleared
-            ? 'REACH DOOR  SPACE JUMP'
-            : 'J PUNCH  K KICK  L BAZAR  SPACE JUMP';
+            ? 'К ДВЕРИ  ПРОБЕЛ ПРЫЖОК'
+            : 'J УДАР  K НОГА  L БАЗАР  ПРОБЕЛ ПРЫЖОК';
         const hw = measureNesText(hint, 1, 1) + 10;
         segaBox(ctx, 4, height - 16, Math.min(hw, width - 8), 12, P.uiBox, P.uiBorderDark, {
           inset: false,
@@ -635,7 +638,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('GAME OVER', 2, 1) + 24;
+        const gw = measureNesText('КОНЕЦ ИГРЫ', 2, 1) + 24;
         segaBox(
           ctx,
           Math.round((width - gw) / 2),
@@ -646,14 +649,14 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
           '#e04040',
           { borderDark: '#802020', fillHi: '#281018' },
         );
-        drawNesTextCentered(ctx, 'GAME OVER', width / 2, height / 2 - 16, '#f08080', 2, 1);
-        drawNesTextCentered(ctx, 'BACK TO 2026...', width / 2, height / 2 + 2, P.uiBorder, 1, 1);
+        drawNesTextCentered(ctx, 'КОНЕЦ ИГРЫ', width / 2, height / 2 - 16, '#f08080', 2, 1);
+        drawNesTextCentered(ctx, 'НАЗАД В 2026...', width / 2, height / 2 + 2, P.uiBorder, 1, 1);
       }
 
       if (phase === 'cleared') {
         ctx.fillStyle = 'rgba(4, 12, 8, 0.45)';
         ctx.fillRect(0, 0, width, height);
-        const gw = measureNesText('LEVEL 2 CLEAR', 2, 1) + 24;
+        const gw = measureNesText('УР. 2 ПРОЙДЕН', 2, 1) + 24;
         segaBox(
           ctx,
           Math.round((width - gw) / 2),
@@ -664,8 +667,8 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
           '#40c878',
           { borderDark: '#206040', fillHi: '#102818' },
         );
-        drawNesTextCentered(ctx, 'LEVEL 2 CLEAR', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
-        drawNesTextCentered(ctx, 'MOTHER HOME SAFE', width / 2, height / 2 + 4, P.uiBorder, 1, 1);
+        drawNesTextCentered(ctx, 'УР. 2 ПРОЙДЕН', width / 2, height / 2 - 16, '#a0f0c0', 2, 1);
+        drawNesTextCentered(ctx, 'МАМА ДОМА В БЕЗОПАСНОСТИ', width / 2, height / 2 + 4, P.uiBorder, 1, 1);
       }
     },
 

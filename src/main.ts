@@ -15,6 +15,7 @@ import {
 import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
+import { BeerSystem } from './systems/BeerSystem';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
 import { createPodezd1995Scene } from './scenes/Podezd1995';
@@ -49,10 +50,11 @@ function bootstrap(): void {
 
   const player = new Player({ x: 100, y: 192, era: 'adult' });
   const hud = new HUD();
+  const beer = new BeerSystem();
 
-  const apartment = createApartment2026Scene({ states, player, hud });
-  const rynok = createRynok1995Scene({ states, player, hud });
-  const podezd = createPodezd1995Scene({ states, player, hud });
+  const apartment = createApartment2026Scene({ states, player, hud, beer });
+  const rynok = createRynok1995Scene({ states, player, hud, beer });
+  const podezd = createPodezd1995Scene({ states, player, hud, beer });
 
   states.register('apartment_2026', apartment);
   states.register('rynok_1995', rynok);
@@ -108,7 +110,9 @@ function bootstrap(): void {
           ? rynok.getDialogue()
           : scene === 'podezd_1995'
             ? podezd.getDialogue()
-            : null;
+            : scene === 'apartment_2026'
+              ? apartment.getDialogue()
+              : null;
       if (!d || !d.isOpen || !d.hasChoices) return { active: false };
       const labels = d.choiceLabels;
       return { active: true, labels: labels ?? undefined };
@@ -124,7 +128,9 @@ function bootstrap(): void {
         ? rynok.getDialogue()
         : scene === 'podezd_1995'
           ? podezd.getDialogue()
-          : null;
+          : scene === 'apartment_2026'
+            ? apartment.getDialogue()
+            : null;
     if (!d || !d.isOpen) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
@@ -161,6 +167,8 @@ function bootstrap(): void {
     player,
     input,
     hud,
+    beer,
+    apartment,
     rynok,
     podezd,
     touch,

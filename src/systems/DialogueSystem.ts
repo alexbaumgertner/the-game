@@ -259,7 +259,7 @@ export class DialogueSystem {
     this.drawWrapped(ctx, shown, pad + 6, y + 20, canvasWidth - pad * 2 - 12, '#e8e4d8');
 
     if (!this.revealComplete) {
-      drawNesText(ctx, 'Z/ENTER', canvasWidth - 52, y + boxH - 10, '#887848', 1, 1);
+      drawNesText(ctx, 'ENTER', canvasWidth - 42, y + boxH - 10, '#887848', 1, 1);
       return;
     }
 
@@ -273,7 +273,7 @@ export class DialogueSystem {
         ctx.fillStyle = pct < 0.33 ? '#e04040' : pct < 0.6 ? '#f0c040' : '#40c878';
         ctx.fillRect(pad + 6, y + 34, Math.round(barW * pct), 4);
         const sec = Math.ceil(Math.max(0, this.choiceTimer));
-        drawNesText(ctx, `${sec}S`, pad + 6 + barW - 16, y + 34, '#f0e8c8', 1, 1);
+        drawNesText(ctx, `${sec}С`, pad + 6 + barW - 16, y + 34, '#f0e8c8', 1, 1);
       }
 
       line.choices.forEach((c, i) => {
@@ -285,7 +285,7 @@ export class DialogueSystem {
         drawNesText(ctx, c.label.toUpperCase(), pad + 22, cy, '#d8d0c0', 1, 1);
       });
     } else {
-      drawNesText(ctx, 'Z/ENTER', canvasWidth - 52, y + boxH - 10, '#887848', 1, 1);
+      drawNesText(ctx, 'ENTER', canvasWidth - 42, y + boxH - 10, '#887848', 1, 1);
     }
   }
 
@@ -346,38 +346,38 @@ export const FATHER_STALL_SCRIPT: DialogueScript = {
   start: 'intro',
   lines: {
     intro: {
-      speaker: 'Father',
-      text: 'They took your mother coat! I freeze - what do I do?',
+      speaker: 'Отец',
+      text: 'Шубу у мамы сперли! Я остолбенел - что делать?',
       next: 'choice',
     },
     choice: {
-      speaker: 'Father',
-      text: 'Son - talk to me. Quick!',
+      speaker: 'Отец',
+      text: 'Сынок - скажи что-нибудь. Быстро!',
       choiceTimeLimit: 7,
       timeoutChoiceIndex: 1,
       choices: [
         {
           id: 'steady',
-          label: 'Steady. I got this.',
+          label: 'Держись. Я разберусь.',
           effect: 'calm_father',
           next: 'calm_ok',
         },
         {
           id: 'empty',
-          label: 'It will be fine...',
+          label: 'Всё будет хорошо...',
           effect: 'wrong_reassure',
           next: 'panic_worse',
         },
       ],
     },
     calm_ok: {
-      speaker: 'Father',
-      text: 'Da. Eyes sharp. Get the coat - I hold the stall.',
+      speaker: 'Отец',
+      text: 'Да. Глаза востро. Забери шубу - я у лотка.',
       next: null,
     },
     panic_worse: {
-      speaker: 'Father',
-      text: 'Empty words! They come back harder - MOVE!',
+      speaker: 'Отец',
+      text: 'Пустые слова! Они ещё злее - ДВИГАЙ!',
       next: null,
     },
   },
@@ -389,43 +389,43 @@ export const PODEZD_LANDING_SCRIPT: DialogueScript = {
   start: 'thug_intro',
   lines: {
     thug_intro: {
-      speaker: 'Thug',
-      text: 'Podiezd sem. Kryusha money. Mama stays until you pay.',
+      speaker: 'Гопник',
+      text: 'Подъезд семь. Крыша. Мама тут, пока не заплатите.',
       next: 'mother_line',
     },
     mother_line: {
-      speaker: 'Mother',
-      text: 'Sasha - carefully. Speak true. Timer is short.',
+      speaker: 'Мама',
+      text: 'Саша - осторожно. Говори правду. Времени мало.',
       next: 'choice',
     },
     choice: {
-      speaker: 'You',
-      text: 'What do you say?',
+      speaker: 'Зуич',
+      text: 'Что ответить?',
       choiceTimeLimit: 7,
       timeoutChoiceIndex: 1,
       choices: [
         {
           id: 'stand',
-          label: 'Back off. She is with me.',
+          label: 'Отвали. Она со мной.',
           effect: 'calm_mother',
           next: 'stand_ok',
         },
         {
           id: 'empty',
-          label: 'We have nothing...',
+          label: 'У нас ничего нет...',
           effect: 'wrong_reassure',
           next: 'panic_worse',
         },
       ],
     },
     stand_ok: {
-      speaker: 'Mother',
-      text: 'Good. Hold my hand - we climb. Eyes on the landings.',
+      speaker: 'Мама',
+      text: 'Хорошо. Держи руку - поднимаемся. Смотри площадки.',
       next: null,
     },
     panic_worse: {
-      speaker: 'Thug',
-      text: 'Empty pockets? Then fists. Upper floor - GO!',
+      speaker: 'Гопник',
+      text: 'Пустые карманы? Тогда кулаки. Наверх - ПОШЁЛ!',
       next: null,
     },
   },
@@ -433,5 +433,5 @@ export const PODEZD_LANDING_SCRIPT: DialogueScript = {
 
 /** Debug helper so TypeScript callers can assert portrait-free overlay. */
 export function dialogueChoiceHint(): string {
-  return '1 / 2 choose · Z advance · timer auto-picks';
+  return '1 / 2 выбор · ENTER дальше · таймер сам выберет';
 }

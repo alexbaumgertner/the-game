@@ -1,5 +1,5 @@
 /**
- * HUD — Genesis-style Mental Fortitude + Street Swagger panels.
+ * HUD — Genesis-style Mental Fortitude + Street Swagger panels (RU).
  */
 
 import { segaBox } from '@/art/pixelDraw';
@@ -25,7 +25,7 @@ export class HUD {
   private snapshot: HudSnapshot = {
     hp: 3000,
     maxHp: 3000,
-    eraLabel: 'ADULT · 2026',
+    eraLabel: 'ЗУИЧ · 2026',
     fortitude: 3000,
     maxFortitude: 3000,
     swagger: 0,
@@ -70,7 +70,7 @@ export class HUD {
       fillHi: APT_PAL.uiBoxHi,
     });
 
-    drawNesText(ctx, `MF ${Math.round(mf)}/${mfMax}`, 7, 7, SEGA.white, 1, 1);
+    drawNesText(ctx, `СД ${Math.round(mf)}/${mfMax}`, 7, 7, SEGA.white, 1, 1);
 
     const barX = 7;
     const barY = 17;
@@ -92,7 +92,7 @@ export class HUD {
 
     let nextY = 25;
     if (showSwagger) {
-      drawNesText(ctx, `SWAG ${Math.round(sw)}`, 7, nextY, TEEN_PAL.scarfHi, 1, 1);
+      drawNesText(ctx, `ПОНТ ${Math.round(sw)}`, 7, nextY, TEEN_PAL.scarfHi, 1, 1);
       nextY = 33;
       const sBarY = nextY;
       ctx.fillStyle = '#1a1828';
@@ -124,7 +124,7 @@ export class HUD {
     if (paused) {
       ctx.fillStyle = 'rgba(8, 8, 14, 0.72)';
       ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-      const pw = measureNesText('PAUSED', 2, 1) + 20;
+      const pw = measureNesText('ПАУЗА', 2, 1) + 20;
       segaBox(
         ctx,
         Math.round((canvasWidth - pw) / 2),
@@ -135,7 +135,7 @@ export class HUD {
         APT_PAL.uiBorder,
         { borderDark: APT_PAL.uiBorderDark },
       );
-      drawNesTextCentered(ctx, 'PAUSED', canvasWidth / 2, canvasHeight / 2 - 4, SEGA.white, 2, 1);
+      drawNesTextCentered(ctx, 'ПАУЗА', canvasWidth / 2, canvasHeight / 2 - 4, SEGA.white, 2, 1);
     }
 
     ctx.restore();
