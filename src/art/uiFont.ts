@@ -94,8 +94,36 @@ export function fitUiText(
   return `${t}…`;
 }
 
+/** Label+arrow duration after entering a hotspot; then arrow-only while inside. */
+export const HOTSPOT_LABEL_SEC = 5;
+
 /**
- * World interact cue: ↑ + short CTA, subtle bob — no strobing squares.
+ * Per-hotspot enter clock: on enter → label for {@link HOTSPOT_LABEL_SEC}s,
+ * then arrow only until the player leaves and re-enters.
+ */
+export class HotspotHintClock {
+  private enteredAt = new Map<string, number>();
+
+  sample(id: string, inside: boolean, nowSec: number): { active: boolean; showLabel: boolean } {
+    if (!inside) {
+      this.enteredAt.delete(id);
+      return { active: false, showLabel: false };
+    }
+    let t0 = this.enteredAt.get(id);
+    if (t0 === undefined) {
+      t0 = nowSec;
+      this.enteredAt.set(id, t0);
+    }
+    return { active: true, showLabel: nowSec - t0 < HOTSPOT_LABEL_SEC };
+  }
+
+  clear(): void {
+    this.enteredAt.clear();
+  }
+}
+
+/**
+ * World interact cue: ↑ + compact CTA (optional), subtle bob — no strobing squares.
  * Soft text+shadow only (minimal chrome).
  */
 export function drawInteractPrompt(
@@ -104,15 +132,23 @@ export function drawInteractPrompt(
   anchorY: number,
   label: string,
   timeSec: number,
-  opts: { color?: string; size?: number } = {},
+  opts: { color?: string; size?: number; showLabel?: boolean } = {},
 ): void {
   const color = opts.color ?? '#f8f0d0';
-  const size = opts.size ?? 7;
+  const size = opts.size ?? 5.5;
+  const showLabel = opts.showLabel !== false;
   const bob = Math.sin(timeSec * 3.6) * 1.5;
   const y = Math.round(anchorY + bob) - size - 4;
-  const text = `↑ ${label}`;
-  const tw = measureUiText(ctx, text, size, 650);
-  drawUiText(ctx, text, Math.round(anchorX - tw / 2), y, color, size, 650);
+  if (showLabel) {
+    const text = `↑ ${label}`;
+    const tw = measureUiText(ctx, text, size, 550);
+    drawUiText(ctx, text, Math.round(anchorX - tw / 2), y, color, size, 550);
+  } else {
+    const arrow = '↑';
+    const arrowSize = size + 1.5;
+    const tw = measureUiText(ctx, arrow, arrowSize, 700);
+    drawUiText(ctx, arrow, Math.round(anchorX - tw / 2), y, color, arrowSize, 700);
+  }
 }
 
 /** Slim translucent HUD panel — lighter than chunky segaBox. */

@@ -15,6 +15,7 @@ import {
   drawInteractPrompt,
   drawUiText,
   drawUiTextCentered,
+  HotspotHintClock,
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
@@ -87,6 +88,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const dialogue = new DialogueSystem();
   let introStarted = false;
   let beerCans: BeerCan[] = [];
+  const hotspotHints = new HotspotHintClock();
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
@@ -257,6 +259,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       diaryCursor = 0;
       dialogue.resetSilent();
       introStarted = false;
+      hotspotHints.clear();
       beerCans = [
         { x: 48, taken: false },
         { x: 168, taken: false },
@@ -361,7 +364,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           draw: (c) => {
             player.render(c, alpha);
             drawCat(c, time);
-            drawHotspotHints(c, states, beerCans, time);
+            if (!dialogue.isOpen && overlay === 'none') {
+              drawHotspotHints(c, states, beerCans, time, player.x, hotspotHints);
+            }
           },
         },
         {
@@ -417,8 +422,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
 
       if (states.flags.introDone) {
-        beer.renderHud(ctx, width);
+        // Gray + мыслепоток under beer chrome so HUD stays readable.
         beer.renderCrisis(ctx, width, height);
+        beer.renderHud(ctx, width);
       }
     },
 
@@ -489,31 +495,74 @@ function drawRedDoor(ctx: CanvasRenderingContext2D): void {
 }
 
 function drawNuMetalPoster(ctx: CanvasRenderingContext2D): void {
-  // Stylized nu-metal 2000s / Aerials-vibe tribute — desert + lone figure, NO logo/brand
-  const x = 142;
-  const y = 22;
-  // Paper + black frame
-  px(ctx, x, y, 50, 46, '#100818');
-  px(ctx, x + 2, y + 2, 46, 42, '#c8b090');
-  px(ctx, x + 3, y + 3, 44, 40, '#2a1848');
-  // Purple/orange sky wash
-  ditherRect(ctx, x + 4, y + 4, 42, 18, '#3a2060', '#e07038');
-  px(ctx, x + 4, y + 4, 42, 6, '#504888');
-  // Desert dunes
-  px(ctx, x + 4, y + 24, 42, 16, '#c08848');
-  px(ctx, x + 4, y + 22, 42, 4, '#e0a858');
-  ditherRect(ctx, x + 4, y + 28, 42, 10, '#c08848', '#8a6030');
-  // Lone figure, arms wide (aerial silhouette — original pixel tribute)
-  px(ctx, x + 24, y + 14, 3, 12, '#101018');
-  px(ctx, x + 16, y + 16, 20, 2, '#101018');
-  px(ctx, x + 14, y + 15, 3, 2, '#181820');
-  px(ctx, x + 34, y + 15, 3, 2, '#181820');
-  px(ctx, x + 24, y + 10, 3, 4, '#181820');
-  // Tiny sun
-  px(ctx, x + 36, y + 8, 4, 4, '#f0c060');
-  // Torn corners
-  px(ctx, x + 46, y + 4, 2, 2, P.wallBase);
-  px(ctx, x + 2, y + 40, 2, 2, P.wallBase);
+  // Stylized nu-metal / Aerials-vibe pixel tribute — desert + lone figure.
+  // Original composition (no logos / no copyrighted art 1:1). Must read clearly vs wallpaper.
+  const x = 136;
+  const y = 12;
+  const w = 62;
+  const h = 58;
+
+  // Wall drop-shadow so the frame pops off stained wallpaper
+  px(ctx, x + 3, y + 3, w, h, '#2a2018');
+  // Thick black poster frame
+  px(ctx, x, y, w, h, '#0c0c12');
+  px(ctx, x + 1, y + 1, w - 2, h - 2, '#1a1420');
+  // Cream mat / aged paper edge
+  px(ctx, x + 3, y + 3, w - 6, h - 6, '#e8d8b0');
+  px(ctx, x + 4, y + 4, w - 8, h - 8, '#2a1848');
+
+  const ix = x + 5;
+  const iy = y + 5;
+  const iw = w - 10;
+  const ih = h - 10;
+
+  // Sky: violet → hot orange (Aerials desert dusk vibe)
+  px(ctx, ix, iy, iw, 10, '#3a2878');
+  px(ctx, ix, iy + 8, iw, 8, '#7040a0');
+  ditherRect(ctx, ix, iy + 14, iw, 10, '#a05070', '#e07830');
+  px(ctx, ix, iy + 20, iw, 6, '#e88838');
+  // Bright sun / glow
+  px(ctx, ix + iw - 16, iy + 6, 8, 8, '#f8e070');
+  px(ctx, ix + iw - 14, iy + 8, 4, 4, '#fff0a8');
+  // Soft ray accents (original, not album art)
+  px(ctx, ix + 8, iy + 10, 10, 1, '#c090e0');
+  px(ctx, ix + 18, iy + 14, 8, 1, '#d0a070');
+
+  // Layered dunes — high contrast sand
+  px(ctx, ix, iy + 26, iw, ih - 26, '#c88840');
+  px(ctx, ix, iy + 24, iw, 4, '#f0b858');
+  // Far dune ridge
+  px(ctx, ix + 2, iy + 28, 18, 4, '#d89850');
+  px(ctx, ix + 20, iy + 26, 22, 3, '#e0a860');
+  px(ctx, ix + 40, iy + 29, 16, 4, '#d09048');
+  ditherRect(ctx, ix, iy + 34, iw, ih - 34, '#b87838', '#8a5828');
+  // Near dune shadow
+  px(ctx, ix, iy + ih - 8, iw, 8, '#8a5028');
+  px(ctx, ix + 10, iy + ih - 10, 28, 3, '#a06830');
+
+  // Lone figure, arms wide — bold silhouette (readable at a glance)
+  const fx = ix + Math.floor(iw / 2) - 1;
+  const fy = iy + 18;
+  // Head
+  px(ctx, fx, fy, 4, 5, '#080810');
+  // Torso
+  px(ctx, fx, fy + 5, 4, 14, '#080810');
+  // Arms outstretched
+  px(ctx, fx - 12, fy + 7, 28, 3, '#080810');
+  px(ctx, fx - 14, fy + 6, 4, 3, '#101018');
+  px(ctx, fx + 12, fy + 6, 4, 3, '#101018');
+  // Legs slightly apart
+  px(ctx, fx - 1, fy + 18, 2, 8, '#080810');
+  px(ctx, fx + 2, fy + 18, 2, 8, '#080810');
+  // Tiny highlight on shoulder so figure reads against dunes
+  px(ctx, fx + 3, fy + 6, 1, 3, '#303040');
+
+  // Tape / pin marks on corners (lived-in bedroom)
+  px(ctx, x + 4, y + 4, 5, 3, '#d0c090');
+  px(ctx, x + w - 9, y + 4, 5, 3, '#d0c090');
+  px(ctx, x + 4, y + h - 7, 5, 3, '#c8b888');
+  // Slightly torn bottom-right corner
+  px(ctx, x + w - 5, y + h - 6, 3, 3, P.wallBase);
 }
 
 function drawComputerJunk(ctx: CanvasRenderingContext2D): void {
@@ -747,19 +796,35 @@ function drawHotspotHints(
   states: StateManager,
   beerCans: BeerCan[],
   timeSec: number,
+  playerX: number,
+  clock: HotspotHintClock,
 ): void {
   if (!states.flags.introDone) return;
 
-  // Arrow + CTA over комод / beer — no strobing squares
-  if (!states.flags.diaryUnlocked) {
-    drawInteractPrompt(ctx, DRESSER_X + DRESSER_W / 2, FLOOR_Y - 58, 'Открыть комод', timeSec);
-  } else {
-    drawInteractPrompt(ctx, DRESSER_X + DRESSER_W / 2, FLOOR_Y - 58, 'Открыть дневник', timeSec);
+  // Proximity: on enter → compact ↑+text for ~5s, then ↑ only until leave/re-enter.
+  const nearDresser = playerX >= DRESSER_X && playerX <= DRESSER_X + DRESSER_W;
+  const dresser = clock.sample('dresser', nearDresser, timeSec);
+  if (dresser.active) {
+    const label = states.flags.diaryUnlocked ? 'Открыть дневник' : 'Открыть комод';
+    drawInteractPrompt(ctx, DRESSER_X + DRESSER_W / 2, FLOOR_Y - 58, label, timeSec, {
+      size: 5.5,
+      showLabel: dresser.showLabel,
+    });
   }
-  for (const c of beerCans) {
-    if (!c.taken) {
-      drawInteractPrompt(ctx, c.x, FLOOR_Y - 22, 'Взять пиво', timeSec, { size: 6.5 });
+
+  for (let i = 0; i < beerCans.length; i++) {
+    const c = beerCans[i]!;
+    if (c.taken) {
+      clock.sample(`beer-${i}`, false, timeSec);
+      continue;
     }
+    const near = Math.abs(playerX - c.x) < 18;
+    const hint = clock.sample(`beer-${i}`, near, timeSec);
+    if (!hint.active) continue;
+    drawInteractPrompt(ctx, c.x, FLOOR_Y - 22, 'Взять пиво', timeSec, {
+      size: 5.5,
+      showLabel: hint.showLabel,
+    });
   }
 }
 

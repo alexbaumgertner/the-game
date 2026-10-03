@@ -1,10 +1,11 @@
 /**
  * Beer thirst — ~every 2 minutes Zuich must drink a can or freeze in place.
  * Long “Применить бухло” hint shows once, then collapses to an icon.
+ * On freeze: gray desaturated screen + cycling мыслепоток until drink succeeds.
  * Disabled / paused during 1995 flashback levels.
  */
 
-import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
+import { drawUiText, drawUiTextCentered, measureUiText, uiPanel } from '@/art/uiFont';
 
 /** Seconds between drinks. */
 export const BEER_THIRST_SECONDS = 120;
@@ -12,14 +13,20 @@ export const BEER_THIRST_SECONDS = 120;
 export const BEER_HINT_LONG =
   'РАЗ В ~2 МИН НАЙДИ ПИВО И НАЖМИ B — ПРИМЕНИТЬ БУХЛО. БЕЗ НЕГО ЗУИЧ ВСТАНЕТ.';
 
+/** Internal monologue while stuck without beer. */
 export const CRISIS_LINES = [
-  'ЧТО СО МНОЙ?',
-  'ЧТО ПРОИСХОДИТ ВОКРУГ?',
-  'ЧТО С МИРОМ?',
-  'КТО Я?',
-  'ПОЧЕМУ ТАК ТЯЖЕЛО?',
-  'ГДЕ МОЁ ПИВО?',
+  'Что со мной?',
+  'Что происходит вокруг?',
+  'Что с миром?',
+  'Кто я?',
+  'Почему так тяжело?',
+  'Где моё пиво?',
+  'Почему всё серое?',
+  'Надо выпить…',
 ] as const;
+
+const THOUGHT_TRAIL_MAX = 4;
+const THOUGHT_CYCLE_SEC = 2.4;
 
 export class BeerSystem {
   /** Seconds until freeze. */
@@ -30,9 +37,14 @@ export class BeerSystem {
   enabled = true;
   /** True until first successful drink — show long hint. */
   showLongHint = true;
+  /** Newest crisis line (also last in thoughtTrail). */
   crisisLine: string | null = null;
   private crisisCooldown = 0;
   private crisisIndex = 0;
+  /** Fading trail of recent thoughts for мыслепоток. */
+  private thoughtTrail: string[] = [];
+  /** 0→1 progress through current thought cycle (for fade). */
+  private thoughtPulse = 0;
 
   get isFrozen(): boolean {
     return this.enabled && this.thirst <= 0;
@@ -49,7 +61,7 @@ export class BeerSystem {
 
   pauseForFlashback(): void {
     this.enabled = false;
-    this.crisisLine = null;
+    this.clearCrisis();
   }
 
   pickup(count = 1): void {
@@ -63,8 +75,7 @@ export class BeerSystem {
     this.cans -= 1;
     this.thirst = BEER_THIRST_SECONDS;
     this.showLongHint = false;
-    this.crisisLine = null;
-    this.crisisCooldown = 0;
+    this.clearCrisis();
     return true;
   }
 
@@ -73,15 +84,21 @@ export class BeerSystem {
 
     if (this.thirst > 0) {
       this.thirst = Math.max(0, this.thirst - dt);
-      this.crisisLine = null;
-      return;
+      if (this.thirst > 0) {
+        this.clearCrisis();
+        return;
+      }
+      // Just hit zero — start мыслепоток immediately.
+      this.crisisCooldown = 0;
     }
 
     this.crisisCooldown -= dt;
+    this.thoughtPulse = 1 - Math.max(0, this.crisisCooldown) / THOUGHT_CYCLE_SEC;
     if (this.crisisCooldown <= 0) {
-      this.crisisLine = CRISIS_LINES[this.crisisIndex % CRISIS_LINES.length]!;
+      this.pushThought(CRISIS_LINES[this.crisisIndex % CRISIS_LINES.length]!);
       this.crisisIndex += 1;
-      this.crisisCooldown = 2.4;
+      this.crisisCooldown = THOUGHT_CYCLE_SEC;
+      this.thoughtPulse = 0;
     }
   }
 
@@ -126,12 +143,73 @@ export class BeerSystem {
     ctx.fillRect(barX, barY, fill, 2);
   }
 
+  /**
+   * Full-screen gray / desaturate + cycling мыслепоток while frozen.
+   * Call before beer HUD so chrome stays readable on top.
+   */
   renderCrisis(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
-    if (!this.isFrozen || !this.crisisLine) return;
-    const tw = measureUiText(ctx, this.crisisLine, 8, 600) + 18;
-    const bx = Math.round((canvasWidth - tw) / 2);
-    const by = Math.round(canvasHeight / 2 - 20);
-    uiPanel(ctx, bx, by, tw, 18, 'rgba(20,8,12,0.88)', 'rgba(224,64,64,0.75)');
-    drawUiText(ctx, this.crisisLine, bx + 9, by + 5, '#f0c0c0', 8, 600);
+    if (!this.isFrozen) return;
+
+    // Desaturate already-drawn gameplay (saturation composite → gray source).
+    ctx.save();
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.restore();
+
+    // Cool gray wash — world stays readable but drained of color.
+    ctx.fillStyle = 'rgba(36, 38, 46, 0.48)';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    const trail =
+      this.thoughtTrail.length > 0
+        ? this.thoughtTrail
+        : this.crisisLine
+          ? [this.crisisLine]
+          : ['Что со мной?'];
+
+    const baseY = Math.round(canvasHeight * 0.34);
+    const lineH = 16;
+
+    for (let i = 0; i < trail.length; i++) {
+      const line = trail[i]!;
+      const fromEnd = trail.length - 1 - i;
+      const isNewest = fromEnd === 0;
+      // Older thoughts fade and sit higher.
+      const alpha = isNewest
+        ? 0.55 + 0.45 * Math.min(1, this.thoughtPulse + 0.25)
+        : Math.max(0.18, 0.55 - fromEnd * 0.14);
+      const y = baseY - fromEnd * lineH;
+      const label = `«${line}»`;
+      const size = isNewest ? 9 : 7.5;
+      const weight = isNewest ? 600 : 500;
+      const color = isNewest
+        ? `rgba(232, 228, 220, ${alpha.toFixed(3)})`
+        : `rgba(170, 172, 180, ${alpha.toFixed(3)})`;
+      drawUiTextCentered(ctx, label, canvasWidth / 2, y, color, size, weight);
+    }
+
+    // Persistent drink prompt while stuck.
+    const hint = 'B — применить бухло';
+    const hintW = measureUiText(ctx, hint, 7, 600) + 16;
+    const hx = Math.round((canvasWidth - hintW) / 2);
+    const hy = canvasHeight - 36;
+    uiPanel(ctx, hx, hy, hintW, 16, 'rgba(12,10,8,0.78)', 'rgba(180,160,100,0.55)');
+    drawUiText(ctx, hint, hx + 8, hy + 4, '#e8d090', 7, 600);
+  }
+
+  private pushThought(line: string): void {
+    this.crisisLine = line;
+    this.thoughtTrail.push(line);
+    if (this.thoughtTrail.length > THOUGHT_TRAIL_MAX) {
+      this.thoughtTrail.shift();
+    }
+  }
+
+  private clearCrisis(): void {
+    this.crisisLine = null;
+    this.crisisCooldown = 0;
+    this.thoughtTrail = [];
+    this.thoughtPulse = 0;
   }
 }
