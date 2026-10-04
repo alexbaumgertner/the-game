@@ -42,9 +42,11 @@ const setupApartment = async () => {
       eraLabel: 'ЗУИЧ · 2026',
       levelTitle: 'Хрущёвка',
     });
-    g.player.x = 160;
+    // Living room (ROOM_ORIGIN=320) so gray + thoughts read over apartment, not toilet
+    g.player.x = 420;
     g.player.y = 192;
     g.player.era = 'adult';
+    g.apartment.setCamX?.(420 - 128);
     g.beer.enabled = true;
     g.beer.showLongHint = false;
     g.beer.cans = 3;
