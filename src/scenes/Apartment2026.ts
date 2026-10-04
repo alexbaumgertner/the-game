@@ -68,6 +68,12 @@ import {
 } from '@/data/levels';
 import { PIVO_FIRST_PICKUP } from '@/systems/TeaSystem';
 import type { ProgressFlags } from '@/core/StateManager';
+import { QuizSystem } from '@/systems/QuizSystem';
+import {
+  CHITALNYA_THEMES,
+  chitalnyaThemeUnlocked,
+  type ChitalnyaThemeId,
+} from '@/data/philosophyExpand';
 
 const WIDTH = LOGICAL_WIDTH;
 const FLOOR_Y = APT_FLOOR_Y;
@@ -78,13 +84,16 @@ const DESK_X = ROOM_ORIGIN + 92;
 /** Dresser (комод) hotspot. */
 const DRESSER_X = ROOM_ORIGIN + 236;
 const DRESSER_W = 70;
+/** Bookshelf «Читальня» near desk. */
+const BOOKSHELF_X = ROOM_ORIGIN + 40;
+const BOOKSHELF_W = 36;
 
 interface TeaCup {
   x: number;
   taken: boolean;
 }
 
-export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary';
+export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary' | 'chitalnya';
 
 export interface ApartmentSceneDeps {
   states: StateManager;
@@ -206,6 +215,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let depthCam = 0;
   const stack = new ParallaxStack();
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
+  let chitalnyaCursor = 0;
+  let chitalnyaTheme: ChitalnyaThemeId | null = null;
+  let chitalnyaQ = 0;
   let introStarted = false;
   let teaCups: TeaCup[] = [];
   const hotspotHints = new HotspotHintClock();
@@ -265,6 +278,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
   const nearDresser = (): boolean =>
     player.x >= DRESSER_X && player.x <= DRESSER_X + DRESSER_W;
+
+  const nearBookshelf = (): boolean =>
+    player.x >= BOOKSHELF_X && player.x <= BOOKSHELF_X + BOOKSHELF_W;
+
+  const chitalnyaAvailable = (): boolean =>
+    states.flags.level9Cleared || states.flags.level11Cleared || states.flags.level12Cleared;
 
   const nearTea = (): TeaCup | null => {
     for (const c of teaCups) {
@@ -329,7 +348,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       toastTimer = 0;
       return;
     }
-    if (overlay === 'diary') return;
+    if (overlay === 'diary' || overlay === 'chitalnya') return;
 
     if (!states.flags.introDone) return;
 
@@ -408,6 +427,16 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       return;
     }
 
+    if (nearBookshelf() && chitalnyaAvailable()) {
+      player.beginInspect(0.35);
+      overlay = 'chitalnya';
+      chitalnyaCursor = 0;
+      chitalnyaTheme = null;
+      quiz.closeSilent();
+      hud.set({ objective: 'Читальня — тема' });
+      return;
+    }
+
     if (nearDresser()) {
       player.beginInspect(0.4);
       if (!states.flags.diaryUnlocked) {
@@ -426,7 +455,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const tryDrink = (): void => {
     const input = states.input;
     if (!input?.justPressed('beer')) return;
-    if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo') return;
+    if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo' || overlay === 'chitalnya') return;
     if (beer.drink()) {
       showToast('ПИВО согрело.');
     } else if (beer.cups <= 0) {
@@ -463,6 +492,79 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   };
 
   const VISIBLE_ROWS = 6;
+
+
+  const updateChitalnya = (dt: number): void => {
+    const input = states.input;
+    if (!input) return;
+    if (quiz.isOpen) {
+      if (input.justPressed('choice1')) {
+        const r = quiz.selectAnswer(0);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice2')) {
+        const r = quiz.selectAnswer(1);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice3')) {
+        const r = quiz.selectAnswer(2);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice4')) {
+        const r = quiz.selectAnswer(3);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('hint') && quiz.takeHint()) {
+        player.takeDamage(14, -1);
+      }
+      quiz.update(dt);
+      return;
+    }
+
+    const unlocked = CHITALNYA_THEMES.filter((th) =>
+      chitalnyaThemeUnlocked(th, states.flags),
+    );
+    if (unlocked.length === 0) {
+      if (input.justPressed('confirm') || input.justPressed('interact') || input.justPressed('kick')) {
+        overlay = 'none';
+      }
+      return;
+    }
+
+    if (chitalnyaTheme === null) {
+      if (input.justPressed('up') || input.justPressed('left')) {
+        chitalnyaCursor = Math.max(0, chitalnyaCursor - 1);
+      }
+      if (input.justPressed('down') || input.justPressed('right')) {
+        chitalnyaCursor = Math.min(unlocked.length - 1, chitalnyaCursor + 1);
+      }
+      if (input.justPressed('kick')) {
+        overlay = 'none';
+        return;
+      }
+      if (input.justPressed('confirm') || input.justPressed('interact')) {
+        const th = unlocked[chitalnyaCursor];
+        if (!th) return;
+        chitalnyaTheme = th.id;
+        chitalnyaQ = 0;
+        quiz.openFromBank('Читальня', th.bank, 0, () => {
+          chitalnyaQ += 1;
+          if (chitalnyaQ >= 3) {
+            showToast('Хватит на сегодня. Можно ещё.', 2);
+            chitalnyaTheme = null;
+          } else {
+            quiz.openFromBank('Читальня', th.bank, chitalnyaQ);
+          }
+        });
+      }
+      return;
+    }
+
+    if (input.justPressed('kick')) {
+      quiz.closeSilent();
+      chitalnyaTheme = null;
+    }
+  };
 
   const updateDiarySelect = (dt: number): void => {
     void dt;
@@ -640,6 +742,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         updateDiarySelect(dt);
         return;
       }
+      if (overlay === 'chitalnya') {
+        updateChitalnya(dt);
+        return;
+      }
 
       if (overlay === 'photo') {
         tryInteract();
@@ -754,6 +860,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       if (overlay === 'diary') {
         drawDiarySelect(ctx, width, height, diaryCursor, diaryScroll, states.flags);
       }
+      if (overlay === 'chitalnya') {
+        drawChitalnya(ctx, width, height, chitalnyaCursor, states.flags, chitalnyaTheme);
+        if (quiz.isOpen) quiz.render(ctx, width, height);
+      }
 
       if (dialogue.isOpen) {
         dialogue.render(ctx, width, height);
@@ -768,6 +878,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     getDialogue(): DialogueSystem {
       return dialogue;
+    },
+
+    getQuiz(): QuizSystem {
+      return quiz;
     },
 
     /** Debug / capture helper — force UI overlay. */
@@ -843,6 +957,7 @@ function drawLivingRoom(
   drawDeskAndPc(ctx);
   drawComputerJunk(ctx);
   drawDresser(ctx);
+  drawBookshelfProp(ctx);
   // No desk lamp / soft bloom above the PC (user request)
   drawBaseboard(ctx, width);
 }
@@ -1123,6 +1238,20 @@ function drawHotspotHints(
 ): void {
   if (!states.flags.introDone) return;
 
+  const nearShelf =
+    playerX >= BOOKSHELF_X &&
+    playerX <= BOOKSHELF_X + BOOKSHELF_W &&
+    (states.flags.level9Cleared ||
+      states.flags.level11Cleared ||
+      states.flags.level12Cleared);
+  const shelf = clock.sample('bookshelf', nearShelf, timeSec);
+  if (shelf.active) {
+    drawInteractPrompt(ctx, BOOKSHELF_X + BOOKSHELF_W / 2, FLOOR_Y - 58, 'Читальня', timeSec, {
+      size: 5.5,
+      showLabel: shelf.showLabel,
+    });
+  }
+
   const nearDress = playerX >= DRESSER_X && playerX <= DRESSER_X + DRESSER_W;
   const dresser = clock.sample('dresser', nearDress, timeSec);
   if (dresser.active) {
@@ -1375,4 +1504,60 @@ function drawDiarySelect(
 
   const hint = `Enter / E — ур. ${cursor + 1}`;
   drawUiTextCentered(ctx, hint, width / 2, by + bh - 10, P.uiText, 6.5, 550);
+}
+
+
+function drawBookshelfProp(ctx: CanvasRenderingContext2D): void {
+  const x = BOOKSHELF_X;
+  const y = FLOOR_Y - 52;
+  segaBox(ctx, x, y, BOOKSHELF_W, 52, '#3a2a18', '#8a6a40', { borderDark: '#2a1a10' });
+  for (let i = 0; i < 4; i++) {
+    px(ctx, x + 3 + i * 8, y + 6, 6, 14, ['#6a3040', '#304060', '#406040', '#604030'][i]!);
+  }
+  for (let i = 0; i < 4; i++) {
+    px(ctx, x + 3 + i * 8, y + 28, 6, 14, ['#405060', '#603040', '#305040', '#504030'][i]!);
+  }
+}
+
+function drawChitalnya(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cursor: number,
+  flags: ProgressFlags,
+  active: ChitalnyaThemeId | null,
+): void {
+  ctx.fillStyle = 'rgba(6, 8, 14, 0.9)';
+  ctx.fillRect(0, 0, width, height);
+  segaBox(ctx, 24, 20, width - 48, height - 40, '#243040', '#8090a8', { borderDark: '#405060' });
+  drawUiTextCentered(ctx, 'Читальня', width / 2, 32, '#e8e0d0', 9, 700);
+  drawUiTextCentered(ctx, 'Свободный квиз по темам', width / 2, 48, '#a0b0c0', 6, 500);
+
+  const unlocked = CHITALNYA_THEMES.filter((th) => chitalnyaThemeUnlocked(th, flags));
+  if (unlocked.length === 0) {
+    drawUiTextCentered(ctx, 'Пока закрыто — пройди ур. 9+', width / 2, 100, '#c0a090', 7, 550);
+    drawUiTextCentered(ctx, 'E / K — назад', width / 2, height - 36, '#8090a0', 6, 500);
+    return;
+  }
+
+  CHITALNYA_THEMES.forEach((th, i) => {
+    const ok = chitalnyaThemeUnlocked(th, flags);
+    const ly = 70 + i * 28;
+    const sel = ok && unlocked.indexOf(th) === cursor && active === null;
+    if (sel) {
+      segaBox(ctx, 40, ly - 4, width - 80, 24, '#304858', '#c8b878', {
+        borderDark: '#506878',
+        inset: false,
+      });
+    }
+    const title = ok ? th.title : `${th.title} · закрыто`;
+    drawUiText(ctx, `${sel ? '>' : ' '} ${title}`, 48, ly, ok ? (sel ? '#e8d090' : '#d0d8e0') : '#607080', 7, 600);
+    drawUiText(ctx, ok ? `${th.bank.length} вопросов` : `после ур. ${th.unlockAfterLevel}`, 48, ly + 12, '#8090a0', 5.5, 500);
+  });
+
+  if (active) {
+    drawUiTextCentered(ctx, 'Отвечай 1–4 · H подсказка · K к темам', width / 2, height - 36, '#c0d0e0', 6, 500);
+  } else {
+    drawUiTextCentered(ctx, 'Enter — тема · K — назад', width / 2, height - 36, '#c0d0e0', 6, 500);
+  }
 }
