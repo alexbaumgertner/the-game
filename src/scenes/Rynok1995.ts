@@ -21,6 +21,7 @@ import {
 } from '@/art/uiFont';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { drawMomSprite } from '@/art/momSprites';
+import { drawSnappedSnow } from '@/art/snowParticles';
 import { drawBusBridgeParallax, preloadBusBridgeViews } from '@/art/busBridgeViews';
 import { drawRynokBenchCouple, preloadRynokBenchCouple } from '@/art/rynokBenchCouple';
 import { ParallaxStack } from '@/render/ParallaxLayer';
@@ -387,7 +388,16 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         speedRatio: 1.25,
         zIndex: 50,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawSnowParticles(ctx, w, h, scroll),
+        draw: (ctx, scroll, _c, w, h) =>
+          drawSnappedSnow(
+            ctx,
+            w,
+            h,
+            scroll,
+            time,
+            { hi: R.snowHi, mid: R.snow, lo: R.snowMid },
+            56,
+          ),
       },
     ]);
   };
@@ -1219,22 +1229,6 @@ function drawGate(ctx: CanvasRenderingContext2D): void {
   px(ctx, 524, FLOOR_Y - 48, 16, 4, R.woodDark);
   px(ctx, 524, FLOOR_Y - 34, 16, 4, R.woodDark);
   px(ctx, 512, FLOOR_Y - 76, 40, 3, R.snow);
-}
-
-function drawSnowParticles(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  scroll: number,
-): void {
-  const t = performance.now() / 1000;
-  for (let i = 0; i < 56; i++) {
-    const sx = (i * 47 + Math.sin(t * 0.7 + i) * 12 + scroll * 0.35) % width;
-    const sy = (i * 29 + t * (18 + (i % 7) * 7)) % height;
-    const big = i % 4 === 0;
-    ctx.fillStyle = big ? R.snowHi : i % 3 === 0 ? R.snow : R.snowMid;
-    ctx.fillRect(Math.round(sx), Math.round(sy), big ? 2 : 1, big ? 2 : 1);
-  }
 }
 
 /** Sister companion — photo face from family portrait. */

@@ -11,6 +11,7 @@ import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { VOKZAL_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
+import { drawSnappedSnow } from '@/art/snowParticles';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -255,7 +256,12 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
         speedRatio: 0.85,
         zIndex: 50,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawSnow(ctx, w, h, scroll, time),
+        draw: (ctx, scroll, _c, w, h) =>
+          drawSnappedSnow(ctx, w, h, scroll, time, {
+            hi: P.snow,
+            mid: P.snow,
+            lo: P.snowMid,
+          }, 28),
       },
     ]);
   };
@@ -668,16 +674,3 @@ function drawParcel(ctx: CanvasRenderingContext2D, x: number, y: number): void {
   px(ctx, ox - 7, oy - 4, 14, 1, '#c8a050');
 }
 
-function drawSnow(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  scroll: number,
-  time: number,
-): void {
-  for (let i = 0; i < 28; i++) {
-    const x = ((i * 47 + scroll * 40 + time * 30) % (width + 20)) - 10;
-    const y = ((i * 31 + time * 45) % (height - 40)) + 10;
-    px(ctx, Math.round(x), Math.round(y), 1, 1, P.snow);
-  }
-}

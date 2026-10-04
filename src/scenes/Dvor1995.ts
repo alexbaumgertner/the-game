@@ -11,6 +11,7 @@ import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { DVOR_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, speckles } from '@/art/pixelDraw';
+import { drawSnappedSnow } from '@/art/snowParticles';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -273,13 +274,12 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
         speedRatio: 0.9,
         zIndex: 50,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => {
-          for (let i = 0; i < 22; i++) {
-            const x = ((i * 53 + scroll * 35 + time * 28) % (w + 16)) - 8;
-            const y = ((i * 29 + time * 40) % (h - 50)) + 8;
-            px(ctx, Math.round(x), Math.round(y), 1, 1, P.snow);
-          }
-        },
+        draw: (ctx, scroll, _c, w, h) =>
+          drawSnappedSnow(ctx, w, h, scroll, time, {
+            hi: P.snow,
+            mid: P.snow,
+            lo: P.snowMid,
+          }, 22),
       },
     ]);
   };

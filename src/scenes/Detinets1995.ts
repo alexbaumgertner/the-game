@@ -11,6 +11,7 @@ import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { DETINETS_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, speckles } from '@/art/pixelDraw';
+import { drawSnappedSnow } from '@/art/snowParticles';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -271,13 +272,12 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
         speedRatio: 0.9,
         zIndex: 50,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => {
-          for (let i = 0; i < 24; i++) {
-            const x = ((i * 49 + scroll * 32 + time * 30) % (w + 16)) - 8;
-            const y = ((i * 27 + time * 42) % (h - 50)) + 8;
-            px(ctx, Math.round(x), Math.round(y), 1, 1, P.snow);
-          }
-        },
+        draw: (ctx, scroll, _c, w, h) =>
+          drawSnappedSnow(ctx, w, h, scroll, time, {
+            hi: P.snow,
+            mid: P.snow,
+            lo: P.snowMid,
+          }, 24),
       },
     ]);
   };
