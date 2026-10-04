@@ -21,7 +21,7 @@ Open the URL Vite prints (default `http://localhost:5173`).
 |-------------------|----------------------------------|
 | `npm run dev`     | Vite dev server with HMR         |
 | `npm run build`   | Typecheck + production bundle    |
-| `npm run build:gh` | Production build with `base: /novgorod-1995/` (GitHub project Pages) |
+| `npm run build:gh` | Production build with `base: /the-game/` (GitHub project Pages) |
 | `npm run preview` | Serve the production build       |
 | `npm run typecheck` | TypeScript only (`tsc --noEmit`) |
 
@@ -35,6 +35,8 @@ Live site: https://alexbaumgertner.github.io/the-game/
 git push origin main
 git push github main   # → alexbaumgertner/the-game (Actions deploys Pages)
 ```
+
+Default Vite `base` is `/the-game/` (override with `VITE_BASE`, e.g. `VITE_BASE=/ npm run build` for a custom domain).
 
 Repo **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for `VITE_BASE` / URL patterns. Cursor rule: `.cursor/rules/github-pages-push.mdc`.
 

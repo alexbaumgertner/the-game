@@ -90,7 +90,7 @@ export interface ProgressFlags {
   level8Cleared: boolean;
 }
 
-const DEFAULT_FLAGS: ProgressFlags = {
+export const DEFAULT_FLAGS: ProgressFlags = {
   introDone: false,
   seenPhoto: false,
   diaryUnlocked: false,
@@ -129,6 +129,9 @@ export class StateManager {
   /** Shared progress flags (apartment puzzles → level unlock). */
   readonly flags: ProgressFlags = { ...DEFAULT_FLAGS };
 
+  /** Fired after a flag value actually changes (persistence hook; keeps this class storage-free). */
+  onFlagsChanged: ((flags: Readonly<ProgressFlags>) => void) | null = null;
+
   /** Optional shared input — scenes read this; disabled during fades. */
   input: Input | null = null;
 
@@ -152,7 +155,17 @@ export class StateManager {
   }
 
   setFlag<K extends keyof ProgressFlags>(key: K, value: ProgressFlags[K]): void {
+    if (this.flags[key] === value) return;
     this.flags[key] = value;
+    this.onFlagsChanged?.(this.flags);
+  }
+
+  /** Restore flags (e.g. from a save). Unknown keys are ignored; does not fire `onFlagsChanged`. */
+  loadFlags(partial: Partial<ProgressFlags>): void {
+    for (const key of Object.keys(DEFAULT_FLAGS) as (keyof ProgressFlags)[]) {
+      const v = partial[key];
+      if (typeof v === 'boolean') this.flags[key] = v;
+    }
   }
 
   /**

@@ -1,6 +1,7 @@
 import { GameLoop } from './core/GameLoop';
 import { Input } from './core/Input';
-import { StateManager } from './core/StateManager';
+import { StateManager, type ProgressFlags, type SceneHandlers, type SceneId } from './core/StateManager';
+import { clearSave, loadSave, writeSave } from './core/SaveGame';
 import {
   ART_SCALE,
   assertCrispTransform,
@@ -32,6 +33,12 @@ import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
+
+/** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
+type SceneEntry = SceneHandlers & {
+  getDialogue(): DialogueSystem;
+  getQuiz?(): QuizSystem;
+};
 
 function bootstrap(): void {
   const canvas = document.getElementById('game-canvas');
@@ -70,25 +77,47 @@ function bootstrap(): void {
   const hud = new HUD();
   const beer = new BeerSystem();
 
-  const apartment = createApartment2026Scene({ states, player, hud, beer });
-  const rynok = createRynok1995Scene({ states, player, hud, beer });
-  const podezd = createPodezd1995Scene({ states, player, hud, beer });
-  const vokzal = createVokzal1995Scene({ states, player, hud, beer });
-  const garazhi = createGarazhi1995Scene({ states, player, hud, beer });
-  const dvor = createDvor1995Scene({ states, player, hud, beer });
-  const most = createMost1995Scene({ states, player, hud, beer });
-  const diskoteka = createDiskoteka1995Scene({ states, player, hud, beer });
-  const detinets = createDetinets1995Scene({ states, player, hud, beer });
+  const deps = { states, player, hud, beer };
+  const apartment = createApartment2026Scene(deps);
+  const rynok = createRynok1995Scene(deps);
+  const podezd = createPodezd1995Scene(deps);
+  const vokzal = createVokzal1995Scene(deps);
+  const garazhi = createGarazhi1995Scene(deps);
+  const dvor = createDvor1995Scene(deps);
+  const most = createMost1995Scene(deps);
+  const diskoteka = createDiskoteka1995Scene(deps);
+  const detinets = createDetinets1995Scene(deps);
 
-  states.register('apartment_2026', apartment);
-  states.register('rynok_1995', rynok);
-  states.register('podezd_1995', podezd);
-  states.register('vokzal_1995', vokzal);
-  states.register('garazhi_1995', garazhi);
-  states.register('dvor_1995', dvor);
-  states.register('most_1995', most);
-  states.register('diskoteka_1995', diskoteka);
-  states.register('detinets_1995', detinets);
+  const scenes = {
+    apartment_2026: apartment,
+    rynok_1995: rynok,
+    podezd_1995: podezd,
+    vokzal_1995: vokzal,
+    garazhi_1995: garazhi,
+    dvor_1995: dvor,
+    most_1995: most,
+    diskoteka_1995: diskoteka,
+    detinets_1995: detinets,
+  } satisfies Record<SceneId, SceneEntry>;
+
+  for (const [id, handlers] of Object.entries(scenes) as [SceneId, SceneEntry][]) {
+    states.register(id, handlers);
+  }
+
+  // Restore saved progress before the first scene enters; start is always the apartment.
+  const save = loadSave();
+  if (save) {
+    states.loadFlags(save.flags);
+    beer.cans = save.beer.cans;
+  }
+  // After resetSave() the unload handlers must not write the old state back.
+  let saveDisabled = false;
+  const persist = (): void => {
+    if (!saveDisabled) writeSave({ flags: states.flags, beer });
+  };
+  states.onFlagsChanged = persist;
+  window.addEventListener('pagehide', persist);
+
   states.boot('apartment_2026', { era: 'ERA_2026' });
 
   const loop = new GameLoop({
@@ -116,10 +145,29 @@ function bootstrap(): void {
     },
   });
 
-  const togglePause = (): void => {
-    loop.togglePause();
+  const pauseGame = (): void => {
+    if (loop.isPaused) return;
+    loop.pause();
     hud.set({ paused: loop.isPaused });
   };
+
+  const resumeGame = (): void => {
+    if (!loop.isPaused) return;
+    loop.resume();
+    hud.set({ paused: loop.isPaused });
+  };
+
+  const togglePause = (): void => {
+    if (loop.isPaused) resumeGame();
+    else pauseGame();
+  };
+
+  // Backgrounded tab: save and pause; the player resumes manually on return.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    persist();
+    pauseGame();
+  });
 
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyP') {
@@ -128,32 +176,11 @@ function bootstrap(): void {
     }
   });
 
-  const sceneDialogue = (): DialogueSystem | null => {
-    const scene = states.current.scene;
-    if (scene === 'rynok_1995') return rynok.getDialogue();
-    if (scene === 'podezd_1995') return podezd.getDialogue();
-    if (scene === 'vokzal_1995') return vokzal.getDialogue();
-    if (scene === 'garazhi_1995') return garazhi.getDialogue();
-    if (scene === 'dvor_1995') return dvor.getDialogue();
-    if (scene === 'most_1995') return most.getDialogue();
-    if (scene === 'diskoteka_1995') return diskoteka.getDialogue();
-    if (scene === 'detinets_1995') return detinets.getDialogue();
-    if (scene === 'apartment_2026') return apartment.getDialogue();
-    return null;
-  };
+  const sceneDialogue = (): DialogueSystem | null =>
+    scenes[states.current.scene].getDialogue();
 
-  const sceneQuiz = (): QuizSystem | null => {
-    const scene = states.current.scene;
-    if (scene === 'rynok_1995') return rynok.getQuiz();
-    if (scene === 'podezd_1995') return podezd.getQuiz();
-    if (scene === 'vokzal_1995') return vokzal.getQuiz();
-    if (scene === 'garazhi_1995') return garazhi.getQuiz();
-    if (scene === 'dvor_1995') return dvor.getQuiz();
-    if (scene === 'most_1995') return most.getQuiz();
-    if (scene === 'diskoteka_1995') return diskoteka.getQuiz();
-    if (scene === 'detinets_1995') return detinets.getQuiz();
-    return null;
-  };
+  const sceneQuiz = (): QuizSystem | null =>
+    (scenes[states.current.scene] as SceneEntry).getQuiz?.() ?? null;
 
   injectTouchControlStyles();
   const touch = new TouchControls({
@@ -220,6 +247,27 @@ function bootstrap(): void {
     { passive: false },
   );
 
+  /** Debug level jumps: `gotoX` marks all earlier levels cleared, then fades into the scene. */
+  const LEVEL_JUMPS: { name: string; scene: SceneId }[] = [
+    { name: 'gotoRynok', scene: 'rynok_1995' },
+    { name: 'gotoPodezd', scene: 'podezd_1995' },
+    { name: 'gotoVokzal', scene: 'vokzal_1995' },
+    { name: 'gotoGarazhi', scene: 'garazhi_1995' },
+    { name: 'gotoDvor', scene: 'dvor_1995' },
+    { name: 'gotoMost', scene: 'most_1995' },
+    { name: 'gotoDiskoteka', scene: 'diskoteka_1995' },
+    { name: 'gotoDetinets', scene: 'detinets_1995' },
+  ];
+  const debugGotos: Record<string, () => void> = {};
+  LEVEL_JUMPS.forEach(({ name, scene }, index) => {
+    debugGotos[name] = () => {
+      for (let n = 1; n <= index; n++) {
+        states.setFlag(`level${n}Cleared` as keyof ProgressFlags, true);
+      }
+      states.goto(scene, { era: 'ERA_1995', fadeSeconds: 0.15 });
+    };
+  });
+
   loop.start();
 
   (window as unknown as { __novgorod?: unknown }).__novgorod = {
@@ -248,63 +296,12 @@ function bootstrap(): void {
       ART_SCALE,
       getMetrics: getDisplayMetrics,
     },
-    /** Debug: jump straight into rynok Level 1. */
-    gotoRynok: () => states.goto('rynok_1995', { era: 'ERA_1995', fadeSeconds: 0.15 }),
-    /** Debug: jump straight into подъезд Level 2. */
-    gotoPodezd: () => {
-      states.setFlag('level1Cleared', true);
-      states.goto('podezd_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into вокзал Level 3. */
-    gotoVokzal: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.goto('vokzal_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into гаражи Level 4. */
-    gotoGarazhi: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.setFlag('level3Cleared', true);
-      states.goto('garazhi_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into двор Level 5. */
-    gotoDvor: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.setFlag('level3Cleared', true);
-      states.setFlag('level4Cleared', true);
-      states.goto('dvor_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into мост Level 6. */
-    gotoMost: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.setFlag('level3Cleared', true);
-      states.setFlag('level4Cleared', true);
-      states.setFlag('level5Cleared', true);
-      states.goto('most_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into дискотека Level 7. */
-    gotoDiskoteka: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.setFlag('level3Cleared', true);
-      states.setFlag('level4Cleared', true);
-      states.setFlag('level5Cleared', true);
-      states.setFlag('level6Cleared', true);
-      states.goto('diskoteka_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
-    },
-    /** Debug: jump straight into детинец Level 8. */
-    gotoDetinets: () => {
-      states.setFlag('level1Cleared', true);
-      states.setFlag('level2Cleared', true);
-      states.setFlag('level3Cleared', true);
-      states.setFlag('level4Cleared', true);
-      states.setFlag('level5Cleared', true);
-      states.setFlag('level6Cleared', true);
-      states.setFlag('level7Cleared', true);
-      states.goto('detinets_1995', { era: 'ERA_1995', fadeSeconds: 0.15 });
+    ...debugGotos,
+    /** Debug: wipe the save and reload the page. */
+    resetSave: () => {
+      saveDisabled = true;
+      clearSave();
+      location.reload();
     },
     captureCanvas: () => canvas.toDataURL('image/png'),
   };
