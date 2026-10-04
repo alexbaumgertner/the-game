@@ -10,6 +10,10 @@ import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { GARAZHI_PAL } from '@/art/segaPalette';
+import {
+  drawGarazhiGraffiti,
+  preloadGarazhiGraffiti,
+} from '@/art/garazhiGraffiti';
 import { ditherRect, px, speckles, woodGrain } from '@/art/pixelDraw';
 import {
   drawUiText,
@@ -248,6 +252,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadGarazhiGraffiti();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -256,7 +261,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -541,7 +546,9 @@ function drawGarazhiWorld(
   speckles(ctx, 0, FLOOR_Y, worldW, 20, P.snowMid, 30, 1);
 
   for (let i = 0; i < 5; i++) {
-    drawGarageBox(ctx, 20 + i * 100, FLOOR_Y, i % 2 === 0);
+    const gx = 20 + i * 100;
+    drawGarageBox(ctx, gx, FLOOR_Y, i % 2 === 0);
+    drawGarageGraffiti(ctx, gx, FLOOR_Y, i);
   }
 
   // Cars under tarps
@@ -583,6 +590,38 @@ function drawGarageBox(
   // Number plate
   px(ctx, x + 34, floorY - 64, 16, 8, '#2a2820');
   px(ctx, x + 36, floorY - 62, 12, 4, P.rustHi);
+}
+
+/** Large «Гараж» film stills wheatpasted on doors / side metal. */
+function drawGarageGraffiti(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  floorY: number,
+  index: number,
+): void {
+  // Door face sits at floorY-58..floorY-6, width ~72 (closed) / right leaf ~34 (openish).
+  switch (index) {
+    case 0:
+      // Openish — big landscape plate on the closed leaf + overhang
+      drawGarazhiGraffiti(ctx, 'gaftAkhedzhakova', x + 30, floorY - 54, 50, 38);
+      drawGarazhiGraffiti(ctx, 'brondukov', x + 10, floorY - 52, 22, 28);
+      break;
+    case 1:
+      drawGarazhiGraffiti(ctx, 'ryazanovHippo', x + 10, floorY - 56, 68, 44);
+      break;
+    case 2:
+      drawGarazhiGraffiti(ctx, 'couple', x + 44, floorY - 56, 34, 46);
+      drawGarazhiGraffiti(ctx, 'akhedzhakovaScarf', x + 10, floorY - 50, 28, 22);
+      break;
+    case 3:
+      drawGarazhiGraffiti(ctx, 'nemolyaeva', x + 12, floorY - 56, 64, 44);
+      break;
+    case 4:
+      drawGarazhiGraffiti(ctx, 'gaftMonkey', x + 10, floorY - 56, 68, 44);
+      break;
+    default:
+      break;
+  }
 }
 
 function drawTarpCar(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
