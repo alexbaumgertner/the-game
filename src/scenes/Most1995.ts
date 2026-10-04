@@ -11,6 +11,7 @@ import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { MOST_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
+import { drawSnappedSnow } from '@/art/snowParticles';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -246,13 +247,12 @@ export function createMost1995Scene(deps: MostSceneDeps) {
         speedRatio: 0.85,
         zIndex: 50,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => {
-          for (let i = 0; i < 20; i++) {
-            const x = ((i * 51 + scroll * 30 + time * 26) % (w + 16)) - 8;
-            const y = ((i * 31 + time * 38) % (h - 50)) + 8;
-            px(ctx, Math.round(x), Math.round(y), 1, 1, P.snow);
-          }
-        },
+        draw: (ctx, scroll, _c, w, h) =>
+          drawSnappedSnow(ctx, w, h, scroll, time, {
+            hi: P.snow,
+            mid: P.snow,
+            lo: P.snowMid,
+          }, 20),
       },
     ]);
   };

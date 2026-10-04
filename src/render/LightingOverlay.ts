@@ -1,49 +1,38 @@
 /**
- * Neo-Noir dynamic lighting — Canvas blend modes over the pixel buffer.
+ * Mega Drive–style lighting — stepped brightness + checker dither.
  *
  * Pipeline (after gameplay, before HUD):
  *   1. Ambient multiply wash (cold winter night)
- *   2. Trash-fire / point glows via `screen`
- *   3. Moving car headlight cones via `screen`
+ *   2. Point / fire lights as 3–4 ring levels with dithered edges
+ *   3. Headlight cones as stepped bands
  *
- * Lights are authored and composited in logical 320×224 space. Display scale
- * (`ART_SCALE` / DPR) is applied only by the main canvas transform — this
- * module never takes an art-scale argument.
+ * All work is in logical 320×224; display scale is the canvas transform only.
  */
 
 export type LightKind = 'ambient' | 'fire' | 'headlight';
 
 export interface PointLight {
   kind: 'fire' | 'point';
-  /** World X (or screen X if screenSpace). */
   x: number;
   y: number;
-  /** Soft radius in logical pixels. */
   radius: number;
-  /** Core color (orange for fire, white for lamp). */
   color: string;
-  /** Optional flicker phase offset. */
   phase?: number;
   screenSpace?: boolean;
 }
 
 export interface ConeLight {
   kind: 'headlight';
-  /** World origin (headlamp). */
   x: number;
   y: number;
-  /** Facing: 1 = right, -1 = left. */
   facing: 1 | -1;
-  /** Cone length along facing. */
   length: number;
-  /** Half-width at the tip. */
   spread: number;
   color: string;
   screenSpace?: boolean;
 }
 
 export interface AmbientConfig {
-  /** Multiply fill — dark winter. Use rgba for strength. */
   color: string;
 }
 
@@ -51,11 +40,9 @@ export interface LightingFrame {
   ambient: AmbientConfig;
   points: readonly PointLight[];
   cones: readonly ConeLight[];
-  /** Seconds — drives fire flicker. */
   time: number;
 }
 
-/** Offscreen buffer reused across frames (lazy-allocated, logical size). */
 let lightBuf: HTMLCanvasElement | null = null;
 let lightCtx: CanvasRenderingContext2D | null = null;
 
@@ -68,29 +55,6 @@ function ensureBuffer(w: number, h: number): CanvasRenderingContext2D {
     if (!lightCtx) throw new Error('Lighting buffer unavailable');
   }
   return lightCtx!;
-}
-
-/** Soft radial bloom — still drawn in logical px; Stage 3 replaces with steps. */
-function drawSoftDisc(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  radius: number,
-  color: string,
-  strength = 1,
-): void {
-  const steps = Math.max(10, Math.min(28, Math.floor(radius / 1.4)));
-  ctx.save();
-  for (let i = steps; i >= 1; i--) {
-    const t = i / steps;
-    const r = Math.max(1, Math.round(radius * t));
-    const a = strength * Math.pow(1 - t, 1.85) * 0.85;
-    ctx.fillStyle = withAlpha(color, a);
-    ctx.beginPath();
-    ctx.arc(Math.round(cx), Math.round(cy), r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
 }
 
 function withAlpha(hexOrRgba: string, alpha: number): string {
@@ -118,6 +82,55 @@ function withAlpha(hexOrRgba: string, alpha: number): string {
   return hexOrRgba;
 }
 
+/**
+ * Stepped radial mask: 4 brightness levels + checker dither on ring edges.
+ * No soft Canvas arcs / gradients. Scanline fills for speed.
+ */
+function drawSteppedDisc(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: string,
+  strength = 1,
+): void {
+  const ix = Math.round(cx);
+  const iy = Math.round(cy);
+  const rMax = Math.max(1, Math.round(radius));
+  // Outer → inner (overpaint): 4 discrete brightness steps
+  const levels: ReadonlyArray<{ t: number; a: number }> = [
+    { t: 1.0, a: 0.14 * strength },
+    { t: 0.7, a: 0.32 * strength },
+    { t: 0.42, a: 0.55 * strength },
+    { t: 0.2, a: 0.8 * strength },
+  ];
+
+  for (let li = 0; li < levels.length; li++) {
+    const { t, a } = levels[li]!;
+    const r = Math.max(1, Math.round(rMax * t));
+    ctx.fillStyle = withAlpha(color, a);
+    for (let dy = -r; dy <= r; dy++) {
+      const half = Math.floor(Math.sqrt(r * r - dy * dy));
+      ctx.fillRect(ix - half, iy + dy, half * 2 + 1, 1);
+    }
+    // Checker dither on the outermost ring only
+    if (li === 0 && r > 2) {
+      const rIn = r - 2;
+      for (let dy = -r; dy <= r; dy++) {
+        const halfOut = Math.floor(Math.sqrt(r * r - dy * dy));
+        const halfIn =
+          Math.abs(dy) <= rIn ? Math.floor(Math.sqrt(rIn * rIn - dy * dy)) : -1;
+        for (let dx = -halfOut; dx <= halfOut; dx++) {
+          if (Math.abs(dx) <= halfIn) continue;
+          if (((ix + dx) ^ (iy + dy)) & 1) {
+            ctx.clearRect(ix + dx, iy + dy, 1, 1);
+          }
+        }
+      }
+    }
+  }
+}
+
 function drawHeadlightCone(
   ctx: CanvasRenderingContext2D,
   cone: ConeLight,
@@ -129,7 +142,8 @@ function drawHeadlightCone(
   const spread = cone.spread;
   const dir = cone.facing;
 
-  const bands = 5;
+  // 4 stepped bands (no soft tip arc)
+  const bands = 4;
   for (let i = 0; i < bands; i++) {
     const t0 = i / bands;
     const t1 = (i + 1) / bands;
@@ -137,27 +151,29 @@ function drawHeadlightCone(
     const xB = x0 + Math.round(dir * len * t1);
     const halfA = Math.round(spread * t0 * 0.35 + 1);
     const halfB = Math.round(spread * t1);
-    const a = 0.12 * (1 - t0);
+    const a = 0.16 * (1 - t0);
     ctx.fillStyle = withAlpha(cone.color, a);
     const left = Math.min(xA, xB);
     const right = Math.max(xA, xB);
     const top = y0 - Math.max(halfA, halfB);
     const bot = y0 + Math.max(halfA, halfB);
-    ctx.fillRect(left, top, Math.max(1, right - left), bot - top);
-    ctx.fillStyle = withAlpha(cone.color, a * 0.4);
-    ctx.fillRect(left, y0 - halfB, Math.max(1, right - left), 1);
-    ctx.fillRect(left, y0 + halfB - 1, Math.max(1, right - left), 1);
+    const bw = Math.max(1, right - left);
+    const bh = bot - top;
+    // Solid core + checker on vertical edges
+    ctx.fillRect(left, top, bw, bh);
+    ctx.fillStyle = withAlpha(cone.color, a * 0.45);
+    for (let ey = top; ey < bot; ey++) {
+      if (((left + ey) & 1) === 0) ctx.fillRect(left, ey, 1, 1);
+      if (((right - 1 + ey) & 1) === 0) ctx.fillRect(right - 1, ey, 1, 1);
+    }
   }
 
-  ctx.fillStyle = withAlpha('#ffffe8', 0.18);
-  ctx.fillRect(x0 + (dir > 0 ? 0 : -2), y0 - 2, 3, 4);
-  ctx.fillStyle = withAlpha('#e8ecff', 0.1);
-  ctx.fillRect(x0 + (dir > 0 ? 2 : -8), y0 - 1, 6, 2);
+  ctx.fillStyle = withAlpha('#ffffe8', 0.35);
+  ctx.fillRect(x0 + (dir > 0 ? 0 : -2), y0 - 1, 3, 3);
 }
 
 /**
- * Composite lighting onto the main canvas in logical coordinates.
- * `camX` scrolls world-space lights; screenSpace lights ignore it.
+ * Composite stepped lighting onto the main canvas in logical coordinates.
  */
 export function applyLightingOverlay(
   ctx: CanvasRenderingContext2D,
@@ -176,19 +192,21 @@ export function applyLightingOverlay(
   const ox = Math.round(camX);
 
   for (const p of frame.points) {
-    const flicker =
+    // Quantize flicker to a few discrete strengths (MD feel)
+    const rawFlicker =
       p.kind === 'fire'
         ? 0.82 +
           0.18 *
             Math.sin(frame.time * 9 + (p.phase ?? 0)) *
             Math.sin(frame.time * 13.7 + (p.phase ?? 1))
         : 1;
+    const flicker = p.kind === 'fire' ? (rawFlicker > 0.92 ? 1 : rawFlicker > 0.86 ? 0.9 : 0.8) : 1;
     const sx = p.screenSpace ? p.x : p.x - ox;
     const sy = p.y;
     const r = p.radius * (p.kind === 'fire' ? flicker : 1);
-    drawSoftDisc(buf, sx, sy, r, p.color, p.kind === 'fire' ? 1.0 : 0.8);
+    drawSteppedDisc(buf, sx, sy, r, p.color, p.kind === 'fire' ? 1.0 : 0.85);
     if (p.kind === 'fire') {
-      drawSoftDisc(buf, sx, sy - 2, r * 0.45, '#ffe8a0', 0.78 * flicker);
+      drawSteppedDisc(buf, sx, sy - 2, r * 0.45, '#ffe8a0', 0.7 * flicker);
     }
   }
 
@@ -197,14 +215,12 @@ export function applyLightingOverlay(
     drawHeadlightCone(buf, c, localOx);
   }
 
-  // 1) Ambient multiply on main scene (logical space via existing transform)
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.globalCompositeOperation = 'multiply';
   ctx.fillStyle = frame.ambient.color;
   ctx.fillRect(0, 0, viewW, viewH);
 
-  // 2) Screen-blend lights — nearest-neighbor blit in the same logical grid
   ctx.globalCompositeOperation = 'screen';
   ctx.drawImage(lightBuf!, 0, 0, bufW, bufH, 0, 0, viewW, viewH);
   ctx.restore();
@@ -212,7 +228,6 @@ export function applyLightingOverlay(
   ctx.imageSmoothingEnabled = false;
 }
 
-/** Helpers to spawn rynok trash fires / cars. */
 export function makeTrashFire(x: number, y: number, phase = 0): PointLight {
   return {
     kind: 'fire',
