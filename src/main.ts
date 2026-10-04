@@ -19,6 +19,7 @@ import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { BeerSystem } from './systems/BeerSystem';
 import { preloadAerialsPoster } from './art/aerialsPoster';
 import { preloadApartmentPhotos } from './art/apartmentPhotos';
+import { preloadGarazhiGraffiti } from './art/garazhiGraffiti';
 import { preloadVokzalPosters } from './art/vokzalPosters';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
@@ -59,6 +60,7 @@ function bootstrap(): void {
   preloadFamilyFaces();
   preloadBusBridgeViews();
   preloadVokzalPosters();
+  preloadGarazhiGraffiti();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);
