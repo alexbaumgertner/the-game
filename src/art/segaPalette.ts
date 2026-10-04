@@ -16,77 +16,150 @@ export const SEGA = {
 } as const;
 
 /**
- * Adult 2026 — bald fair-skinned smile, navy crew sweatshirt
- * (likeness from media/player-reference-photo.png).
+ * Adult 2026 — Mega Drive sprite budget: ≤15 unique hexes.
+ * 3 tones per material (skin / shirt / pants) + outline + accents.
+ * (likeness from media/player-reference-photo.png, pixel face).
  */
+const A_OUT = '#000000';
+const A_SK_HI = '#fce8d0';
+const A_SK = '#f0d0b0';
+const A_SK_MID = '#d8b090';
+const A_SK_SH = '#b88868';
+const A_SH_HI = '#4a5870';
+const A_SH = '#2a3850';
+const A_SH_DK = '#101820';
+const A_PN_HI = '#6a7a98';
+const A_PN = '#4a5a78';
+const A_PN_DK = '#344058';
+const A_SHOE = '#322820';
+const A_EYE = '#d0dce8';
+const A_WHITE = '#f0f4f8';
+const A_LIP = '#d09088';
+
 export const ADULT_PAL = {
-  outline: SEGA.black,
-  skinHi: '#fce8d0',
-  skin: '#f0d0b0',
-  skinMid: '#d8b090',
-  skinShadow: '#b88868',
+  outline: A_OUT,
+  skinHi: A_SK_HI,
+  skin: A_SK,
+  skinMid: A_SK_MID,
+  skinShadow: A_SK_SH,
   /** Kept for compat; bald — scalp uses skin ramp. */
-  hairHi: '#fce8d0',
-  hair: '#f0d0b0',
-  hairDark: '#d8b090',
+  hairHi: A_SK_HI,
+  hair: A_SK,
+  hairDark: A_SK_MID,
   /** Dark navy / charcoal crew sweatshirt. */
-  shirtHi: '#4a5870',
-  shirt: '#2a3850',
-  shirtMid: '#1c2838',
-  shirtDark: '#101820',
-  pantsHi: '#6a7a98',
-  pants: '#4a5a78',
-  pantsDark: '#344058',
-  pantsInk: '#1c2030',
-  shoes: '#322820',
-  shoesHi: '#5a4840',
-  belt: '#3a4858',
-  beltDark: '#1c2830',
+  shirtHi: A_SH_HI,
+  shirt: A_SH,
+  shirtMid: A_SH_DK,
+  shirtDark: A_SH_DK,
+  pantsHi: A_PN_HI,
+  pants: A_PN,
+  pantsDark: A_PN_DK,
+  pantsInk: A_SH_DK,
+  shoes: A_SHOE,
+  shoesHi: A_PN_DK,
+  belt: A_PN_DK,
+  beltDark: A_SH_DK,
   /** Light chest tag on sweatshirt. */
-  tag: '#c8d0d8',
-  eye: '#d0dce8',
-  eyeWhite: '#f0f4f8',
-  pupil: '#1a2030',
-  teeth: '#f8f4f0',
-  lip: '#d09088',
-  brow: '#a88870',
-  ear: '#e0b898',
+  tag: A_SH_HI,
+  eye: A_EYE,
+  eyeWhite: A_WHITE,
+  pupil: A_OUT,
+  teeth: A_WHITE,
+  lip: A_LIP,
+  brow: A_SK_MID,
+  ear: A_SK,
 } as const;
 
 /**
- * Teen 1995 — same bald smile + navy sweatshirt, younger proportions.
- * Scarf keys kept for HUD / gangster HP chrome (not worn by player).
+ * Teen 1995 — same MD budget (≤15 unique), younger proportions.
+ * Scarf keys alias lip / shirt for HUD chrome without blowing the budget.
  */
+const T_OUT = '#000000';
+const T_SK_HI = '#fcecd8';
+const T_SK = '#f4d8b8';
+const T_SK_MID = '#dcc098';
+const T_SK_SH = '#c09870';
+const T_SH_HI = '#4a5870';
+const T_SH = '#2a3850';
+const T_SH_DK = '#101820';
+const T_PN_HI = '#687888';
+const T_PN = '#4a5868';
+const T_PN_DK = '#344050';
+const T_SHOE = '#222028';
+const T_EYE = '#d8e0e8';
+const T_WHITE = '#f0f4f8';
+const T_LIP = '#d89890';
+
 export const TEEN_PAL = {
-  outline: SEGA.black,
-  skinHi: '#fcecd8',
-  skin: '#f4d8b8',
-  skinMid: '#dcc098',
-  skinShadow: '#c09870',
-  hairHi: '#fcecd8',
-  hair: '#f4d8b8',
-  hairDark: '#dcc098',
-  shirtHi: '#4a5870',
-  shirt: '#2a3850',
-  shirtMid: '#1c2838',
-  shirtDark: '#101820',
-  pantsHi: '#687888',
-  pants: '#4a5868',
-  pantsDark: '#344050',
-  pantsInk: '#1c2030',
-  shoes: '#222028',
-  shoesHi: '#484858',
-  scarfHi: '#e87070',
-  scarf: '#d04848',
-  scarfDark: '#902028',
-  tag: '#c8d0d8',
-  eye: '#d8e0e8',
-  eyeWhite: '#f0f4f8',
-  pupil: '#1a2030',
-  teeth: '#f8f4f0',
-  lip: '#d89890',
-  brow: '#b09078',
-  ear: '#e8c0a0',
+  outline: T_OUT,
+  skinHi: T_SK_HI,
+  skin: T_SK,
+  skinMid: T_SK_MID,
+  skinShadow: T_SK_SH,
+  hairHi: T_SK_HI,
+  hair: T_SK,
+  hairDark: T_SK_MID,
+  shirtHi: T_SH_HI,
+  shirt: T_SH,
+  shirtMid: T_SH_DK,
+  shirtDark: T_SH_DK,
+  pantsHi: T_PN_HI,
+  pants: T_PN,
+  pantsDark: T_PN_DK,
+  pantsInk: T_SH_DK,
+  shoes: T_SHOE,
+  shoesHi: T_PN_DK,
+  scarfHi: T_LIP,
+  scarf: T_LIP,
+  scarfDark: T_SH_DK,
+  tag: T_SH_HI,
+  eye: T_EYE,
+  eyeWhite: T_WHITE,
+  pupil: T_OUT,
+  teeth: T_WHITE,
+  lip: T_LIP,
+  brow: T_SK_MID,
+  ear: T_SK,
+} as const;
+
+/**
+ * Mom (Рынок МЕХА) — winter coat + headscarf, ≤15 unique hexes.
+ */
+const M_OUT = '#000000';
+const M_SK_HI = '#f0d0b0';
+const M_SK = '#d0a878';
+const M_SK_SH = '#a87858';
+const M_COAT_HI = '#8a6850';
+const M_COAT = '#6a4838';
+const M_COAT_DK = '#4a3020';
+const M_FUR_HI = '#e0c090';
+const M_FUR = '#c8a070';
+const M_FUR_DK = '#a08060';
+const M_SCARF = '#4a3040';
+const M_SCARF_DK = '#3a2830';
+const M_SKIRT = '#3a3048';
+const M_BOOT = '#18141c';
+const M_WHITE = '#f0e0c0';
+
+export const MOM_PAL = {
+  outline: M_OUT,
+  skinHi: M_SK_HI,
+  skin: M_SK,
+  skinShadow: M_SK_SH,
+  coatHi: M_COAT_HI,
+  coat: M_COAT,
+  coatDark: M_COAT_DK,
+  furHi: M_FUR_HI,
+  fur: M_FUR,
+  furDark: M_FUR_DK,
+  scarf: M_SCARF,
+  scarfDark: M_SCARF_DK,
+  skirt: M_SKIRT,
+  boots: M_BOOT,
+  eyeWhite: M_WHITE,
+  pupil: M_OUT,
+  lip: M_SK_SH,
+  tear: M_WHITE,
 } as const;
 
 /** Ginger cat — multi-shade fur for readable drawn look. */

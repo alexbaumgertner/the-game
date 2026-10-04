@@ -6,7 +6,6 @@
 
 import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
 import { bodyRect, type Rect } from '@/systems/CombatMath';
-import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { BazarBubble } from '@/entities/BazarBubble';
 
 /** Childhood (1990s flashback) sprite states. */
@@ -520,7 +519,6 @@ export class Player {
 
   /** Draw multi-tile Genesis sprite for the active clip frame. */
   render(ctx: CanvasRenderingContext2D, _alpha: number): void {
-    preloadFamilyFaces();
     const map = this.animMap as Record<string, AnimClip>;
     const clip = map[this.animState];
     const frameIndex =
@@ -531,13 +529,8 @@ export class Player {
     const kind = this.resolveSpriteKind();
     const flash = this.invuln > 0 && Math.floor(this.invuln * 20) % 2 === 0;
     if (flash) return;
+    // Pixel face is part of the sprite grid (MD ≤15 colors; no photo overlay).
     drawPlayerSprite(ctx, kind, frameIndex, this.x, this.y, this.facing);
-    // Photo-quality face from family portrait (son = Зуич)
-    const teen = this.era === 'teen';
-    const fw = teen ? 10 : 11;
-    const fh = teen ? 12 : 13;
-    const fy = this.y - (teen ? 38 : 42);
-    drawFamilyFaceWithRim(ctx, 'hero', this.x - fw / 2, fy, fw, fh);
   }
 
   private resolveSpriteKind(): PlayerSpriteKind {
