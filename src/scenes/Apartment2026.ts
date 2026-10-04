@@ -3,7 +3,7 @@
  * Туалет ← комната → кухня → ванная.
  * Интро: комп → кошка → комод → дневник 1995.
  * Квесты: сигареты; после L1 — лоток; после L2 — помыться.
- * Пиво: pickups + BeerSystem (жажда параллельно).
+ * Пиво: pickups + BeerSystem (жажда параллельно; 2+ подряд → крик / тяга к сигаретам).
  */
 
 import type { SceneContext, StateManager } from '@/core/StateManager';
@@ -370,7 +370,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       player.beginInspect(0.4);
       cigarettesTaken = true;
       states.setFlag('cigarettesFound', true);
-      showToast('Сигареты. Пачка мятая, но своя.');
+      beer.cigarettePullTimer = 0;
+      showToast(
+        beer.bingeShoutTimer > 0
+          ? 'Сигареты! Шавуха подождёт…'
+          : 'Сигареты. Пачка мятая, но своя.',
+      );
       refreshObjective();
       return;
     }
@@ -428,10 +433,30 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!input?.justPressed('beer')) return;
     if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo') return;
     if (beer.drink()) {
-      showToast('Бухло принято.');
+      if (beer.isBingeChaos) {
+        showToast('Шавуха… и сигареты!', 2.2);
+        if (!cigarettesTaken && !states.flags.cigarettesFound) {
+          hud.set({ objective: 'Сигареты → кухня' });
+          prompt = '→ К СИГАРЕТАМ У ХОЛОДИЛЬНИКА';
+        }
+      } else {
+        showToast('Бухло принято.');
+      }
     } else if (beer.cans <= 0) {
       showToast('Нет пива. Ищи банки.');
     }
+  };
+
+  /** Binge walk impulse: pull Зуич toward fridge cigarettes. */
+  const bingeWalkAxis = (inputAxis: number): number => {
+    if (!beer.wantsCigarettePull) return inputAxis;
+    if (cigarettesTaken || states.flags.cigarettesFound) return inputAxis;
+    const dx = CIGARETTES_X - player.x;
+    if (Math.abs(dx) <= 10) return inputAxis;
+    const pull = dx > 0 ? 1 : -1;
+    // Scripted pull wins when player idle or fighting the urge; reinforce if aligned.
+    if (inputAxis === 0 || Math.sign(inputAxis) === pull) return pull;
+    return pull;
   };
 
   const level2Unlocked = (): boolean => states.flags.level1Cleared;
@@ -688,8 +713,14 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
 
       const frozen = beer.isFrozen;
-      const axis = frozen ? 0 : (states.input?.axisX() ?? 0);
+      const rawAxis = frozen ? 0 : (states.input?.axisX() ?? 0);
+      const axis = frozen ? 0 : bingeWalkAxis(rawAxis);
       if (states.flags.introDone) {
+        const baseSpeed = 52;
+        player.walkSpeed =
+          beer.wantsCigarettePull && !cigarettesTaken && !states.flags.cigarettesFound
+            ? baseSpeed * 1.35
+            : baseSpeed;
         player.applyWalk(axis, dt, 20, WORLD_W - 20);
       }
       tryInteract();
