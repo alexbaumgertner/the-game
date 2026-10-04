@@ -17,6 +17,10 @@ import {
   measureUiText,
   uiPanel,
 } from '@/art/uiFont';
+import {
+  drawVokzalFilmPoster,
+  preloadVokzalPosters,
+} from '@/art/vokzalPosters';
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import {
   applyLightingOverlay,
@@ -260,6 +264,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadVokzalPosters();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 50;
@@ -268,7 +273,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -567,16 +572,32 @@ function drawVokzalWorld(
   height: number,
   time: number,
 ): void {
-  // Waiting hall strip
-  px(ctx, 40, 40, 200, 100, P.hallDark);
-  px(ctx, 44, 44, 192, 70, P.hall);
-  px(ctx, 50, 50, 50, 40, P.glass);
-  px(ctx, 108, 50, 50, 40, P.glassHi);
-  px(ctx, 166, 50, 50, 40, P.glass);
-  speckles(ctx, 44, 44, 192, 70, P.hallHi, 18, 3);
+  // Waiting hall strip — solid wall panels leave room for film posters
+  px(ctx, 40, 40, 220, 100, P.hallDark);
+  px(ctx, 44, 44, 212, 70, P.hall);
+  // Narrow glass strips between poster bays
+  px(ctx, 50, 50, 18, 40, P.glass);
+  px(ctx, 148, 50, 18, 40, P.glassHi);
+  px(ctx, 230, 50, 18, 40, P.glass);
+  speckles(ctx, 44, 44, 212, 70, P.hallHi, 18, 3);
   // Sign
   px(ctx, 90, 28, 70, 14, P.sign);
   px(ctx, 92, 30, 66, 10, '#a03030');
+
+  // Mid / far platform wall bays for more posters
+  px(ctx, 300, 48, 100, 88, P.hallDark);
+  px(ctx, 304, 52, 92, 60, P.hall);
+  speckles(ctx, 304, 52, 92, 60, P.hallHi, 10, 4);
+  px(ctx, 430, 44, 110, 92, P.hallDark);
+  px(ctx, 434, 48, 102, 64, P.hall);
+  speckles(ctx, 434, 48, 102, 64, P.hallHi, 12, 5);
+
+  // «Вокзал для двоих» — large photo posters on station walls
+  drawVokzalFilmPoster(ctx, 'gurchenko', 72, 48, 68, 100);
+  drawVokzalFilmPoster(ctx, 'official', 170, 46, 56, 86);
+  drawVokzalFilmPoster(ctx, 'snow', 312, 56, 84, 56);
+  drawVokzalFilmPoster(ctx, 'official', 442, 52, 52, 80);
+  drawVokzalFilmPoster(ctx, 'gurchenko', 500, 58, 40, 60);
 
   // Platform
   px(ctx, 0, FLOOR_Y, worldW, height - FLOOR_Y, P.platformDark);
