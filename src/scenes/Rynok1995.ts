@@ -6,7 +6,7 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
-import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
+import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
@@ -378,7 +378,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
             points: lampSpots,
             cones: [],
             time,
-          }, ART_SCALE);
+          });
         },
       },
       {

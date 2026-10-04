@@ -1,11 +1,10 @@
 /**
  * Hi-DPI display math for Novgorod 1995.
  *
- * Logical game space stays Genesis-like 320×224 so gameplay, hotspots, and
- * authored pixel art keep working unchanged. Art is rendered into a 2×
- * internal buffer (640×448) — an integer scale of every logical pixel — then
- * the canvas backing store matches devicePixelRatio so retina / 2K screens
- * stay crisp with `imageSmoothingEnabled = false`.
+ * All gameplay, HUD, sprites, and lighting draw in logical Genesis space
+ * (320×224). `ART_SCALE` is a *display* multiplier only — it never appears in
+ * draw calls. The canvas transform maps each logical unit to an integer number
+ * of backing pixels (`logicalToBuffer = ART_SCALE × bufferMult`).
  */
 
 /** Game / HUD / hit-test coordinate space (unchanged from v1). */
@@ -13,12 +12,12 @@ export const LOGICAL_WIDTH = 320;
 export const LOGICAL_HEIGHT = 224;
 
 /**
- * Integer art scale from logical → internal buffer.
- * 2× → 640×448: crisp on phones & 2K without rewriting sprite grids.
+ * Integer display scale from logical → internal buffer.
+ * Kept for crisp packing on phones & 2K; scenes must not pass this into art.
  */
 export const ART_SCALE = 2;
 
-/** Internal pixel buffer before DPR (logical × ART_SCALE). */
+/** Internal pixel buffer before DPR (logical × ART_SCALE). Display only. */
 export const INTERNAL_WIDTH = LOGICAL_WIDTH * ART_SCALE;
 export const INTERNAL_HEIGHT = LOGICAL_HEIGHT * ART_SCALE;
 

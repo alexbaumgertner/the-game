@@ -7,7 +7,7 @@
  */
 
 import type { SceneContext, StateManager } from '@/core/StateManager';
-import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
+import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
@@ -798,7 +798,6 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
                 cones: [],
                 time,
               },
-              ART_SCALE,
             );
           },
         },
