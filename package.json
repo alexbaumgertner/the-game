@@ -10,7 +10,8 @@
     "build:gh": "VITE_BASE=/the-game/ npm run build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "check:sprite-colors": "vite-node scripts/check-sprite-colors.ts"
+    "check:sprite-colors": "vite-node scripts/check-sprite-colors.ts",
+    "check:font-glyphs": "node scripts/check-font-glyphs.mjs"
   },
   "devDependencies": {
     "typescript": "~5.7.3",
