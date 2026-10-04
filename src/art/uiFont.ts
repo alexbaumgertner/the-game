@@ -39,6 +39,9 @@ export function measureUiText(
 /**
  * Draw sharp UI text. Coordinates are logical (320×224 space).
  * Uses nesFont bitmaps — no Canvas fillText / antialiasing.
+ *
+ * Case: all-caps is intentional. nesFont only has uppercase 5×7 glyphs;
+ * drawNesText uppercases via toLocaleUpperCase('ru-RU') before blit.
  */
 export function drawUiText(
   ctx: CanvasRenderingContext2D,
