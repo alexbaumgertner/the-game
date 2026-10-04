@@ -129,12 +129,3 @@ export function createLevelStubScene(deps: StubLevelDeps, config: StubLevelConfi
     },
   };
 }
-
-export function createFinale2026Scene(deps: StubLevelDeps) {
-  return createLevelStubScene(deps, {
-    scene: 'finale_2026',
-    era: 'ERA_2026',
-    title: 'Финал',
-    yearLabel: 'сейчас',
-  });
-}

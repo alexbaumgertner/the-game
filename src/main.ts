@@ -33,7 +33,7 @@ import { createDetinets1995Scene } from './scenes/Detinets1995';
 import { createArmiya2010Scene } from './scenes/Armiya2010';
 import { createRehab2015Scene } from './scenes/Rehab2015';
 import { createKrug2015Scene } from './scenes/Krug2015';
-import { createFinale2026Scene } from './scenes/LevelStub';
+import { createFinale2026Scene } from './scenes/Finale2026';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
@@ -100,7 +100,7 @@ function bootstrap(): void {
   const armiya = createArmiya2010Scene({ ...stubDeps, spark });
   const rehab = createRehab2015Scene({ ...stubDeps, spark });
   const krug = createKrug2015Scene({ ...stubDeps, spark });
-  const finale = createFinale2026Scene(stubDeps);
+  const finale = createFinale2026Scene(stubDeps); // tea/beer shared
 
   const scenes = {
     apartment_2026: apartment,
