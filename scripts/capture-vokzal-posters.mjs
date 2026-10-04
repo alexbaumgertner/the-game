@@ -1,5 +1,6 @@
 /**
- * Capture Vokzal1995 with «Вокзал для двоих» wall posters visible.
+ * Capture Vokzal1995 with «Вокзал для двоих» wall posters visible (quiz closed).
+ * Usage: GAME_URL=http://127.0.0.1:4173/ node scripts/capture-vokzal-posters.mjs
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +30,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
 await page.waitForFunction(() => window.__novgorod, { timeout: 20000 });
-await sleep(600);
+await sleep(500);
 
 await page.evaluate(() => {
   const g = window.__novgorod;
@@ -40,30 +41,37 @@ await page.evaluate(() => {
 });
 await sleep(1200);
 
-// Pan so hall posters + mid bay are in frame
-await page.evaluate(() => {
-  const g = window.__novgorod;
-  g.player.x = 160;
-  g.player.y = 188;
-});
-await sleep(500);
-
-const saveCanvas = async (name) => {
-  const dataUrl = await page.evaluate(() => window.__novgorod.captureCanvas());
+const saveAt = async (name, x) => {
+  await page.evaluate((px) => {
+    const g = window.__novgorod;
+    if (g.loop.isPaused) g.loop.resume();
+    g.player.x = px;
+    g.vokzal.getQuiz()?.closeSilent?.();
+  }, x);
+  for (let i = 0; i < 20; i++) {
+    await page.evaluate(() => window.__novgorod.vokzal.getQuiz()?.closeSilent?.());
+    await sleep(40);
+  }
+  await page.evaluate(() => {
+    const g = window.__novgorod;
+    g.vokzal.getQuiz()?.closeSilent?.();
+    g.loop.pause();
+    g.vokzal.getQuiz()?.closeSilent?.();
+  });
+  await sleep(120);
+  const dataUrl = await page.evaluate(() => {
+    window.__novgorod.vokzal.getQuiz()?.closeSilent?.();
+    return window.__novgorod.captureCanvas();
+  });
   const buf = Buffer.from(dataUrl.split(',')[1], 'base64');
   fs.writeFileSync(path.join(MEDIA, name), buf);
   fs.writeFileSync(path.join(ARTIFACTS, name), buf);
   console.log('wrote', name, buf.length);
+  await page.evaluate(() => window.__novgorod.loop.resume());
 };
 
-await saveCanvas('vokzal-film-posters.png');
-
-// Second frame further right for snow/official bays
-await page.evaluate(() => {
-  window.__novgorod.player.x = 360;
-});
-await sleep(400);
-await saveCanvas('vokzal-film-posters-mid.png');
+await saveAt('vokzal-film-posters.png', 130);
+await saveAt('vokzal-film-posters-mid.png', 380);
 
 await browser.close();
 console.log('done');
