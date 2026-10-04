@@ -9,7 +9,7 @@ import type { StateManager } from '@/core/StateManager';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, segaBox, speckles, woodGrain } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
@@ -96,7 +96,7 @@ export interface RynokSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createRynok1995Scene(deps: RynokSceneDeps) {
@@ -704,7 +704,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           'rgba(64,200,120,0.8)',
         );
         drawUiTextCentered(ctx, 'Ур. 1 пройден', width / 2, height / 2 - 16, '#a0f0c0', 12, 700);
-        drawUiTextCentered(ctx, 'Дом · Зелинского', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
+        drawUiTextCentered(ctx, 'Дом · Двор', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
       }
     },
 

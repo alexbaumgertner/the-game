@@ -15,8 +15,9 @@ import {
 } from './core/Display';
 import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
+import { SparkMeter } from './ui/SparkMeter';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
-import { BeerSystem } from './systems/BeerSystem';
+import { TeaSystem } from './systems/TeaSystem';
 import { preloadAerialsPoster } from './art/aerialsPoster';
 import { preloadApartmentPhotos } from './art/apartmentPhotos';
 import { preloadVokzalPosters } from './art/vokzalPosters';
@@ -29,10 +30,17 @@ import { createDvor1995Scene } from './scenes/Dvor1995';
 import { createMost1995Scene } from './scenes/Most1995';
 import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
 import { createDetinets1995Scene } from './scenes/Detinets1995';
+import {
+  createArmiya2010Scene,
+  createRehab2015Scene,
+  createKrug2015Scene,
+  createFinale2026Scene,
+} from './scenes/LevelStub';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
+import { LEVELS } from './data/levels';
 
 /** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
 type SceneEntry = SceneHandlers & {
@@ -75,9 +83,13 @@ function bootstrap(): void {
 
   const player = new Player({ x: 100, y: 192, era: 'adult' });
   const hud = new HUD();
-  const beer = new BeerSystem();
+  const tea = new TeaSystem();
+  /** Compat alias for capture scripts / older debug API. */
+  const beer = tea;
+  const spark = new SparkMeter();
 
   const deps = { states, player, hud, beer };
+  const stubDeps = { states, player, hud, tea };
   const apartment = createApartment2026Scene(deps);
   const rynok = createRynok1995Scene(deps);
   const podezd = createPodezd1995Scene(deps);
@@ -87,6 +99,10 @@ function bootstrap(): void {
   const most = createMost1995Scene(deps);
   const diskoteka = createDiskoteka1995Scene(deps);
   const detinets = createDetinets1995Scene(deps);
+  const armiya = createArmiya2010Scene(stubDeps);
+  const rehab = createRehab2015Scene(stubDeps);
+  const krug = createKrug2015Scene(stubDeps);
+  const finale = createFinale2026Scene(stubDeps);
 
   const scenes = {
     apartment_2026: apartment,
@@ -98,6 +114,10 @@ function bootstrap(): void {
     most_1995: most,
     diskoteka_1995: diskoteka,
     detinets_1995: detinets,
+    armiya_2010: armiya,
+    rehab_2015: rehab,
+    krug_2015: krug,
+    finale_2026: finale,
   } satisfies Record<SceneId, SceneEntry>;
 
   for (const [id, handlers] of Object.entries(scenes) as [SceneId, SceneEntry][]) {
@@ -108,12 +128,12 @@ function bootstrap(): void {
   const save = loadSave();
   if (save) {
     states.loadFlags(save.flags);
-    beer.cans = save.beer.cans;
+    tea.cups = save.tea.cups;
   }
   // After resetSave() the unload handlers must not write the old state back.
   let saveDisabled = false;
   const persist = (): void => {
-    if (!saveDisabled) writeSave({ flags: states.flags, beer });
+    if (!saveDisabled) writeSave({ flags: states.flags, tea });
   };
   states.onFlagsChanged = persist;
   window.addEventListener('pagehide', persist);
@@ -248,23 +268,36 @@ function bootstrap(): void {
   );
 
   /** Debug level jumps: `gotoX` marks all earlier levels cleared, then fades into the scene. */
-  const LEVEL_JUMPS: { name: string; scene: SceneId }[] = [
-    { name: 'gotoRynok', scene: 'rynok_1995' },
-    { name: 'gotoPodezd', scene: 'podezd_1995' },
-    { name: 'gotoVokzal', scene: 'vokzal_1995' },
-    { name: 'gotoGarazhi', scene: 'garazhi_1995' },
-    { name: 'gotoDvor', scene: 'dvor_1995' },
-    { name: 'gotoMost', scene: 'most_1995' },
-    { name: 'gotoDiskoteka', scene: 'diskoteka_1995' },
-    { name: 'gotoDetinets', scene: 'detinets_1995' },
-  ];
+  const LEVEL_JUMPS: { name: string; scene: SceneId; era: ProgressFlags extends never ? never : string }[] =
+    LEVELS.map((lvl) => ({
+      name:
+        (
+          {
+            1: 'gotoRynok',
+            2: 'gotoPodezd',
+            3: 'gotoVokzal',
+            4: 'gotoGarazhi',
+            5: 'gotoDvor',
+            6: 'gotoMost',
+            7: 'gotoDiskoteka',
+            8: 'gotoDetinets',
+            9: 'gotoArmiya',
+            10: 'gotoRehab',
+            11: 'gotoKrug',
+            12: 'gotoFinale',
+          } as Record<number, string>
+        )[lvl.id] ?? `gotoLevel${lvl.id}`,
+      scene: lvl.scene,
+      era: lvl.era,
+    }));
+
   const debugGotos: Record<string, () => void> = {};
-  LEVEL_JUMPS.forEach(({ name, scene }, index) => {
+  LEVEL_JUMPS.forEach(({ name, scene, era }, index) => {
     debugGotos[name] = () => {
       for (let n = 1; n <= index; n++) {
         states.setFlag(`level${n}Cleared` as keyof ProgressFlags, true);
       }
-      states.goto(scene, { era: 'ERA_1995', fadeSeconds: 0.15 });
+      states.goto(scene, { era: era as 'ERA_1995' | 'ERA_2010' | 'ERA_2015' | 'ERA_2026', fadeSeconds: 0.15 });
     };
   });
 
@@ -276,7 +309,9 @@ function bootstrap(): void {
     player,
     input,
     hud,
+    tea,
     beer,
+    spark,
     apartment,
     rynok,
     podezd,
@@ -286,6 +321,10 @@ function bootstrap(): void {
     most,
     diskoteka,
     detinets,
+    armiya,
+    rehab,
+    krug,
+    finale,
     touch,
     canvas,
     display: {

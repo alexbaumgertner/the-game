@@ -1,124 +1,119 @@
 /**
- * Beer thirst — ~2 minutes to full gray / freeze without a drink.
- * Lack ramps hard and fast: colors wash out quickly; thirst thoughts
- * float above Зуич’s head and grow larger as thirst worsens.
- * Drinking restores color (outside binge chaos). 2+ cans in a row →
- * binge shout + pull toward apartment cigarettes.
- * Disabled / paused during 1995 flashback levels (`pauseForFlashback`).
+ * ПИВО thirst — «Полезный Истинный Внутрепитейный Облегчатель» = ромашковый чай.
+ * Lack ramps hard and fast: colors wash out; thoughts float above Зуич.
+ * Drinking a cup restores color. No binge / shout / cigarette pull.
+ * Disabled during 1995 flashback levels (`pauseForFlashback`).
  */
 
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 
 /** Seconds from full color to freeze / full gray. */
-export const BEER_THIRST_SECONDS = 120;
+export const TEA_THIRST_SECONDS = 120;
 
-/** Drinks within this window count as «подряд». */
-export const BINGE_WINDOW_SECONDS = 28;
+/** @deprecated Alias for capture scripts / older imports. */
+export const BEER_THIRST_SECONDS = TEA_THIRST_SECONDS;
 
-/** How long the binge shout stays on screen. */
-export const BINGE_SHOUT_SECONDS = 5.8;
+export const PIVO_ACRONYM =
+  'Полезный Истинный Внутрепитейный Облегчатель';
 
-/** Walk-impulse toward cigarettes after binge. */
-export const BINGE_PULL_SECONDS = 7.2;
+export const TEA_HINT_LONG =
+  'БЕЗ ПИВО МИР СЕРЕЕТ — НАЙДИ ЧАШКУ И НАЖМИ B. ЧЕРЕЗ ~2 МИН ЗУИЧ ВСТАНЕТ.';
 
-export const BEER_HINT_LONG =
-  'БЕЗ ПИВА МИР СЕРЕЕТ — НАЙДИ БАНКУ И НАЖМИ B. ЧЕРЕЗ ~2 МИН ЗУИЧ ВСТАНЕТ.';
+/** @deprecated Alias. */
+export const BEER_HINT_LONG = TEA_HINT_LONG;
 
-/** Binge line — shouted after 2+ beers in a row. */
-export const BINGE_SHOUT =
-  'сейчас буду бесоебить, где моя шавуха и компания пониженной социальной ответственности?';
+/** First pickup decode line. */
+export const PIVO_FIRST_PICKUP =
+  `ПИВО — ${PIVO_ACRONYM}. Это ромашковый чай.`;
 
-/** Internal monologue while thirsty (above head). */
+/** Internal monologue while thirsty (above head) — no craving to drink alcohol. */
 export const CRISIS_LINES = [
   'Что со мной?',
   'Что происходит вокруг?',
   'Что с миром?',
   'Кто я?',
   'Почему так тяжело?',
-  'Где моё пиво?',
+  'Голова в тумане…',
   'Почему всё серое?',
-  'Надо выпить…',
-  'Голова гудит…',
-  'Ещё одна банка…',
-  'Без пива плохо…',
+  'Надо согреться…',
+  'Где моя ромашка?',
+  'Силы тают…',
+  'Холодно внутри…',
 ] as const;
 
 const THOUGHT_TRAIL_MAX = 3;
-/** Seconds between thought cycles (faster as thirst worsens). */
 const THOUGHT_CYCLE_MAX = 2.4;
 const THOUGHT_CYCLE_MIN = 1.2;
-/** Lack above this starts floating thoughts (near-immediate). */
 const THOUGHT_ONSET = 0.015;
 
-export class BeerSystem {
+export class TeaSystem {
   /** Seconds until freeze. */
-  thirst = BEER_THIRST_SECONDS;
-  /** Cans in inventory. */
-  cans = 0;
+  thirst = TEA_THIRST_SECONDS;
+  /** Cups in inventory. */
+  cups = 0;
   /** When false, timer does not tick (1995 flashbacks). */
   enabled = true;
   /** True until first successful drink — show long hint. */
   showLongHint = true;
+  /** Show acronym toast once after first world pickup. */
+  needsAcronymToast = false;
   /** Newest crisis line (also last in thoughtTrail). */
   crisisLine: string | null = null;
-  /** Consecutive drinks inside {@link BINGE_WINDOW_SECONDS}. */
-  consecutiveDrinks = 0;
-  /** Seconds since last successful drink (large = none yet). */
-  secondsSinceDrink = 999;
-  /** Remaining binge shout display time. */
-  bingeShoutTimer = 0;
-  /** Remaining cigarette walk-impulse time. */
-  cigarettePullTimer = 0;
   private crisisCooldown = 0;
   private crisisIndex = 0;
-  /** Fading trail of recent thoughts for overhead мыслепоток. */
   private thoughtTrail: string[] = [];
-  /** 0→1 progress through current thought cycle (for fade / float). */
   private thoughtPulse = 0;
-  /** Accumulated time for bobbing animation. */
   private thoughtTime = 0;
+
+  /**
+   * Compat alias for capture scripts / `window.__novgorod.beer.cans`.
+   * Prefer {@link cups}.
+   */
+  get cans(): number {
+    return this.cups;
+  }
+  set cans(v: number) {
+    this.cups = Math.max(0, Math.floor(v));
+  }
+
+  /** Compat stubs — binge removed; always idle. */
+  consecutiveDrinks = 0;
+  secondsSinceDrink = 999;
+  bingeShoutTimer = 0;
+  cigarettePullTimer = 0;
 
   get isFrozen(): boolean {
     return this.enabled && this.thirst <= 0;
   }
 
-  /** True while binge shout / cigarette pull is active. */
+  /** @deprecated Binge removed — always false. */
   get isBingeChaos(): boolean {
-    return this.bingeShoutTimer > 0 || this.cigarettePullTimer > 0;
+    return false;
   }
 
-  /** Walk impulse toward fridge cigarettes still active. */
+  /** @deprecated Binge removed — always false. */
   get wantsCigarettePull(): boolean {
-    return this.cigarettePullTimer > 0;
+    return false;
   }
 
   /** 1 = full (just drank), 0 = empty / frozen. */
   get thirstRatio(): number {
-    return Math.max(0, Math.min(1, this.thirst / BEER_THIRST_SECONDS));
+    return Math.max(0, Math.min(1, this.thirst / TEA_THIRST_SECONDS));
   }
 
   /**
    * Visual lack 0→1. Aggressive early ramp — gray reads within seconds,
    * while full gray / freeze still lands at ~2 minutes.
-   *
-   * Approx lack at elapsed thirst time (of 120s):
-   * - ~6s  → ~0.28
-   * - ~12s → ~0.40
-   * - ~30s → ~0.58
-   * - ~60s → ~0.76
-   * - 120s → 1.00
    */
   get lackAmount(): number {
     const t = 1 - this.thirstRatio;
     if (t <= 0) return 0;
-    // Heavy sqrt + soft power — early wash is stronger/faster than linear.
     return Math.min(1, Math.pow(t, 0.42) * 0.22 + Math.sqrt(t) * 0.78);
   }
 
   resetForApartment(): void {
     this.enabled = true;
-    if (this.thirst <= 0) this.thirst = Math.min(30, BEER_THIRST_SECONDS);
-    // Keep cans / binge state across soft resets; clear active chaos UI.
+    if (this.thirst <= 0) this.thirst = Math.min(30, TEA_THIRST_SECONDS);
     this.bingeShoutTimer = 0;
     this.cigarettePullTimer = 0;
   }
@@ -131,34 +126,24 @@ export class BeerSystem {
   }
 
   pickup(count = 1): void {
-    this.cans += count;
+    const wasEmpty = this.cups <= 0;
+    this.cups += count;
+    if (wasEmpty && this.cups > 0) {
+      this.needsAcronymToast = true;
+    }
   }
 
-  /** Drink one can. Returns false if none left or not thirsty-enabled. */
+  /** Drink one cup. Returns false if none left or not enabled. */
   drink(): boolean {
     if (!this.enabled) return false;
-    if (this.cans <= 0) return false;
-    this.cans -= 1;
-
-    const inRow = this.secondsSinceDrink <= BINGE_WINDOW_SECONDS && this.consecutiveDrinks >= 1;
-    this.consecutiveDrinks = inRow ? this.consecutiveDrinks + 1 : 1;
+    if (this.cups <= 0) return false;
+    this.cups -= 1;
     this.secondsSinceDrink = 0;
-
-    // Restore color / thirst; binge overlays shout + cigarette pull on top.
-    this.thirst = BEER_THIRST_SECONDS;
+    this.consecutiveDrinks = 1;
+    this.thirst = TEA_THIRST_SECONDS;
     this.showLongHint = false;
     this.clearCrisis();
-
-    if (this.consecutiveDrinks >= 2) {
-      this.triggerBinge();
-    }
-
     return true;
-  }
-
-  private triggerBinge(): void {
-    this.bingeShoutTimer = BINGE_SHOUT_SECONDS;
-    this.cigarettePullTimer = BINGE_PULL_SECONDS;
   }
 
   update(dt: number): void {
@@ -166,20 +151,8 @@ export class BeerSystem {
 
     this.thoughtTime += dt;
     this.secondsSinceDrink += dt;
-
-    if (this.bingeShoutTimer > 0) {
-      this.bingeShoutTimer = Math.max(0, this.bingeShoutTimer - dt);
-    }
-    if (this.cigarettePullTimer > 0) {
-      this.cigarettePullTimer = Math.max(0, this.cigarettePullTimer - dt);
-    }
-
-    // During binge chaos, hold thirst at full so color stays restored
-    // while the shout / cigarette pull plays out.
-    if (this.isBingeChaos) {
-      this.thirst = BEER_THIRST_SECONDS;
-      return;
-    }
+    this.bingeShoutTimer = 0;
+    this.cigarettePullTimer = 0;
 
     if (this.thirst > 0) {
       this.thirst = Math.max(0, this.thirst - dt);
@@ -204,37 +177,39 @@ export class BeerSystem {
     }
   }
 
-  /**
-   * Compact beer chrome under the top-right identity panel (no overlap).
-   */
+  /** Compact ПИВО chrome under the top-right identity panel. */
   renderHud(ctx: CanvasRenderingContext2D, canvasWidth: number): void {
     if (!this.enabled) return;
 
-    // Sit below era+level panel
     const top = 26;
 
     if (this.showLongHint) {
-      const line1 = 'B — применить бухло';
-      const line2 = 'Без пива мир сереет';
-      const tw = Math.max(measureUiText(ctx, line1, 6.5, 550), measureUiText(ctx, line2, 6.5, 500)) + 10;
+      const line1 = 'B — выпить ПИВО';
+      const line2 = 'Без чая мир сереет';
+      const tw =
+        Math.max(measureUiText(ctx, line1, 6.5, 550), measureUiText(ctx, line2, 6.5, 500)) + 10;
       const bx = canvasWidth - tw - 2;
       uiPanel(ctx, bx, top, tw, 22, 'rgba(12,10,8,0.82)', 'rgba(200,160,72,0.7)');
       drawUiText(ctx, line1, bx + 5, top + 3, '#f0d878', 6.5, 550);
       drawUiText(ctx, line2, bx + 5, top + 12, '#c0b090', 6.5, 500);
-      void BEER_HINT_LONG;
+      void TEA_HINT_LONG;
       return;
     }
 
-    const bw = 48;
+    const label = `ПИВО ×${this.cups}`;
+    const bw = Math.max(52, measureUiText(ctx, label, 7, 650) + 22);
     const bx = canvasWidth - bw - 2;
     uiPanel(ctx, bx, top, bw, 16, 'rgba(12,10,8,0.82)', 'rgba(200,160,72,0.7)');
-    ctx.fillStyle = '#d8a040';
-    ctx.fillRect(bx + 5, top + 3, 5, 8);
-    ctx.fillStyle = '#f0c868';
-    ctx.fillRect(bx + 6, top + 4, 3, 2);
-    ctx.fillStyle = '#808890';
-    ctx.fillRect(bx + 6, top + 2, 3, 2);
-    drawUiText(ctx, `×${this.cans}`, bx + 13, top + 3, '#f0e8c8', 7, 650);
+    // Tiny chamomile mug icon
+    ctx.fillStyle = '#d8c8a0';
+    ctx.fillRect(bx + 5, top + 5, 7, 6);
+    ctx.fillStyle = '#f0e8c0';
+    ctx.fillRect(bx + 6, top + 4, 5, 2);
+    ctx.fillStyle = '#e8d878';
+    ctx.fillRect(bx + 7, top + 5, 3, 2);
+    ctx.fillStyle = '#a09070';
+    ctx.fillRect(bx + 11, top + 6, 2, 3);
+    drawUiText(ctx, label, bx + 15, top + 3, '#f0e8c8', 7, 650);
     const barX = bx + 5;
     const barY = top + 12;
     const barW = bw - 10;
@@ -246,8 +221,8 @@ export class BeerSystem {
   }
 
   /**
-   * Progressive desat + thoughts above the hero (+ binge shout).
-   * Call after gameplay draw, before beer HUD so chrome stays readable.
+   * Progressive desat + thoughts above the hero.
+   * Call after gameplay draw, before tea HUD so chrome stays readable.
    */
   renderCrisis(
     ctx: CanvasRenderingContext2D,
@@ -261,23 +236,14 @@ export class BeerSystem {
     const headX = playerX ?? canvasWidth / 2;
     const headY = (playerY ?? canvasHeight * 0.65) - 48;
 
-    if (this.isBingeChaos) {
-      this.renderBingeShout(ctx, canvasWidth, headX, headY);
-      if (this.wantsCigarettePull) {
-        this.renderCigarettePullHint(ctx, canvasWidth, canvasHeight);
-      }
-      return;
-    }
-
     const lack = this.lackAmount;
     if (lack <= 0 && !this.isFrozen) return;
 
     this.renderDesaturation(ctx, canvasWidth, canvasHeight, lack);
-
     this.renderOverheadThoughts(ctx, canvasWidth, headX, headY, lack);
 
     if (this.isFrozen) {
-      const hint = 'B — применить бухло';
+      const hint = 'B — выпить ПИВО';
       const hintW = measureUiText(ctx, hint, 7, 600) + 16;
       const hx = Math.round((canvasWidth - hintW) / 2);
       const hy = canvasHeight - 36;
@@ -294,7 +260,6 @@ export class BeerSystem {
   ): void {
     if (lack <= 0) return;
 
-    // Stronger early desat: alpha rises faster than raw lack.
     const satAlpha = Math.min(1, Math.pow(lack, 0.72) * 1.08);
     ctx.save();
     ctx.globalAlpha = satAlpha;
@@ -303,7 +268,6 @@ export class BeerSystem {
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     ctx.restore();
 
-    // Cool gray wash — heavier than before so early lack already reads gray.
     const wash = 0.14 + 0.52 * lack;
     ctx.fillStyle = `rgba(36, 38, 46, ${wash.toFixed(3)})`;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
@@ -323,10 +287,9 @@ export class BeerSystem {
         ? this.thoughtTrail
         : this.crisisLine
           ? [this.crisisLine]
-          : ['Где моё пиво?'];
+          : ['Где моя ромашка?'];
 
     const intensity = Math.min(1, 0.4 + lack * 0.6);
-    // Font grows with thirst: newest ~7.5→15, older trail a bit smaller.
     const newestSize = 7.5 + lack * 7.5;
     const trailSize = 6.5 + lack * 5;
     const rowGap = 12 + lack * 10;
@@ -373,74 +336,6 @@ export class BeerSystem {
     }
   }
 
-  private renderBingeShout(
-    ctx: CanvasRenderingContext2D,
-    canvasWidth: number,
-    headX: number,
-    headY: number,
-  ): void {
-    if (this.bingeShoutTimer <= 0) return;
-
-    const fade = Math.min(1, this.bingeShoutTimer / 0.45);
-    const pulse = 0.85 + 0.15 * Math.sin(this.thoughtTime * 8);
-    const alpha = fade * pulse;
-
-    const lines = [
-      '«сейчас буду бесоебить,',
-      'где моя шавуха и компания',
-      'пониженной социальной ответственности?»',
-    ];
-    const size = 8.5;
-    const weight = 700;
-    let maxW = 0;
-    for (const ln of lines) {
-      maxW = Math.max(maxW, measureUiText(ctx, ln, size, weight));
-    }
-    const padX = 8;
-    const padY = 5;
-    const lineH = size + 3;
-    const boxW = maxW + padX * 2;
-    const boxH = lines.length * lineH + padY * 2;
-    const bx = Math.round(Math.max(2, Math.min(canvasWidth - boxW - 2, headX - boxW / 2)));
-    const by = Math.round(headY - boxH - 6 + Math.sin(this.thoughtTime * 6) * 2);
-
-    ctx.fillStyle = `rgba(28, 10, 12, ${(0.78 * alpha).toFixed(3)})`;
-    ctx.fillRect(bx, by, boxW, boxH);
-    ctx.strokeStyle = `rgba(220, 120, 90, ${(0.75 * alpha).toFixed(3)})`;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(bx + 0.5, by + 0.5, boxW - 1, boxH - 1);
-
-    // Stem
-    ctx.fillStyle = `rgba(220, 120, 90, ${(0.55 * alpha).toFixed(3)})`;
-    ctx.fillRect(Math.round(headX - 1), by + boxH, 2, 4);
-
-    for (let i = 0; i < lines.length; i++) {
-      drawUiText(
-        ctx,
-        lines[i]!,
-        bx + padX,
-        by + padY + i * lineH,
-        `rgba(255, 220, 190, ${alpha.toFixed(3)})`,
-        size,
-        weight,
-      );
-    }
-  }
-
-  private renderCigarettePullHint(
-    ctx: CanvasRenderingContext2D,
-    canvasWidth: number,
-    canvasHeight: number,
-  ): void {
-    const hint = '→ К СИГАРЕТАМ (холодильник)';
-    const hintW = measureUiText(ctx, hint, 7, 650) + 16;
-    const hx = Math.round((canvasWidth - hintW) / 2);
-    const hy = canvasHeight - 36;
-    const pulse = 0.7 + 0.3 * Math.sin(this.thoughtTime * 5);
-    uiPanel(ctx, hx, hy, hintW, 16, `rgba(12,10,8,${(0.82 * pulse).toFixed(3)})`, 'rgba(200,140,72,0.75)');
-    drawUiText(ctx, hint, hx + 8, hy + 4, '#f0d090', 7, 650);
-  }
-
   private pushThought(line: string): void {
     this.crisisLine = line;
     this.thoughtTrail.push(line);
@@ -456,3 +351,6 @@ export class BeerSystem {
     this.thoughtPulse = 0;
   }
 }
+
+/** @deprecated Use {@link TeaSystem}. Capture scripts may still import the old name. */
+export { TeaSystem as BeerSystem };

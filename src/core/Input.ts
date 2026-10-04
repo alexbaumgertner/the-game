@@ -20,7 +20,7 @@ export type InputAction =
   | 'choice4'
   /** Paid quiz hint (same MF as gangster punch). */
   | 'hint'
-  /** Drink beer / «Применить бухло». */
+  /** Drink ПИВО (chamomile tea). Key B kept for capture scripts. */
   | 'beer';
 
 const BINDINGS: Record<InputAction, readonly string[]> = {

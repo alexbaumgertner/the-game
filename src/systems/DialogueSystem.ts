@@ -4,6 +4,7 @@
  */
 
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
+import { HERO_NAME } from '@/data/names';
 export type DialogueEffect =
   | 'calm_father'
   | 'calm_mother'
@@ -348,7 +349,7 @@ export const MOTHER_STALL_SCRIPT: DialogueScript = {
   lines: {
     intro: {
       speaker: 'Мама',
-      text: 'Саша! Шубу сперли с лотка. Я одна — помоги!',
+      text: `${HERO_NAME}! Шубу сперли с лотка. Я одна — помоги!`,
       next: 'choice',
     },
     choice: {
@@ -399,7 +400,7 @@ export const PODEZD_LANDING_SCRIPT: DialogueScript = {
     },
     mother_line: {
       speaker: 'Мама',
-      text: 'Саша - осторожно. Говори правду. Времени мало.',
+      text: `${HERO_NAME} — осторожно. Говори правду. Времени мало.`,
       next: 'choice',
     },
     choice: {
@@ -447,7 +448,7 @@ export const VOKZAL_PLATFORM_SCRIPT: DialogueScript = {
     },
     relative_line: {
       speaker: 'Тётя',
-      text: 'Саша… посылка от отца внутри. Не отдавай просто так.',
+      text: `${HERO_NAME}… посылка от отца внутри. Не отдавай просто так.`,
       next: 'choice',
     },
     choice: {

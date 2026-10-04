@@ -8,7 +8,7 @@ import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { GARAZHI_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles, woodGrain } from '@/art/pixelDraw';
 import {
@@ -48,7 +48,7 @@ export interface GarazhiSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
