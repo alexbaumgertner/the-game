@@ -130,15 +130,6 @@ export function createLevelStubScene(deps: StubLevelDeps, config: StubLevelConfi
   };
 }
 
-export function createArmiya2010Scene(deps: StubLevelDeps) {
-  return createLevelStubScene(deps, {
-    scene: 'armiya_2010',
-    era: 'ERA_2010',
-    title: 'Армия',
-    yearLabel: '2010',
-  });
-}
-
 export function createRehab2015Scene(deps: StubLevelDeps) {
   return createLevelStubScene(deps, {
     scene: 'rehab_2015',
