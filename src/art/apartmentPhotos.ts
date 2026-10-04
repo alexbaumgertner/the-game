@@ -5,6 +5,7 @@
  */
 
 import { px } from '@/art/pixelDraw';
+import { drawMdWallpaper } from '@/art/mdTiles';
 import { APT_PAL } from '@/art/segaPalette';
 import { drawUiTextCentered, measureUiText } from '@/art/uiFont';
 
@@ -24,8 +25,6 @@ const slots: Record<string, Slot> = {
 };
 
 let loadStarted = false;
-let wallpaperPattern: CanvasPattern | null = null;
-let wallpaperPatternKey = '';
 
 function ensureSlot(key: keyof typeof slots): void {
   const slot = slots[key]!;
@@ -34,7 +33,6 @@ function ensureSlot(key: keyof typeof slots): void {
   img.decoding = 'async';
   img.onload = () => {
     slot.ready = true;
-    if (key === 'wallpaper') wallpaperPattern = null;
   };
   img.onerror = () => {
     slot.ready = false;
@@ -65,7 +63,10 @@ function withSmooth(
   ctx.imageSmoothingQuality = prevQuality;
 }
 
-/** Cream + brown damask wallpaper — tiled, no stains. */
+/**
+ * Mega Drive apartment wallpaper — repeating 8×8 diamond motif.
+ * Photo damask retained in public/art for optional future use; MD pass uses tiles.
+ */
 export function drawTiledWallpaper(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -74,47 +75,14 @@ export function drawTiledWallpaper(
   h: number,
 ): void {
   preloadApartmentPhotos();
-  const slot = slots.wallpaper!;
-  if (!slot.ready || !slot.img) {
-    px(ctx, x, y, w, h, '#c8b898');
-    return;
-  }
-
-  // Larger tile so damask florals stay readable at 320-wide logical res
-  const tileKey = `${slot.img.width}x${slot.img.height}:96`;
-  if (!wallpaperPattern || wallpaperPatternKey !== tileKey) {
-    const tile = document.createElement('canvas');
-    const tw = 96;
-    const th = 96;
-    tile.width = tw;
-    tile.height = th;
-    const tctx = tile.getContext('2d');
-    if (tctx) {
-      tctx.imageSmoothingEnabled = true;
-      tctx.imageSmoothingQuality = 'high';
-      tctx.drawImage(slot.img, 0, 0, tw, th);
-      // Light warm evening wash — keep cream+brown readable, no blotches
-      tctx.fillStyle = 'rgba(48, 36, 28, 0.08)';
-      tctx.fillRect(0, 0, tw, th);
-      wallpaperPattern = ctx.createPattern(tile, 'repeat');
-      wallpaperPatternKey = tileKey;
-    }
-  }
-
-  if (wallpaperPattern) {
-    ctx.save();
-    ctx.fillStyle = wallpaperPattern;
-    ctx.fillRect(x, y, w, h);
-    ctx.restore();
-  } else {
-    px(ctx, x, y, w, h, '#c8b898');
-  }
-
-  // Clean paper seams only (no grease / nicotine stains)
-  for (let sx = 32; sx < x + w; sx += 96) {
-    px(ctx, sx, y + 2, 1, h - 6, 'rgba(100, 78, 55, 0.14)');
+  drawMdWallpaper(ctx, x, y, w, h, 'apt');
+  // Integer seam every 32px
+  for (let sx = Math.round(x) + 32; sx < x + w; sx += 32) {
+    px(ctx, sx, y + 2, 1, h - 6, WALLPAPER_SEAM);
   }
 }
+
+const WALLPAPER_SEAM = 'rgba(60, 58, 88, 0.35)';
 
 /** Small framed family portrait on the wall near the computer. */
 export function drawWallFamilyFrame(ctx: CanvasRenderingContext2D): void {

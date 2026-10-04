@@ -10,10 +10,8 @@ import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { APT_PAL } from '@/art/segaPalette';
-import {
-  drawTiledWallpaper,
-  preloadApartmentPhotos,
-} from '@/art/apartmentPhotos';
+import { preloadApartmentPhotos } from '@/art/apartmentPhotos';
+import { drawMdWallpaper } from '@/art/mdTiles';
 import {
   drawFatherRoomWallPhotos,
   preloadFatherRoomPhotos,
@@ -386,7 +384,7 @@ function drawGradRoom(
   height: number,
   t: number,
 ): void {
-  drawTiledWallpaper(ctx, 0, 0, width, FLOOR_Y - 8);
+  drawMdWallpaper(ctx, 0, 0, width, FLOOR_Y - 8, 'podezd');
   px(ctx, 0, FLOOR_Y - 8, width, height - (FLOOR_Y - 8), '#3a3428');
   ditherRect(ctx, 0, FLOOR_Y - 8, width, 4, '#4a4030', '#3a3428');
   // Window evening
