@@ -1,0 +1,42 @@
+---
+description: Work on a branch, open a PR, never push to main
+alwaysApply: true
+---
+
+# Branches and pull requests
+
+Several agents work in this repo in parallel. `main` deploys to GitHub Pages
+on every push, so it must only change through reviewed pull requests.
+
+## Workflow
+
+1. Start from fresh `main`: `git fetch origin main && git checkout -b <type>/<short-name> origin/main`
+   (`feat/`, `fix/`, `art/`, `chore/`).
+2. Keep the change focused on one task. Do not touch gameplay, balance, texts
+   or art outside that task.
+3. Before pushing, run and make green:
+   - `npm run typecheck`
+   - `npm run build` (no errors or warnings)
+   - for UI/art changes, look at a screenshot (see `scripts/capture-*.mjs`).
+4. Push the branch (`git push -u origin <branch>`) and open **one PR into `main`**.
+   Describe what changed, how you verified it, and anything intentionally left out.
+5. **Never push to `main`** (neither `origin` nor `github` remote) and never
+   force-push a shared branch. The owner reviews and merges.
+6. If `main` moved and the PR conflicts, merge `origin/main` into your branch
+   and re-run the checks.
+
+## Avoid collisions between agents
+
+Stay inside your area; touch shared files only when the task requires it:
+
+- Art / rendering: `src/art/*`, `src/render/*`
+- A level: its own `src/scenes/<Level>1995.ts` (one agent per level)
+- Core / UI / persistence: `src/core/*`, `src/ui/*`, `src/systems/*`, `src/main.ts`
+
+## Compatibility contracts
+
+- Keep the public debug API `window.__novgorod` (`goto*`, `states`, `beer`,
+  `captureCanvas`, `resetSave`, …): `scripts/capture-*.mjs` depend on it.
+- Keep the shape of `ProgressFlags` (`src/core/StateManager.ts`) and the save
+  format version in `src/core/SaveGame.ts`; changing either needs a migration.
+- Vite `base` defaults to `/the-game/`; GitHub Actions sets it from the repo name.
