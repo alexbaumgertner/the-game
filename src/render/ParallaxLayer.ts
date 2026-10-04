@@ -106,3 +106,25 @@ export const RYNOK_LAYER_ORDER = [
   { id: 'lighting', speedRatio: 0, zIndex: 40 },
   { id: 'weather', speedRatio: 1.25, zIndex: 50 },
 ] as const;
+
+/**
+ * Blit a repeating 8×8 tile strip for a parallax layer (integer scroll).
+ * Prefer scene drawers calling `fillTileRect` from `@/art/mdTiles` directly;
+ * this helper exists for shared strip patterns.
+ */
+export function drawTiledParallaxStrip(
+  ctx: CanvasRenderingContext2D,
+  viewW: number,
+  y: number,
+  h: number,
+  scrollX: number,
+  drawTileRow: (ctx: CanvasRenderingContext2D, x: number, y: number) => void,
+  period = 8,
+): void {
+  const p = Math.max(8, Math.round(period));
+  const ox = ((Math.round(scrollX) % p) + p) % p;
+  for (let x = -ox - p; x < viewW + p; x += p) {
+    drawTileRow(ctx, Math.round(x), Math.round(y));
+  }
+  void h;
+}

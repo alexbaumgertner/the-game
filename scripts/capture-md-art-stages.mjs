@@ -25,8 +25,8 @@ const browser = await puppeteer.launch({
 });
 
 const page = await browser.newPage();
-await page.goto(URL, { waitUntil: 'networkidle0', timeout: 45000 });
-await page.waitForFunction(() => window.__novgorod, { timeout: 15000 });
+await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+await page.waitForFunction(() => window.__novgorod, { timeout: 20000 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const saveCanvas = async (suffix) => {

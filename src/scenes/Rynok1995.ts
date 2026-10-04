@@ -11,7 +11,7 @@ import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
 import type { BeerSystem } from '@/systems/BeerSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
-import { ditherRect, fillBricks, fillSkyGradient, px, segaBox, speckles, woodGrain } from '@/art/pixelDraw';
+import { ditherRect, fillBricks, px, segaBox, speckles, woodGrain } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
 import {
   drawUiText,
@@ -22,6 +22,18 @@ import {
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
 import { drawMomSprite } from '@/art/momSprites';
 import { drawSnappedSnow } from '@/art/snowParticles';
+import {
+  fillTileBand,
+  fillTileRect,
+  TILE_ASPHALT,
+  TILE_ASPHALT_SNOW,
+  TILE_HALL_GLASS,
+  TILE_KREMLIN,
+  TILE_KREMLIN_LIT,
+  TILE_SKY_DEEP,
+  TILE_SKY_LOW,
+  TILE_SKY_MID,
+} from '@/art/mdTiles';
 import { drawBusBridgeParallax, preloadBusBridgeViews } from '@/art/busBridgeViews';
 import { drawRynokBenchCouple, preloadRynokBenchCouple } from '@/art/rynokBenchCouple';
 import { ParallaxStack } from '@/render/ParallaxLayer';
@@ -768,26 +780,14 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 /* ───────────────────── Environment draws ───────────────────── */
 
 function drawSky(ctx: CanvasRenderingContext2D, width: number, height: number): void {
-  fillSkyGradient(
-    ctx,
-    width,
-    [
-      { y: 0, h: 40, color: '#0c1424' },
-      { y: 40, h: 28, color: '#182438' },
-      { y: 68, h: 28, color: '#243048' },
-      { y: 96, h: 36, color: '#304860' },
-      { y: 132, h: height - 132, color: '#3c5068' },
-    ],
-    [
-      { y: 39, a: '#0c1424', b: '#182438' },
-      { y: 67, a: '#182438', b: '#243048' },
-      { y: 95, a: '#243048', b: '#304860' },
-      { y: 131, a: '#304860', b: '#3c5068' },
-    ],
-  );
+  // Far parallax layer 1 — sky tiles (own palette), no noise bands
+  fillTileBand(ctx, 0, 48, width, TILE_SKY_DEEP, 0);
+  fillTileBand(ctx, 48, 40, width, TILE_SKY_MID, 0);
+  fillTileBand(ctx, 88, 44, width, TILE_SKY_LOW, 0);
+  fillTileBand(ctx, 132, height - 132, width, TILE_SKY_LOW, 0);
 }
 
-/** Distant Novgorod Kremlin silhouette (slow parallax). */
+/** Distant Novgorod Kremlin silhouette (slow parallax) — 8×8 masonry tiles. */
 function drawKremlinSilhouette(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -796,22 +796,23 @@ function drawKremlinSilhouette(
   const baseY = 78;
   for (let i = -1; i < 6; i++) {
     const bx = Math.round(i * 110 - (scroll % 110));
-    px(ctx, bx, baseY + 18, 100, 28, '#141820');
-    px(ctx, bx + 8, baseY, 16, 46, '#12161e');
-    px(ctx, bx + 10, baseY - 8, 12, 10, '#1a2030');
+    const tile = i % 2 === 0 ? TILE_KREMLIN : TILE_KREMLIN_LIT;
+    fillTileRect(ctx, bx, baseY + 18, 100, 28, tile, scroll * 0.2);
+    fillTileRect(ctx, bx + 8, baseY, 16, 46, TILE_KREMLIN, scroll * 0.2);
+    fillTileRect(ctx, bx + 10, baseY - 8, 12, 10, TILE_KREMLIN_LIT, 0);
     px(ctx, bx + 14, baseY - 18, 4, 12, '#222838');
     px(ctx, bx + 15, baseY - 22, 2, 6, '#2a3448');
-    px(ctx, bx + 48, baseY + 4, 22, 42, '#12161e');
-    px(ctx, bx + 52, baseY - 6, 14, 12, '#1a2030');
+    fillTileRect(ctx, bx + 48, baseY + 4, 22, 42, TILE_KREMLIN, scroll * 0.15);
+    fillTileRect(ctx, bx + 52, baseY - 6, 14, 12, TILE_KREMLIN_LIT, 0);
     px(ctx, bx + 56, baseY - 14, 6, 10, '#222838');
-    px(ctx, bx + 78, baseY + 6, 18, 40, '#141820');
-    px(ctx, bx + 82, baseY - 2, 10, 10, '#222840');
+    fillTileRect(ctx, bx + 78, baseY + 6, 18, 40, TILE_KREMLIN, scroll * 0.1);
+    fillTileRect(ctx, bx + 82, baseY - 2, 10, 10, TILE_KREMLIN_LIT, 0);
     if ((i + 3) % 2 === 0) {
       px(ctx, bx + 14, baseY + 20, 2, 2, '#d8b050');
       px(ctx, bx + 56, baseY + 24, 2, 2, '#b89840');
     }
   }
-  ditherRect(ctx, 0, baseY + 40, width, 4, '#243040', '#304858');
+  fillTileBand(ctx, baseY + 40, 8, width, TILE_SKY_LOW, scroll * 0.1);
 }
 
 /** Midground Центральный рынок — wavy arched roof + blue glass grid. */
@@ -838,25 +839,25 @@ function drawMarketHallSegment(
   w: number,
   h: number,
 ): void {
-  px(ctx, x, topY + 18, w, h - 18, R.hallGlassDeep);
+  fillTileRect(ctx, x, topY + 18, w, h - 18, TILE_HALL_GLASS, x * 0.1);
   drawWavyRoof(ctx, x - 2, topY, w + 4);
   const glassTop = topY + 20;
   const glassH = h - 22;
-  px(ctx, x + 4, glassTop, w - 8, glassH, R.hallGlass);
+  fillTileRect(ctx, x + 4, glassTop, w - 8, glassH, TILE_HALL_GLASS, x * 0.15);
   for (let col = 0; col < 10; col++) {
     const mx = x + 6 + col * Math.floor((w - 12) / 10);
     px(ctx, mx, glassTop, 2, glassH, R.hallFrame);
     const lit = col % 3 === 1;
     const paneW = Math.max(4, Math.floor((w - 12) / 10) - 3);
+    // Pane tint over tiles (still integer)
     px(
       ctx,
       mx + 2,
       glassTop + 4,
       paneW,
       glassH - 8,
-      lit ? R.hallGlassLit : R.hallGlassHi,
+      lit ? 'rgba(152,200,224,0.35)' : 'rgba(88,136,168,0.25)',
     );
-    px(ctx, mx + 3, glassTop + 6, Math.max(1, paneW - 4), 2, lit ? '#98c8e0' : '#5888a8');
     for (let row = 0; row < 4; row++) {
       px(ctx, mx + 2, glassTop + 6 + row * 14, paneW, 1, R.hallFrameDark);
     }
@@ -931,25 +932,13 @@ function drawMarketPlinth(ctx: CanvasRenderingContext2D, worldW: number): void {
 }
 
 function drawGround(ctx: CanvasRenderingContext2D, worldW: number, height: number): void {
-  px(ctx, 0, FLOOR_Y - 4, worldW, height - (FLOOR_Y - 4), R.street);
-  ditherRect(ctx, 0, FLOOR_Y - 4, worldW, 4, R.streetHi, R.street);
-
-  for (let x = 0; x < worldW; x += 10) {
-    for (let y = FLOOR_Y + 2; y < height; y += 7) {
-      const light = (x / 10 + y / 7) % 2 === 0;
-      px(ctx, x, y, 10, 7, light ? R.snow : R.snowMid);
-    }
-  }
-  px(ctx, 0, FLOOR_Y - 4, worldW, 4, R.snow);
+  // Asphalt from repeating 8×8 tiles (not random noise)
+  fillTileRect(ctx, 0, FLOOR_Y - 4, worldW, height - (FLOOR_Y - 4), TILE_ASPHALT, 0, 0);
+  fillTileRect(ctx, 0, FLOOR_Y + 2, worldW, height - (FLOOR_Y + 2), TILE_ASPHALT_SNOW, 0, 0);
+  // Snow curb band
+  fillTileRect(ctx, 0, FLOOR_Y - 4, worldW, 6, TILE_ASPHALT_SNOW, 0, 0);
   px(ctx, 0, FLOOR_Y - 4, worldW, 1, R.snowHi);
   px(ctx, 0, FLOOR_Y, worldW, 2, R.snowShadow);
-
-  ctx.fillStyle = R.snowDeep;
-  for (let x = 10; x < worldW; x += 20) {
-    ctx.fillRect(x, FLOOR_Y + 10, 4, 1);
-    ctx.fillRect(x + 6, FLOOR_Y + 16, 3, 1);
-    ctx.fillRect(x + 2, FLOOR_Y + 22, 2, 1);
-  }
   for (let x = 40; x < worldW; x += 70) {
     px(ctx, x, FLOOR_Y + 6, 18, 3, R.snowShadow);
     px(ctx, x + 2, FLOOR_Y + 7, 14, 1, R.streetDark);
