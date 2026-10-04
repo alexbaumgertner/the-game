@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
  * (except Vite's special `./` relative mode).
  */
 function resolveBase(): string {
-  const raw = (process.env.VITE_BASE ?? '/novgorod-1995/').trim() || '/novgorod-1995/';
+  const raw = (process.env.VITE_BASE ?? '/the-game/').trim() || '/the-game/';
   if (raw === './') return raw;
   return raw.endsWith('/') ? raw : `${raw}/`;
 }
