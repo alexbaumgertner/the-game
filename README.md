@@ -29,16 +29,11 @@ Open the URL Vite prints (default `http://localhost:5173`).
 
 Live site: https://alexbaumgertner.github.io/the-game/
 
-**Agent / workflow rule:** if local `npm run build` (and tests, when present) pass, push `main` to both remotes — do not wait for a manual sync request:
-
-```bash
-git push origin main
-git push github main   # → alexbaumgertner/the-game (Actions deploys Pages)
-```
+Deploy runs from GitHub Actions when `main` changes. **Nobody pushes to `main` directly:** work on a branch, make `npm run typecheck` and `npm run build` pass, open a PR, and the owner merges it after review.
 
 Default Vite `base` is `/the-game/` (override with `VITE_BASE`, e.g. `VITE_BASE=/ npm run build` for a custom domain).
 
-Repo **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for `VITE_BASE` / URL patterns. Cursor rule: `.cursor/rules/github-pages-push.mdc`.
+Repo **Settings → Pages → Source: GitHub Actions**. See project doc `github-pages-deploy.md` for `VITE_BASE` / URL patterns. Agent rules: `.cursor/rules/branch-and-pr.mdc`.
 
 ## Layout
 
