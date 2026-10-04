@@ -1,11 +1,17 @@
 /**
- * Chunky 5×7 NES-style bitmap font (A–Z, 0–9, punctuation).
+ * Chunky 5×7 NES-style bitmap font (A–Z, 0–9, Cyrillic А–Я, punctuation).
  * Drawn as solid pixels — no CSS font dependency for HUD chrome.
+ *
+ * Case: only uppercase bitmaps exist. drawNesText / drawUiText always map
+ * input through toLocaleUpperCase('ru-RU') — all-caps HUD is intentional.
  */
 
 import { blitGrid } from './pixelDraw';
 
-/** Each glyph is 5 columns × 7 rows; 1 = ink, 0 = empty. Packed as 35 bits in a string of 0/1. */
+/**
+ * Each glyph is 5 columns × 7 rows; 1 = ink, 0 = empty.
+ * Packed row-major as a string of 35 chars '0'|'1'.
+ */
 const GLYPHS: Record<string, string> = {
   ' ': '00000000000000000000000000000000000',
   A: '01110100011000111111100011000110001',
@@ -49,29 +55,67 @@ const GLYPHS: Record<string, string> = {
   '!': '00100001000010000100000000010000000',
   '?': '01110100010000100100000000010000000',
   ':': '00000001000000000000001000000000000',
+  ';': '00000001000000000000001100010001000',
   '-': '00000000000111110000000000000000000',
+  // Em dash — double-thick bar (en dash falls back here)
+  '—': '00000000001111111111000000000000000',
+  '+': '00000001000111110010000000000000000',
+  '=': '00000000000111110000011111000000000',
+  '*': '00100010100111001010001000000000000',
   '/': '00001000100010001000100010000000000',
+  '\\': '10000010000010000010000010000000000',
+  '_': '00000000000000000000000001111100000',
+  '|': '00100001000010000100001000010000000',
+  '#': '01010111110101011111010100000000000',
+  '%': '11001101010010000100101101001100000',
+  '&': '01100100100110001010100100101100000',
+  '@': '01110100011010110110100000111000000',
+  '$': '00100111111001001111001001111000100',
+  '^': '00100010101000100000000000000000000',
+  '~': '00000000001000101010001000000000000',
+  '`': '01000001000000000000000000000000000',
   '·': '00000000000010000100000000000000000',
   '>': '00000010000010000010000100000000000',
   '<': '00000100000100000100000010000000000',
-  "'": '00100001000000000000000000000000000',
+  '\'': '00100001000000000000000000000000000',
+  '"': '01010010100000000000000000000000000',
+  '(': '00100010000100001000010000010000000',
+  ')': '00100000100001000010000100010000000',
+  '[': '01110010000100001000010000111000000',
+  ']': '01110000100001000010000100111000000',
+  '{': '00110010000100001000010000011000000',
+  '}': '01100000100001000010000100110000000',
+  '«': '00110010001000001000001100000000000',
+  '»': '01100000100000100010011000000000000',
+  '…': '00000000000000000000000001010100000',
+  '↑': '00100011101010100100001000010000000',
   '←': '00100011001111100110001000000000000',
   '→': '00100001101111101100001000000000000',
-  '↑': '00100011101010100100001000010000000',
-  '…': '00000000000000000000001010010100000',
-  // Cyrillic — 5×7 approximations (Bazar slang + Central Market signs)
+  '×': '00000100010101000100010101000100000',
+  '₽': '01110100011111010000111001000000000',
+  '★': '00100010101111101110010100010000000',
+  '№': '10101101011010100000000000000000000',
+  '≤': '00000111110000011111001000010000000',
+  '≠': '00001000101111100010111110001000000',
+  '▶': '10000110001111011000110001000000000',
+  '◀': '00001000110001111000110001000010000',
+  // Cyrillic А–Я (5×7, audited for HUD legibility)
   А: '01110100011000111111100011000110001',
-  Б: '11110100011111010001100011111000000',
+  Б: '11111100001111010001100011111000000',
   В: '11110100011111010001100011111000000',
   Г: '11111100001000010000100001000000000',
-  Д: '00100010101000110001100011111100000',
+  Д: '01110010100101001010111111000100000',
   Е: '11111100001111010000100001111100000',
+  // Ё = Е with two dots on the top row
+  Ё: '01010111111000011110100001111100000',
   Ж: '10101101010111001010101011010100000',
   З: '11110000010111000001100011111000000',
-  И: '10001100011010110101100011000100000',
-  Й: '01010100011010110101100011000100000',
+  // И — clear diagonal (N-mirror); not М (no top bridge ##.##)
+  И: '10001100011001110101110011000100000',
+  // Й — breve bar (not diaeresis) + compressed И
+  Й: '01110100011000110011101011100110001',
   К: '10001100101110010100100101000100000',
-  Л: '01010010101001010010100011000100000',
+  Л: '00100010101000110001100011000100000',
   М: '10001110111010110001100011000100000',
   Н: '10001100011111110001100011000100000',
   О: '01110100011000110001100010111000000',
@@ -82,22 +126,51 @@ const GLYPHS: Record<string, string> = {
   У: '10001100010101000100001000100000000',
   Ф: '00100011101010101110001000010000000',
   Х: '10001010100010001010010101000100000',
-  Ц: '10001100011000110001100011111100001',
+  Ц: '10001100011000110001111110001000011',
   Ч: '10001100011000101111000010000100000',
-  Ш: '10001101011010110101101011111100000',
-  Щ: '10001101011010110101101011111100001',
+  Ш: '10101101011010110101101011111100000',
+  // Щ — Ш + bottom-right descender tail
+  Щ: '10101101011010110101111110010000110',
   Ъ: '11000100001111010001100011111000000',
-  Ы: '10001100101101010101101011010100000',
+  // Ы — soft-sign bowl + separate right stem (not Ж)
+  Ы: '10001100011100110101101011100100000',
   Ь: '10000100001111010001100011111000000',
   Э: '01111000010111000001000010111100000',
-  Ю: '10010010101001011110100101001000000',
-  Я: '01111100010111110001100011000100000',
-  Ё: '01010011101000111111100011000110001',
-  '№': '10101101011010100000000000000000000',
+  Ю: '10010101011110110101101011001000000',
+  // Я — mirrored R with diagonal leg
+  Я: '01111100010111100101010011000100000',
+};
+
+/**
+ * When a source character has no dedicated bitmap, map to a drawn glyph.
+ * Keys are post-uppercased (same as drawNesText). Values must exist in GLYPHS.
+ */
+export const NES_FALLBACKS: Record<string, string> = {
+  '–': '—', // en dash → em dash
+  '−': '-', // minus sign → hyphen
+  '‐': '-', // hyphen
+  '‑': '-', // non-breaking hyphen
+  '‒': '—', // figure dash
+  '―': '—', // horizontal bar
+  '›': '>',
+  '‹': '<',
+  'É': 'E',
 };
 
 const GW = 5;
 const GH = 7;
+
+/** True if ch resolves to a real bitmap (glyph or explicit fallback). */
+export function hasNesGlyph(ch: string): boolean {
+  if (Object.prototype.hasOwnProperty.call(GLYPHS, ch)) return true;
+  const fb = NES_FALLBACKS[ch];
+  return fb !== undefined && Object.prototype.hasOwnProperty.call(GLYPHS, fb);
+}
+
+/** All characters with a dedicated bitmap (for CI audits). */
+export function listNesGlyphChars(): string[] {
+  return Object.keys(GLYPHS);
+}
 
 export function measureNesText(text: string, scale = 1, tracking = 1): number {
   const s = Math.max(1, Math.round(scale));
@@ -108,6 +181,15 @@ export function measureNesText(text: string, scale = 1, tracking = 1): number {
     w += GW * s;
   }
   return w;
+}
+
+function resolveGlyph(ch: string): string {
+  if (Object.prototype.hasOwnProperty.call(GLYPHS, ch)) return GLYPHS[ch]!;
+  const fb = NES_FALLBACKS[ch];
+  if (fb !== undefined && Object.prototype.hasOwnProperty.call(GLYPHS, fb)) {
+    return GLYPHS[fb]!;
+  }
+  return GLYPHS[' ']!;
 }
 
 /**
@@ -127,12 +209,12 @@ export function drawNesText(
   const gap = Math.max(1, Math.round(tracking)) * s;
   let cx = Math.round(x);
   const cy = Math.round(y);
+  // Intentional all-caps: only uppercase 5×7 bitmaps exist.
   const upper = text.toLocaleUpperCase('ru-RU');
 
   for (let i = 0; i < upper.length; i++) {
     const ch = upper[i]!;
-    // Prefer exact glyph; Cyrillic stays as-is after locale upper
-    const raw = GLYPHS[ch] ?? GLYPHS[ch.toUpperCase()] ?? GLYPHS[' ']!;
+    const raw = resolveGlyph(ch);
     const pixels: Array<string | null> = [];
     for (let p = 0; p < GW * GH; p++) {
       pixels.push(raw[p] === '1' ? color : null);
