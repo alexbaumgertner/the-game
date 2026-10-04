@@ -20,6 +20,7 @@ import {
   uiPanel,
 } from '@/art/uiFont';
 import { drawFamilyFaceWithRim, preloadFamilyFaces } from '@/art/familyFaces';
+import { drawMomSprite } from '@/art/momSprites';
 import { drawBusBridgeParallax, preloadBusBridgeViews } from '@/art/busBridgeViews';
 import { drawRynokBenchCouple, preloadRynokBenchCouple } from '@/art/rynokBenchCouple';
 import { ParallaxStack } from '@/render/ParallaxLayer';
@@ -1126,56 +1127,19 @@ function drawStallSeller(
   px(ctx, ox + 1, oy - 38 + bob, 1, 1, '#181018');
 }
 
-/** Mother behind МЕХА stall — photo face + fur-collar coat. */
+/** Mother behind МЕХА stall — MD pixel sprite (28×42, ≤15 colors). */
 function drawMother(
   ctx: CanvasRenderingContext2D,
   x: number,
   floorY: number,
   panic: number,
 ): void {
-  const ox = Math.round(x);
-  const oy = Math.round(floorY);
-  // Winter coat with fur collar
-  px(ctx, ox - 7, oy - 32, 14, 20, '#6a4838');
-  px(ctx, ox - 6, oy - 30, 5, 6, '#8a6850');
-  px(ctx, ox + 1, oy - 28, 4, 8, '#5a3828');
-  speckles(ctx, ox - 7, oy - 32, 14, 20, '#4a3020', 3, 2);
-  px(ctx, ox - 6, oy - 32, 12, 3, '#c8a070');
-  px(ctx, ox - 5, oy - 31, 10, 1, '#e0c090');
-  speckles(ctx, ox - 6, oy - 32, 12, 3, '#a08060', 2, 1);
-  // Headscarf frame under photo face
-  px(ctx, ox - 6, oy - 44, 12, 4, '#4a3040');
-  px(ctx, ox - 7, oy - 42, 2, 8, '#4a3040');
-  px(ctx, ox + 5, oy - 42, 2, 8, '#3a2830');
-  px(ctx, ox - 5, oy - 42, 10, 12, '#d0a878');
-  // Photo-quality face from family portrait
-  if (!drawFamilyFaceWithRim(ctx, 'mother', ox - 5, oy - 43, 10, 12)) {
-    px(ctx, ox - 3, oy - 36, 2, 2, '#181018');
-    px(ctx, ox + 1, oy - 36, 2, 2, '#181018');
-    px(ctx, ox - 1, oy - 34, 2, 1, '#a87858');
-  }
-  if (panic > 0.5) {
-    px(ctx, ox - 6, oy - 38, 1, 1, '#f0e0c0');
-    px(ctx, ox + 5, oy - 38, 1, 1, '#f0e0c0');
-  }
-  // Arms
-  if (panic > 0.55) {
-    px(ctx, ox - 11, oy - 30, 4, 4, '#d0a878');
-    px(ctx, ox + 7, oy - 32, 4, 4, '#d0a878');
-    px(ctx, ox - 10, oy - 29, 2, 1, '#e8c898');
-  } else {
-    px(ctx, ox - 10, oy - 28, 3, 7, '#d0a878');
-    px(ctx, ox + 7, oy - 28, 3, 7, '#d0a878');
-    px(ctx, ox - 9, oy - 27, 1, 3, '#e8c898');
-  }
-  // Skirt / boots
-  px(ctx, ox - 5, oy - 12, 4, 8, '#3a3048');
-  px(ctx, ox + 1, oy - 12, 4, 8, '#3a3048');
-  px(ctx, ox - 6, oy - 4, 5, 4, '#18141c');
-  px(ctx, ox + 1, oy - 4, 5, 4, '#18141c');
+  const frame = Math.floor(performance.now() / 220) % 4;
+  drawMomSprite(ctx, x, floorY, frame, panic);
   if (panic > 0.6) {
-    px(ctx, ox + 6, oy - 40, 1, 2, '#80c0e0');
-    drawNesText(ctx, '!', ox + 8, oy - 44, '#e04040', 1, 1);
+    const ox = Math.round(x);
+    const oy = Math.round(floorY);
+    drawNesText(ctx, '!', ox + 10, oy - 46, '#e04040', 1, 1);
   }
 }
 

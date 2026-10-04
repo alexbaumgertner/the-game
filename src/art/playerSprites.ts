@@ -132,7 +132,7 @@ function drawBaldFace(
     set(x0 + 3, eyeY, o);
     set(x1 - 3, eyeY, o);
     set(x1 - 2, eyeY, o);
-    set(mid, mouthY, '#e05050');
+    set(mid, mouthY, pal.lip);
     set(mid - 1, mouthY, skS);
     set(mid + 1, mouthY, skS);
     return;
@@ -334,10 +334,10 @@ function adultIdle(frame: number): Cell[] {
   set(22, 39, shs);
   fillRect(set, 11, 40, 14, 41, shs);
   fillRect(set, 17, 40, 20, 41, shs);
-  set(11, 41, '#1a1410'); // sole
-  set(14, 41, '#1a1410');
-  set(17, 41, '#1a1410');
-  set(20, 41, '#1a1410');
+  set(11, 41, A.shoes); // sole
+  set(14, 41, A.shoes);
+  set(17, 41, A.shoes);
+  set(20, 41, A.shoes);
 
   // Tiny outline accents on crown edge (smooth bald silhouette)
   set(9, hy + 2, o);
@@ -868,55 +868,31 @@ function teenHurt(frame: number): Cell[] {
   const g = teenBase(1, -1, 'hurt');
   const set = setter(g, TW, TH);
   if (frame % 2 === 1) {
-    set(11, 7, '#e07070');
-    set(14, 7, '#e07070');
+    set(11, 7, T.lip);
+    set(14, 7, T.lip);
   }
   return g;
 }
 
-function teenBazar(frame: number): Cell[] {
-  const g = teenBase(frame % 2, 0, 'shout');
-  const set = setter(g, TW, TH);
-  const sk = T.skin;
-  const skH = T.skinHi;
-
-  for (let y = 13; y <= 19; y++) {
-    for (let x = 0; x <= 5; x++) set(x, y, null);
-    for (let x = 22; x < TW; x++) set(x, y, null);
+/** Paint black outline on transparent neighbors of opaque pixels (MD silhouette). */
+function ensureBlackOutline(cells: Cell[], w: number, h: number, outline = '#000000'): void {
+  const ink: boolean[] = [];
+  for (let i = 0; i < cells.length; i++) ink[i] = cells[i] != null;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (ink[i]) continue;
+      const n =
+        (x > 0 && ink[i - 1]) ||
+        (x < w - 1 && ink[i + 1]) ||
+        (y > 0 && ink[i - w]) ||
+        (y < h - 1 && ink[i + w]);
+      if (n) cells[i] = outline;
+    }
   }
-  fillRect(set, 0, 13, 4, 16, sk);
-  set(0, 12, skH);
-  fillRect(set, 23, 13, 27, 16, sk);
-  set(27, 12, skH);
-  if (frame % 2 === 1) {
-    set(1, 11, sk);
-    set(26, 11, sk);
-  }
-  return g;
 }
 
-export type PlayerSpriteKind =
-  | 'adult_idle'
-  | 'adult_walk'
-  | 'adult_inspect'
-  | 'teen_idle'
-  | 'teen_walk'
-  | 'teen_run'
-  | 'teen_inspect'
-  | 'teen_punch'
-  | 'teen_kick'
-  | 'teen_jump'
-  | 'teen_hurt'
-  | 'teen_bazar';
-
-export function drawPlayerSprite(
-  ctx: CanvasRenderingContext2D,
-  kind: PlayerSpriteKind,
-  frame: number,
-  x: number,
-  y: number,
-  facing: 1 | -1,
-): void {
+function buildPlayerCells(kind: PlayerSpriteKind, frame: number): { cells: Cell[]; w: number; h: number } {
   let cells: Cell[];
   let w: number;
   let h: number;
@@ -987,21 +963,72 @@ export function drawPlayerSprite(
       w = AW;
       h = AH;
   }
-
-  const ox = Math.round(x);
-  const oy = Math.round(y);
-
-  ctx.save();
-  ctx.translate(ox, oy);
-  ctx.scale(facing, 1);
-  blitGrid(ctx, -Math.floor(w / 2), -h, w, h, cells, 1);
-  ctx.restore();
+  ensureBlackOutline(cells, w, h);
+  return { cells, w, h };
 }
 
-export const SPRITE_SIZES = {
-  adult: { w: AW, h: AH },
-  teen: { w: TW, h: TH },
-} as const;
+/** Unique non-null hex colors in a sprite grid (for CI / MD budget). */
+export function countUniqueColors(cells: ReadonlyArray<string | null>): number {
+  const set = new Set<string>();
+  for (const c of cells) {
+    if (c) set.add(c.toLowerCase());
+  }
+  return set.size;
+}
+
+/** Build every player clip frame for palette audits. */
+export function auditPlayerSpriteColors(): Array<{
+  id: string;
+  colors: number;
+  hexes: string[];
+}> {
+  const out: Array<{ id: string; colors: number; hexes: string[] }> = [];
+  for (const [kind, frames] of Object.entries(SPRITE_FRAME_COUNTS)) {
+    for (let f = 0; f < frames; f++) {
+      const { cells } = buildPlayerCells(kind as PlayerSpriteKind, f);
+      const hexes = [
+        ...new Set(cells.filter((c): c is string => !!c).map((c) => c.toLowerCase())),
+      ].sort();
+      out.push({ id: `${kind}[${f}]`, colors: hexes.length, hexes });
+    }
+  }
+  return out;
+}
+
+function teenBazar(frame: number): Cell[] {
+  const g = teenBase(frame % 2, 0, 'shout');
+  const set = setter(g, TW, TH);
+  const sk = T.skin;
+  const skH = T.skinHi;
+
+  for (let y = 13; y <= 19; y++) {
+    for (let x = 0; x <= 5; x++) set(x, y, null);
+    for (let x = 22; x < TW; x++) set(x, y, null);
+  }
+  fillRect(set, 0, 13, 4, 16, sk);
+  set(0, 12, skH);
+  fillRect(set, 23, 13, 27, 16, sk);
+  set(27, 12, skH);
+  if (frame % 2 === 1) {
+    set(1, 11, sk);
+    set(26, 11, sk);
+  }
+  return g;
+}
+
+export type PlayerSpriteKind =
+  | 'adult_idle'
+  | 'adult_walk'
+  | 'adult_inspect'
+  | 'teen_idle'
+  | 'teen_walk'
+  | 'teen_run'
+  | 'teen_inspect'
+  | 'teen_punch'
+  | 'teen_kick'
+  | 'teen_jump'
+  | 'teen_hurt'
+  | 'teen_bazar';
 
 /** Frame counts for fluid clips (matches Player anim maps). */
 export const SPRITE_FRAME_COUNTS = {
@@ -1017,4 +1044,28 @@ export const SPRITE_FRAME_COUNTS = {
   teen_jump: 1,
   teen_hurt: 2,
   teen_bazar: 2,
+} as const;
+
+export function drawPlayerSprite(
+  ctx: CanvasRenderingContext2D,
+  kind: PlayerSpriteKind,
+  frame: number,
+  x: number,
+  y: number,
+  facing: 1 | -1,
+): void {
+  const { cells, w, h } = buildPlayerCells(kind, frame);
+  const ox = Math.round(x);
+  const oy = Math.round(y);
+
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.scale(facing, 1);
+  blitGrid(ctx, -Math.floor(w / 2), -h, w, h, cells, 1);
+  ctx.restore();
+}
+
+export const SPRITE_SIZES = {
+  adult: { w: AW, h: AH },
+  teen: { w: TW, h: TH },
 } as const;
