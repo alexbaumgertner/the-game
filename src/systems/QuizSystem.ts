@@ -15,7 +15,9 @@ import {
 /** Same absolute MF as one gangster punch (`Gangster.consumeAttackHit`). */
 export const QUIZ_MF_COST = GANGSTER_PUNCH_MF; // 14
 
-export type QuizAnswerResult = 'correct' | 'wrong' | 'ignored';
+export type QuizAnswerResult = 'correct' | 'wrong' | 'ignored' | 'clever';
+
+export type QuizMode = 'standard' | 'honesty';
 
 export class QuizSystem {
   private speaker = '';
@@ -33,6 +35,8 @@ export class QuizSystem {
   private closing = false;
   private closeTimer = 0;
   private onCorrect: (() => void) | null = null;
+  private onClever: (() => void) | null = null;
+  private mode: QuizMode = 'standard';
 
   get isOpen(): boolean {
     return this.openFlag;
@@ -72,11 +76,57 @@ export class QuizSystem {
     this.begin(speaker, shuffleQuestion(raw), onCorrect);
   }
 
+  /**
+   * Honesty mode (Level 11 «Умный»): short honest answer is «correct»;
+   * clever debate-win answers return `clever` (scene drains spark / desats).
+   * Honest index is shuffled with the answers.
+   */
+  openHonesty(
+    speaker: string,
+    question: string,
+    answers: [string, string, string, string],
+    honestIndex: 0 | 1 | 2 | 3,
+    opts?: { onHonest?: () => void; onClever?: () => void; subject?: string },
+  ): void {
+    const order: (0 | 1 | 2 | 3)[] = [0, 1, 2, 3];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = order[i]!;
+      order[i] = order[j]!;
+      order[j] = tmp;
+    }
+    const shuffled: [string, string, string, string] = [
+      answers[order[0]!],
+      answers[order[1]!],
+      answers[order[2]!],
+      answers[order[3]!],
+    ];
+    const newHonest = order.indexOf(honestIndex) as 0 | 1 | 2 | 3;
+    this.mode = 'honesty';
+    this.speaker = speaker;
+    this.question = question;
+    this.subject = opts?.subject ?? 'честность';
+    this.answers = shuffled;
+    this.correctIndex = newHonest;
+    this.hintClue = 'Короче и честнее — не умнее.';
+    this.eliminated = new Set();
+    this.hintUsed = true; // no paid hint in honesty mode
+    this.hintClueShown = false;
+    this.feedback = '';
+    this.feedbackTimer = 0;
+    this.openFlag = true;
+    this.closing = false;
+    this.closeTimer = 0;
+    this.onCorrect = opts?.onHonest ?? null;
+    this.onClever = opts?.onClever ?? null;
+  }
+
   private begin(
     speaker: string,
     q: ReturnType<typeof shuffleQuestion>,
     onCorrect?: () => void,
   ): void {
+    this.mode = 'standard';
     this.speaker = speaker;
     this.question = q.question;
     this.subject = q.subject;
@@ -92,14 +142,17 @@ export class QuizSystem {
     this.closing = false;
     this.closeTimer = 0;
     this.onCorrect = onCorrect ?? null;
+    this.onClever = null;
   }
 
   closeSilent(): void {
     this.openFlag = false;
     this.closing = false;
     this.onCorrect = null;
+    this.onClever = null;
     this.feedback = '';
     this.feedbackTimer = 0;
+    this.mode = 'standard';
   }
 
   /** Pick answer 0–3. */
@@ -110,11 +163,22 @@ export class QuizSystem {
     if (this.feedbackTimer > 0 && !this.closing) return 'ignored';
 
     if (index === this.correctIndex) {
-      this.feedback = 'ВЕРНО!';
+      this.feedback = this.mode === 'honesty' ? 'ЧЕСТНО.' : 'ВЕРНО!';
       this.feedbackTimer = 0.55;
       this.closing = true;
       this.closeTimer = 0.55;
       return 'correct';
+    }
+
+    if (this.mode === 'honesty') {
+      this.feedback = 'Умно. Пусто.';
+      this.feedbackTimer = 0.7;
+      this.closing = true;
+      this.closeTimer = 0.7;
+      // Swap callback so update() fires onClever
+      this.onCorrect = this.onClever;
+      this.onClever = null;
+      return 'clever';
     }
 
     this.feedback = `НЕВЕРНО (−${QUIZ_MF_COST} СД)`;

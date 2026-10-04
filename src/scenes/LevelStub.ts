@@ -130,24 +130,6 @@ export function createLevelStubScene(deps: StubLevelDeps, config: StubLevelConfi
   };
 }
 
-export function createRehab2015Scene(deps: StubLevelDeps) {
-  return createLevelStubScene(deps, {
-    scene: 'rehab_2015',
-    era: 'ERA_2015',
-    title: 'Распорядок',
-    yearLabel: '2015',
-  });
-}
-
-export function createKrug2015Scene(deps: StubLevelDeps) {
-  return createLevelStubScene(deps, {
-    scene: 'krug_2015',
-    era: 'ERA_2015',
-    title: 'Круг',
-    yearLabel: '2015',
-  });
-}
-
 export function createFinale2026Scene(deps: StubLevelDeps) {
   return createLevelStubScene(deps, {
     scene: 'finale_2026',
