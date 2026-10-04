@@ -1,42 +1,47 @@
 /**
- * Crisp modern UI typography — canvas fillText with system sans.
- * Glyphs are rasterized in buffer-pixel space (undo logical transform)
- * so Hi-DPI stays sharp. NOT retro 8/16-bit bitmap.
+ * HUD / dialogue typography — raster pixel font (nesFont), no subpixel AA.
+ *
+ * API kept compatible with the old fillText uiFont so scenes/systems keep
+ * calling drawUiText / measureUiText / uiPanel. Glyphs are integer-scaled
+ * 5×7 bitmaps snapped to the logical 320×224 grid.
  */
 
-import { getDisplayMetrics } from '@/core/Display';
+import { segaBox } from './pixelDraw';
+import {
+  drawNesText,
+  drawNesTextCentered,
+  measureNesText,
+} from './nesFont';
 
-const UI_STACK = 'system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif';
-
-export function uiFontFace(sizePx: number, weight: number | string = 600): string {
-  return `${weight} ${sizePx}px ${UI_STACK}`;
+/** Map former fillText sizes (logical px) → integer bitmap scale. */
+function glyphScale(size: number): number {
+  if (size >= 11) return 2;
+  return 1;
 }
 
-/** Current logical→buffer scale (fallback 2). */
-function bufferScale(ctx: CanvasRenderingContext2D): number {
-  const t = ctx.getTransform().a;
-  if (t > 0) return t;
-  return getDisplayMetrics().logicalToBuffer || 2;
+/** Tracking: keep dense for HUD chrome. */
+const TRACK = 1;
+
+export function uiFontFace(_sizePx: number, _weight: number | string = 600): string {
+  // Kept for API compat; bitmap path does not use CSS fonts.
+  return 'pixel';
 }
 
 export function measureUiText(
-  ctx: CanvasRenderingContext2D,
+  _ctx: CanvasRenderingContext2D,
   text: string,
   size = 8,
-  weight: number | string = 600,
+  _weight: number | string = 600,
 ): number {
-  const scale = bufferScale(ctx);
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.font = uiFontFace(size * scale, weight);
-  const w = ctx.measureText(text).width / scale;
-  ctx.restore();
-  return w;
+  return measureNesText(text, glyphScale(size), TRACK);
 }
 
 /**
- * Draw sharp UI text. Coordinates are logical (320×224 space);
- * rasterization happens at buffer resolution for clean glyphs.
+ * Draw sharp UI text. Coordinates are logical (320×224 space).
+ * Uses nesFont bitmaps — no Canvas fillText / antialiasing.
+ *
+ * Case: all-caps is intentional. nesFont only has uppercase 5×7 glyphs;
+ * drawNesText uppercases via toLocaleUpperCase('ru-RU') before blit.
  */
 export function drawUiText(
   ctx: CanvasRenderingContext2D,
@@ -45,24 +50,14 @@ export function drawUiText(
   y: number,
   color: string,
   size = 8,
-  weight: number | string = 600,
+  _weight: number | string = 600,
 ): number {
-  const scale = bufferScale(ctx);
-  ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.imageSmoothingEnabled = true;
-  ctx.font = uiFontFace(size * scale, weight);
-  ctx.textBaseline = 'top';
-  ctx.textAlign = 'left';
-  const px = x * scale;
-  const py = y * scale;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillText(text, px + 1, py + 1);
-  ctx.fillStyle = color;
-  ctx.fillText(text, px, py);
-  const w = ctx.measureText(text).width / scale;
-  ctx.restore();
-  return w;
+  const s = glyphScale(size);
+  const ix = Math.round(x);
+  const iy = Math.round(y);
+  // 1px dark drop for readability (integer only)
+  drawNesText(ctx, text, ix + 1, iy + 1, '#000000', s, TRACK);
+  return drawNesText(ctx, text, ix, iy, color, s, TRACK);
 }
 
 export function drawUiTextCentered(
@@ -72,10 +67,14 @@ export function drawUiTextCentered(
   y: number,
   color: string,
   size = 8,
-  weight: number | string = 600,
+  _weight: number | string = 600,
 ): void {
-  const w = measureUiText(ctx, text, size, weight);
-  drawUiText(ctx, text, Math.round(centerX - w / 2), y, color, size, weight);
+  const s = glyphScale(size);
+  const iy = Math.round(y);
+  const w = measureNesText(text, s, TRACK);
+  const ix = Math.round(centerX - w / 2);
+  drawNesText(ctx, text, ix + 1, iy + 1, '#000000', s, TRACK);
+  drawNesTextCentered(ctx, text, centerX, iy, color, s, TRACK);
 }
 
 /** Truncate with ellipsis to fit max width (logical px). */
@@ -124,7 +123,6 @@ export class HotspotHintClock {
 
 /**
  * World interact cue: ↑ + compact CTA (optional), subtle bob — no strobing squares.
- * Soft text+shadow only (minimal chrome).
  */
 export function drawInteractPrompt(
   ctx: CanvasRenderingContext2D,
@@ -137,21 +135,20 @@ export function drawInteractPrompt(
   const color = opts.color ?? '#f8f0d0';
   const size = opts.size ?? 5.5;
   const showLabel = opts.showLabel !== false;
-  const bob = Math.sin(timeSec * 3.6) * 1.5;
-  const y = Math.round(anchorY + bob) - size - 4;
+  const bob = Math.round(Math.sin(timeSec * 3.6) * 1.5);
+  const y = Math.round(anchorY + bob) - 10;
   if (showLabel) {
     const text = `↑ ${label}`;
     const tw = measureUiText(ctx, text, size, 550);
     drawUiText(ctx, text, Math.round(anchorX - tw / 2), y, color, size, 550);
   } else {
     const arrow = '↑';
-    const arrowSize = size + 1.5;
-    const tw = measureUiText(ctx, arrow, arrowSize, 700);
-    drawUiText(ctx, arrow, Math.round(anchorX - tw / 2), y, color, arrowSize, 700);
+    const tw = measureUiText(ctx, arrow, size + 1.5, 700);
+    drawUiText(ctx, arrow, Math.round(anchorX - tw / 2), y, color, size + 1.5, 700);
   }
 }
 
-/** Slim translucent HUD panel — lighter than chunky segaBox. */
+/** Slim HUD panel — integer segaBox (no hairline subpixel stroke). */
 export function uiPanel(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -161,16 +158,9 @@ export function uiPanel(
   fill = 'rgba(10, 12, 18, 0.78)',
   border = 'rgba(200, 170, 90, 0.75)',
 ): void {
-  const scale = bufferScale(ctx);
-  const ix = Math.round(x * scale) / scale;
-  const iy = Math.round(y * scale) / scale;
-  const iw = Math.round(w * scale) / scale;
-  const ih = Math.round(h * scale) / scale;
-  ctx.fillStyle = fill;
-  ctx.fillRect(ix, iy, iw, ih);
-  ctx.strokeStyle = border;
-  ctx.lineWidth = 1 / scale;
-  ctx.strokeRect(ix + 0.5 / scale, iy + 0.5 / scale, iw - 1 / scale, ih - 1 / scale);
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  ctx.fillRect(ix + 1 / scale, iy + 1 / scale, iw - 2 / scale, 1 / scale);
+  segaBox(ctx, x, y, w, h, fill, border, {
+    inset: true,
+    borderDark: '#000000',
+    fillHi: 'rgba(255,255,255,0.12)',
+  });
 }

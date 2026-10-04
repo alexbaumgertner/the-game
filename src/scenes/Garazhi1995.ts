@@ -4,7 +4,7 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
-import { ART_SCALE, LOGICAL_WIDTH } from '@/core/Display';
+import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
@@ -239,7 +239,6 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
               cones: [],
               time,
             },
-            ART_SCALE,
           );
         },
       },
