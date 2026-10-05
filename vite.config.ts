@@ -1,5 +1,6 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
+import { novgorodPwaPrecache } from './scripts/pwa-precache-plugin';
 
 /**
  * GitHub project Pages need `/${repo}/`. Override with `VITE_BASE=/` for
@@ -14,6 +15,7 @@ function resolveBase(): string {
 
 export default defineConfig({
   base: resolveBase(),
+  plugins: [novgorodPwaPrecache()],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
@@ -26,5 +28,9 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+  },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.test.ts'],
   },
 });

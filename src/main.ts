@@ -42,6 +42,7 @@ import { preloadBusBridgeViews } from './art/busBridgeViews';
 import { preloadDiscoHallViews } from './art/discoHallViews';
 import { preloadMostBridgeViews } from './art/mostBridgeViews';
 import { LEVELS } from './data/levels';
+import { registerServiceWorker } from './pwa/register';
 
 /** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
 type SceneEntry = SceneHandlers & {
@@ -129,6 +130,7 @@ function bootstrap(): void {
   }
 
   // Restore saved progress before the first scene enters; start is always the apartment.
+  // Save v2 stores tea.cups; BeerSystem still exposes cans (HUD / __novgorod.beer).
   const save = loadSave();
   if (save) {
     states.loadFlags(save.flags);
@@ -350,4 +352,5 @@ function bootstrap(): void {
   };
 }
 
+registerServiceWorker();
 bootstrap();

@@ -3,7 +3,8 @@
  * Every storage / JSON access is guarded: Safari private mode, blocked
  * storage or corrupt data must never break the game.
  *
- * v1 → v2: beer.cans → tea.cups; new level9–12 flags default false.
+ * v1 → v2: beer.cans → tea.cups; new level9–12 flags default false;
+ * unknown flag keys / non-booleans ignored.
  */
 
 import { DEFAULT_FLAGS, type ProgressFlags } from './StateManager';
