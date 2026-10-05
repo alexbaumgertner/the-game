@@ -7,6 +7,7 @@
 import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
 import { bodyRect, type Rect } from '@/systems/CombatMath';
 import { BazarBubble } from '@/entities/BazarBubble';
+import { getSettings } from '@/core/Settings';
 
 /** Childhood (1990s flashback) sprite states. */
 export type TeenAnimState =
@@ -527,7 +528,10 @@ export class Player {
         : 0;
 
     const kind = this.resolveSpriteKind();
-    const flash = this.invuln > 0 && Math.floor(this.invuln * 20) % 2 === 0;
+    const flash =
+      !getSettings().reducedEffects &&
+      this.invuln > 0 &&
+      Math.floor(this.invuln * 20) % 2 === 0;
     if (flash) return;
     // Pixel face is part of the sprite grid (MD ≤15 colors; no photo overlay).
     drawPlayerSprite(ctx, kind, frameIndex, this.x, this.y, this.facing);

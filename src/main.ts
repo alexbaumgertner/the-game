@@ -15,9 +15,11 @@ import {
 } from './core/Display';
 import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
+import { PauseMenu } from './ui/PauseMenu';
 import { SparkMeter } from './ui/SparkMeter';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { TeaSystem } from './systems/TeaSystem';
+import { loadSettings } from './core/Settings';
 import { preloadAerialsPoster } from './art/aerialsPoster';
 import { preloadApartmentPhotos } from './art/apartmentPhotos';
 import { preloadGarazhiGraffiti } from './art/garazhiGraffiti';
@@ -65,6 +67,7 @@ function bootstrap(): void {
   // Crisp pixels — never let the browser smooth our buffer.
   ctx.imageSmoothingEnabled = false;
   configureDisplay(canvas, ctx);
+  loadSettings();
   preloadAerialsPoster();
   preloadApartmentPhotos();
   preloadFamilyFaces();
@@ -148,6 +151,8 @@ function bootstrap(): void {
 
   states.boot('apartment_2026', { era: 'ERA_2026' });
 
+  const pauseMenu = new PauseMenu();
+
   const loop = new GameLoop({
     fixedDt: 1 / 60,
     update(dt) {
@@ -169,24 +174,44 @@ function bootstrap(): void {
       assertCrispTransform(ctx);
       hud.render(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
       assertCrispTransform(ctx);
+      if (pauseMenu.isOpen) {
+        pauseMenu.render(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        assertCrispTransform(ctx);
+      }
       states.renderFade(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     },
   });
 
+  const applyPauseAction = (action: { type: string }): void => {
+    if (action.type === 'resume') {
+      resumeGame();
+      return;
+    }
+    if (action.type === 'exitApartment') {
+      // Soft exit — no progress penalty; soft fade home.
+      pauseMenu.hide();
+      loop.resume();
+      hud.set({ paused: false });
+      states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.4 });
+    }
+  };
+
   const pauseGame = (): void => {
     if (loop.isPaused) return;
     loop.pause();
-    hud.set({ paused: loop.isPaused });
+    pauseMenu.show();
+    hud.set({ paused: true });
   };
 
   const resumeGame = (): void => {
-    if (!loop.isPaused) return;
+    if (!loop.isPaused && !pauseMenu.isOpen) return;
+    pauseMenu.hide();
     loop.resume();
-    hud.set({ paused: loop.isPaused });
+    hud.set({ paused: false });
   };
 
   const togglePause = (): void => {
-    if (loop.isPaused) resumeGame();
+    if (loop.isPaused || pauseMenu.isOpen) resumeGame();
     else pauseGame();
   };
 
@@ -198,6 +223,55 @@ function bootstrap(): void {
   });
 
   window.addEventListener('keydown', (e) => {
+    if (pauseMenu.isOpen) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.back());
+        return;
+      }
+      if (e.code === 'KeyP') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.back());
+        return;
+      }
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        pauseMenu.move(-1);
+        return;
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        e.preventDefault();
+        pauseMenu.move(1);
+        return;
+      }
+      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.confirm());
+        return;
+      }
+      if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(0));
+        return;
+      }
+      if (e.code === 'Digit2' || e.code === 'Numpad2') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(1));
+        return;
+      }
+      if (e.code === 'Digit3' || e.code === 'Numpad3') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(2));
+        return;
+      }
+      if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(3));
+        return;
+      }
+      return;
+    }
+
     if (e.code === 'Escape' || e.code === 'KeyP') {
       e.preventDefault();
       togglePause();
@@ -215,6 +289,13 @@ function bootstrap(): void {
     input,
     root: document.body,
     onPause: togglePause,
+    getPauseMenuChoices: () => {
+      if (!pauseMenu.isOpen) return { active: false };
+      return { active: true, labels: pauseMenu.touchLabels() };
+    },
+    onPauseMenuSelect: (index) => {
+      applyPauseAction(pauseMenu.selectIndex(index));
+    },
     getDialogueChoices: () => {
       const d = sceneDialogue();
       if (!d || !d.isOpen || !d.hasChoices) return { active: false };
@@ -228,11 +309,19 @@ function bootstrap(): void {
     },
   });
 
-  // Tap dialogue / quiz rows directly on the canvas (in addition to pad).
+  // Tap dialogue / quiz / pause menu rows directly on the canvas (in addition to pad).
   const onCanvasPointer = (e: PointerEvent): void => {
     if (e.button !== undefined && e.button !== 0) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
+
+    if (pauseMenu.isOpen) {
+      const hit = pauseMenu.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      if (hit === null) return;
+      e.preventDefault();
+      applyPauseAction(pauseMenu.selectIndex(hit));
+      return;
+    }
 
     const q = sceneQuiz();
     if (q?.isOpen) {
@@ -334,6 +423,7 @@ function bootstrap(): void {
     krug,
     finale,
     touch,
+    pauseMenu,
     canvas,
     display: {
       LOGICAL_WIDTH,

@@ -6,6 +6,7 @@
  */
 
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
+import { getSettings } from '@/core/Settings';
 
 /** Seconds from full color to freeze / full gray. */
 export const TEA_THIRST_SECONDS = 120;
@@ -260,7 +261,11 @@ export class TeaSystem {
   ): void {
     if (lack <= 0) return;
 
-    const satAlpha = Math.min(1, Math.pow(lack, 0.72) * 1.08);
+    const soft = getSettings().reducedEffects;
+    // «Меньше эффектов» — softer early wash, capped so the world stays readable.
+    const satAlpha = soft
+      ? Math.min(0.45, Math.pow(lack, 0.9) * 0.55)
+      : Math.min(1, Math.pow(lack, 0.72) * 1.08);
     ctx.save();
     ctx.globalAlpha = satAlpha;
     ctx.globalCompositeOperation = 'saturation';
@@ -268,7 +273,7 @@ export class TeaSystem {
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
     ctx.restore();
 
-    const wash = 0.14 + 0.52 * lack;
+    const wash = soft ? 0.06 + 0.22 * lack : 0.14 + 0.52 * lack;
     ctx.fillStyle = `rgba(36, 38, 46, ${wash.toFixed(3)})`;
     ctx.fillRect(0, 0, canvasWidth, canvasHeight);
   }
