@@ -12,6 +12,12 @@ import type { TeaSystem } from '@/systems/TeaSystem';
 import { DISKO_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import {
+  drawDiscoHallBackdrop,
+  discoHallViewsReady,
+  discoViewCaption,
+  preloadDiscoHallViews,
+} from '@/art/discoHallViews';
+import {
   drawUiText,
   drawUiTextCentered,
   measureUiText,
@@ -206,13 +212,21 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
   const stack = new ParallaxStack();
 
   const rebuildStack = (alpha: number): void => {
+    const progress =
+      WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
     stack.setLayers([
       {
         id: 'club',
         speedRatio: 0.05,
         zIndex: 0,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawClubBack(ctx, w, h, scroll, time),
+        draw: (ctx, scroll, _c, w, h) => {
+          if (discoHallViewsReady()) {
+            drawDiscoHallBackdrop(ctx, w, h, progress, time);
+          } else {
+            drawClubBack(ctx, w, h, scroll, time);
+          }
+        },
       },
       {
         id: 'gameplay',
@@ -232,7 +246,11 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
             w,
             h,
             {
-              ambient: { color: 'rgba(20, 8, 28, 0.58)' },
+              ambient: {
+                color: discoHallViewsReady()
+                  ? 'rgba(20, 8, 28, 0.38)'
+                  : 'rgba(20, 8, 28, 0.58)',
+              },
               points: bulbs,
               cones: [],
               time,
@@ -246,6 +264,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadDiscoHallViews();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -254,7 +273,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -462,6 +481,24 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
           'rgba(72,232,224,0.65)',
         );
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0ff', 7, 600);
+      } else if (
+        discoHallViewsReady() &&
+        (phase === 'wave1' || phase === 'wave2' || phase === 'cleared')
+      ) {
+        const progress =
+          WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
+        const caption = discoViewCaption(progress);
+        const cw = measureUiText(ctx, caption, 6.5, 500) + 10;
+        uiPanel(
+          ctx,
+          Math.round((width - cw) / 2),
+          height - 28,
+          cw,
+          11,
+          'rgba(16,8,24,0.55)',
+          'rgba(232,72,152,0.35)',
+        );
+        drawUiTextCentered(ctx, caption, width / 2, height - 25, '#d0b0e0', 6.5, 500);
       }
 
       if (phase === 'gameover') {
@@ -539,22 +576,32 @@ function drawDiskoWorld(
   height: number,
   time: number,
 ): void {
-  // Checker dance floor
+  const plates = discoHallViewsReady();
+
+  // Checker dance floor (gameplay-readable; plates show above)
   px(ctx, 0, FLOOR_Y, worldW, height - FLOOR_Y, P.floorDark);
   for (let x = 0; x < worldW; x += 16) {
     for (let y = 0; y < 4; y++) {
-      const lite = ((x / 16 + y) % 2 === 0);
+      const lite = (x / 16 + y) % 2 === 0;
       px(ctx, x, FLOOR_Y + y * 8, 16, 8, lite ? P.floorLite : P.floorDark);
     }
   }
   px(ctx, 0, FLOOR_Y, worldW, 2, P.floorHi);
 
-  // Back wall + neon strips
-  px(ctx, 0, 40, worldW, FLOOR_Y - 40, P.wall);
-  ditherRect(ctx, 0, 40, worldW, 40, P.wallDark, P.wall);
-  const pulse = Math.sin(time * 5);
-  px(ctx, 20, 50, worldW - 40, 3, pulse > 0 ? P.neonPink : P.neonCyan);
-  px(ctx, 40, 70, worldW - 80, 2, pulse > 0.3 ? P.neonYellow : P.neonViolet);
+  if (!plates) {
+    // Procedural back wall + neon strips (fallback)
+    px(ctx, 0, 40, worldW, FLOOR_Y - 40, P.wall);
+    ditherRect(ctx, 0, 40, worldW, 40, P.wallDark, P.wall);
+    const pulse = Math.sin(time * 5);
+    px(ctx, 20, 50, worldW - 40, 3, pulse > 0 ? P.neonPink : P.neonCyan);
+    px(ctx, 40, 70, worldW - 80, 2, pulse > 0.3 ? P.neonYellow : P.neonViolet);
+    px(ctx, 200, 48, 80, 16, P.wallDark);
+    px(ctx, 202, 50, 76, 12, Math.sin(time * 4) > 0 ? P.neonPink : P.neonViolet);
+  } else {
+    // Thin floor-to-wall blend so plates meet the checkers cleanly
+    ditherRect(ctx, 0, FLOOR_Y - 14, worldW, 14, P.wallDark, P.floorDark);
+    px(ctx, 0, FLOOR_Y - 2, worldW, 2, P.wallDark);
+  }
 
   // Speakers
   drawSpeaker(ctx, 30, FLOOR_Y);
@@ -576,10 +623,6 @@ function drawDiskoWorld(
   px(ctx, 82, FLOOR_Y - 26, 66, 4, P.barHi);
   px(ctx, 90, FLOOR_Y - 40, 8, 12, P.neonCyan);
   px(ctx, 110, FLOOR_Y - 38, 6, 10, P.neonPink);
-
-  // Sign «ОРБИТА»
-  px(ctx, 200, 48, 80, 16, P.wallDark);
-  px(ctx, 202, 50, 76, 12, Math.sin(time * 4) > 0 ? P.neonPink : P.neonViolet);
 }
 
 function drawSpeaker(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {
