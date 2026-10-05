@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 4 “Гаражи” (garage row / metal boxes, Winter 1995).
  * Wave 1 → timed крыша dialogue (MF branch) → Wave 2 + reclaim crate → clear.
@@ -252,6 +253,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('garages');
       beer.pauseForFlashback();
       preloadGarazhiGraffiti();
       player.setEra('teen');

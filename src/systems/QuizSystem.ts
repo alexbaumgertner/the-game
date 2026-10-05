@@ -3,6 +3,7 @@
  * Replaces punch/kick combat as the primary NPC interaction.
  */
 
+import { audio } from '@/audio';
 import { drawUiText, drawUiTextCentered, measureUiText, uiPanel } from '@/art/uiFont';
 import { GANGSTER_PUNCH_MF } from '@/systems/CombatMath';
 import {
@@ -161,6 +162,8 @@ export class QuizSystem {
     if (index < 0 || index > 3) return 'ignored';
     if (this.eliminated.has(index)) return 'ignored';
     if (this.feedbackTimer > 0 && !this.closing) return 'ignored';
+
+    audio.playSfx('quiz_answer');
 
     if (index === this.correctIndex) {
       this.feedback = this.mode === 'honesty' ? 'ЧЕСТНО.' : 'ВЕРНО!';

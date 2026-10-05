@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 6 “Мост / Волхов” (pedestrian bridge, Winter 1995).
  * Wave 1 on approach → timed dialogue → Wave 2 on deck + reclaim letter → clear.
@@ -268,6 +269,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('bridge');
       beer.pauseForFlashback();
       preloadMostBridgeViews();
       player.setEra('teen');

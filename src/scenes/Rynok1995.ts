@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 1 “Центральный рынок” narrative.
  * Help мама → take сестрёнка → buy backpack ≤600₽ (market philosophy quiz
@@ -416,6 +417,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('market');
       beer.pauseForFlashback();
       preloadFamilyFaces();
       preloadBusBridgeViews();

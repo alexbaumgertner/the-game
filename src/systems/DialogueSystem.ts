@@ -3,6 +3,7 @@
  * Level 1: mother-stall mid-fight choices that drain MF or calm panic.
  */
 
+import { audio } from '@/audio';
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 import { HERO_NAME } from '@/data/names';
 import { DIALOG_SPEED_CPS, getSettings } from '@/core/Settings';
@@ -141,6 +142,7 @@ export class DialogueSystem {
     this.timedOut = false;
     this.settled = false;
     this.armChoiceTimer();
+    audio.playSfx('dialog');
   }
 
   close(): void {
@@ -203,6 +205,7 @@ export class DialogueSystem {
     this.lineId = line.next;
     this.visibleChars = 0;
     this.armChoiceTimer();
+    audio.playSfx('dialog');
   }
 
   /** Pick choice by 0-based index (keys 1/2 → 0/1). */

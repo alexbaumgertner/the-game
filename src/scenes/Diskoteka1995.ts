@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 7 “Дискотека «Орбита»” (neon club, Winter 1995).
  * Wave 1 at entrance → timed bouncer dialogue → Wave 2 on floor + cassette → clear.
@@ -264,6 +265,7 @@ export function createDiskoteka1995Scene(deps: DiskotekaSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('disco');
       beer.pauseForFlashback();
       preloadDiscoHallViews();
       player.setEra('teen');

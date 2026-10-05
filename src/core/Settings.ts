@@ -84,7 +84,16 @@ export function writeSettings(partial: Partial<Omit<GameSettings, 'version'>>): 
     version: SETTINGS_VERSION,
   };
   try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(cached));
+    // Preserve additive keys (e.g. audio `muted`) written by other modules.
+    let existing: Record<string, unknown> = {};
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        existing = { ...(parsed as Record<string, unknown>) };
+      }
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...existing, ...cached }));
   } catch {
     /* storage unavailable — keep in-memory preferences for the session */
   }

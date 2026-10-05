@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_2026 — хрущёвка Зуича (Дом).
  * Туалет ← комната → кухня → ванная.
@@ -366,6 +367,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (overlay === 'photo') {
       overlay = 'diary';
       diaryCursor = nextDiaryCursor();
+      audio.playSfx('journal');
       hud.set({ objective: 'Выбери воспоминание' });
       return;
     }
@@ -389,6 +391,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       player.beginInspect(0.35);
       can.taken = true;
       beer.pickup(1);
+      audio.playSfx('kettle');
       if (beer.needsAcronymToast) {
         beer.needsAcronymToast = false;
         showToast(PIVO_FIRST_PICKUP, 3.2);
@@ -480,6 +483,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
       overlay = 'diary';
       diaryCursor = nextDiaryCursor();
+      audio.playSfx('journal');
       hud.set({ objective: 'Выбери воспоминание' });
     }
   };
@@ -661,6 +665,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
   return {
     enter(ctx: SceneContext): void {
+      audio.playTheme('apartment');
       preloadAerialsPoster();
       preloadApartmentPhotos();
       preloadIppolitFace();

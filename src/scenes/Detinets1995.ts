@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 8 “Детинец” (Kremlin walls finale, Winter 1995).
  * Courtyard approach wave → timed dialogue → wall walk + boss-lite → clear.
@@ -303,6 +304,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('detinets');
       beer.pauseForFlashback();
       preloadDetinetsHallViews();
       player.setEra('teen');

@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 5 “Двор / крыша” (block finale, Winter 1995).
  * Courtyard wave → timed dialogue → climb to roof → harder wave + boss-lite → clear.
@@ -287,6 +288,7 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('yard');
       beer.pauseForFlashback();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });

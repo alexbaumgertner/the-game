@@ -20,6 +20,7 @@ import { SparkMeter } from './ui/SparkMeter';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
 import { TeaSystem } from './systems/TeaSystem';
 import { loadSettings } from './core/Settings';
+import { audio } from './audio';
 import { preloadAerialsPoster } from './art/aerialsPoster';
 import { preloadApartmentPhotos } from './art/apartmentPhotos';
 import { preloadGarazhiGraffiti } from './art/garazhiGraffiti';
@@ -97,6 +98,8 @@ function bootstrap(): void {
   const states = new StateManager();
   states.input = input;
 
+  audio.install();
+
   const player = new Player({ x: 100, y: 192, era: 'adult' });
   const hud = new HUD();
   const tea = new TeaSystem();
@@ -156,6 +159,7 @@ function bootstrap(): void {
   window.addEventListener('pagehide', persist);
 
   states.boot('apartment_2026', { era: 'ERA_2026' });
+  hud.set({ muted: audio.isMuted });
 
   const pauseMenu = new PauseMenu();
 
@@ -193,11 +197,15 @@ function bootstrap(): void {
       resumeGame();
       return;
     }
+    if (action.type === 'muteToggled') {
+      hud.set({ muted: audio.isMuted });
+      return;
+    }
     if (action.type === 'exitApartment') {
       // Soft exit — no progress penalty; soft fade home.
       pauseMenu.hide();
       loop.resume();
-      hud.set({ paused: false });
+      hud.set({ paused: false, muted: audio.isMuted });
       states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.4 });
     }
   };
@@ -206,19 +214,24 @@ function bootstrap(): void {
     if (loop.isPaused) return;
     loop.pause();
     pauseMenu.show();
-    hud.set({ paused: true });
+    hud.set({ paused: true, muted: audio.isMuted });
   };
 
   const resumeGame = (): void => {
     if (!loop.isPaused && !pauseMenu.isOpen) return;
     pauseMenu.hide();
     loop.resume();
-    hud.set({ paused: false });
+    hud.set({ paused: false, muted: audio.isMuted });
   };
 
   const togglePause = (): void => {
     if (loop.isPaused || pauseMenu.isOpen) resumeGame();
     else pauseGame();
+  };
+
+  const toggleMute = (): void => {
+    audio.toggleMute();
+    hud.set({ muted: audio.isMuted });
   };
 
   // Backgrounded tab: save and pause; the player resumes manually on return.
@@ -282,6 +295,10 @@ function bootstrap(): void {
       if (isJournalOpen()) return;
       e.preventDefault();
       togglePause();
+    }
+    if (e.code === 'KeyM') {
+      e.preventDefault();
+      toggleMute();
     }
   });
 
@@ -417,6 +434,7 @@ function bootstrap(): void {
     tea,
     beer,
     spark,
+    audio,
     apartment,
     rynok,
     podezd,

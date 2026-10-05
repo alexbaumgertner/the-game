@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_2015 — Level 10 «Распорядок».
  * Voluntary day schedule; spark grows from choices. No game over.
@@ -119,6 +120,7 @@ export function createRehab2015Scene(deps: RehabSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('rehab');
       tea.pauseForFlashback();
       spark.reset(0.35);
       player.setEra('adult');

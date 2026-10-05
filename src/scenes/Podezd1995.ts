@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 2 “Выпускной / разговор с отцом”.
  * Apartment memory → hard talk with father → pedagogy quiz (Пиаже, Выготский…).
@@ -173,6 +174,7 @@ export function createPodezd1995Scene(deps: PodezdSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('stairwell');
       beer.pauseForFlashback();
       preloadApartmentPhotos();
       preloadFatherRoomPhotos();
