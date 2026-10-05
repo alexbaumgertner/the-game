@@ -142,6 +142,8 @@ export class Input {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent): void => {
+    // While disabled (e.g. journal textarea), do not capture or preventDefault.
+    if (!this.enabled) return;
     if (e.repeat) return;
     // Prevent arrow-key page scroll / space scroll while playing
     if (
@@ -172,6 +174,7 @@ export class Input {
   };
 
   private readonly onKeyUp = (e: KeyboardEvent): void => {
+    if (!this.enabled) return;
     this.down.delete(e.code);
     this.released.add(e.code);
   };

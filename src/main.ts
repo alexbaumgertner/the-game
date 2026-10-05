@@ -46,6 +46,12 @@ import { preloadDetinetsHallViews } from './art/detinetsHallViews';
 import { preloadMostBridgeViews } from './art/mostBridgeViews';
 import { LEVELS } from './data/levels';
 import { registerServiceWorker } from './pwa/register';
+import {
+  closeJournalIfOpen,
+  isJournalOpen,
+  openJournal,
+  tryOpenJournal,
+} from './ui/Journal';
 
 /** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
 type SceneEntry = SceneHandlers & {
@@ -273,6 +279,7 @@ function bootstrap(): void {
     }
 
     if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (isJournalOpen()) return;
       e.preventDefault();
       togglePause();
     }
@@ -359,6 +366,7 @@ function bootstrap(): void {
   document.body.addEventListener(
     'touchmove',
     (e) => {
+      if (isJournalOpen()) return;
       e.preventDefault();
     },
     { passive: false },
@@ -425,6 +433,14 @@ function bootstrap(): void {
     touch,
     pauseMenu,
     canvas,
+    journal: {
+      open: (opts?: Parameters<typeof openJournal>[0]) =>
+        openJournal({ input, ...opts }),
+      tryOpen: (opts?: Parameters<typeof tryOpenJournal>[0]) =>
+        tryOpenJournal({ input, ...opts }),
+      isOpen: isJournalOpen,
+      close: closeJournalIfOpen,
+    },
     display: {
       LOGICAL_WIDTH,
       LOGICAL_HEIGHT,
