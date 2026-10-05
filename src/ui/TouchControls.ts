@@ -93,7 +93,7 @@ export class TouchControls {
       <div class="tc-cluster tc-right">
         <button type="button" class="tc-btn tc-act" data-action="hint" aria-label="Подсказка">H<br><span>ПОДСК</span></button>
         <button type="button" class="tc-btn tc-act tc-interact" data-action="interact" aria-label="Спросить">E<br><span>СПРОС</span></button>
-        <button type="button" class="tc-btn tc-act tc-beer" data-action="beer" aria-label="Применить бухло">П<br><span>БУХЛО</span></button>
+        <button type="button" class="tc-btn tc-act tc-beer" data-action="beer" aria-label="Выпить ПИВО">П<br><span>ПИВО</span></button>
       </div>
       <button type="button" class="tc-btn tc-pause" data-pause="1" aria-label="Пауза">II</button>
     `;

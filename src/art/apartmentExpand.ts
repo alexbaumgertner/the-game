@@ -1,6 +1,6 @@
 /**
- * Apartment expansion — туалет ← комната → кухня → ванная (Зелинского 2).
- * Hi-detail props, bottles, cigarettes, Irony of Fate bath cameo, high-tank toilet.
+ * Apartment expansion — туалет ← комната → кухня → ванная (Дом).
+ * Hi-detail props, tea cups / teapot, cigarettes, Irony of Fate bath cameo, high-tank toilet.
  */
 
 import { APT_PAL } from '@/art/segaPalette';
@@ -190,48 +190,73 @@ function drawIppolitFace(
   return true;
 }
 
-/** Glass / plastic bottles — scattered piles. */
-export function drawBottleCluster(
+/** Scattered tea cups / saucers (replaces old bottle piles). ≤15 colors. */
+export function drawCupCluster(
   ctx: CanvasRenderingContext2D,
   bx: number,
   by: number,
   seed = 0,
 ): void {
-  const bottles: readonly [number, number, string, number][] = [
-    [0, -18, '#2a4820', 5],
-    [6, -22, '#3a6028', 4],
-    [11, -16, '#284820', 5],
-    [3, -12, '#4a7030', 4],
-    [9, -14, '#1a3820', 4],
-    [15, -19, '#355828', 5],
-    [18, -13, '#486838', 4],
-    [-4, -14, '#203820', 4],
+  const cups: readonly [number, number, string, number][] = [
+    [0, -10, '#d8c8a0', 5],
+    [7, -12, '#c8b890', 4],
+    [13, -9, '#e0d0a8', 5],
+    [3, -8, '#b8a878', 4],
+    [10, -11, '#d0c098', 4],
+    [17, -10, '#c4b488', 5],
+    [-4, -9, '#dcd0b0', 4],
+    [20, -8, '#a89870', 4],
   ];
-  for (let i = 0; i < bottles.length; i++) {
-    const [ox, oy, col, h] = bottles[(i + seed) % bottles.length]!;
+  for (let i = 0; i < cups.length; i++) {
+    const [ox, oy, col, h] = cups[(i + seed) % cups.length]!;
     const x = bx + ox + ((seed * 3 + i) % 3);
     const y = by + oy;
-    px(ctx, x, y, 4, h, col);
-    px(ctx, x + 1, y + 1, 1, h - 2, '#6a8850');
-    px(ctx, x + 1, y - 2, 2, 3, '#808890');
-    px(ctx, x + 1, y + 2, 2, 2, '#a0c060');
+    px(ctx, x, y, 5, h, col);
+    px(ctx, x + 1, y + 1, 3, h - 2, '#f0e8c8');
+    px(ctx, x + 1, y - 1, 3, 2, '#e8d878');
+    px(ctx, x + 5, y + 1, 2, 2, col);
     if ((i + seed) % 3 === 0) {
-      px(ctx, x + 20, y - 2, 3, 10, '#687878');
-      px(ctx, x + 21, y - 4, 1, 3, '#a0b0b8');
-      px(ctx, x + 20, y + 1, 3, 2, '#405058');
+      px(ctx, x + 14, y - 2, 6, 4, '#c8b890');
+      px(ctx, x + 15, y - 1, 4, 2, '#e8d878');
     }
   }
 }
 
-export function drawBeerCan(ctx: CanvasRenderingContext2D, x: number, y: number): void {
-  px(ctx, x - 3, y - 9, 6, 11, '#c89030');
-  px(ctx, x - 2, y - 8, 4, 2, '#f0c868');
-  px(ctx, x - 2, y - 6, 1, 6, '#e0b050');
-  px(ctx, x + 1, y - 6, 1, 6, '#a07020');
-  px(ctx, x - 2, y - 10, 4, 2, '#a0a8b0');
-  px(ctx, x - 1, y - 10, 2, 1, '#d0d8e0');
-  px(ctx, x - 1, y - 4, 2, 3, '#c04040');
-  px(ctx, x - 1, y - 3, 2, 1, '#e06060');
+/** @deprecated Use {@link drawCupCluster}. */
+export const drawBottleCluster = drawCupCluster;
+
+/** Chamomile mug pickup (ПИВО). ≤15 colors. */
+export function drawTeaMug(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  // Mug body
+  px(ctx, x - 4, y - 10, 8, 9, '#d8c8a0');
+  px(ctx, x - 3, y - 9, 6, 7, '#f0e8c8');
+  // Tea
+  px(ctx, x - 2, y - 9, 4, 3, '#e8d070');
+  px(ctx, x - 1, y - 8, 2, 2, '#f0e090');
+  // Handle
+  px(ctx, x + 4, y - 8, 2, 5, '#b8a878');
+  px(ctx, x + 5, y - 7, 1, 3, '#d8c8a0');
+  // Chamomile petals
+  px(ctx, x - 1, y - 12, 1, 1, '#f8f0e0');
+  px(ctx, x + 1, y - 12, 1, 1, '#f8f0e0');
+  px(ctx, x, y - 13, 1, 1, '#f8f0e0');
+  px(ctx, x, y - 11, 1, 1, '#e8c050');
+  // Saucer
+  px(ctx, x - 5, y - 1, 10, 2, '#c8b890');
+}
+
+/** @deprecated Use {@link drawTeaMug}. */
+export const drawBeerCan = drawTeaMug;
+
+/** Kitchen teapot prop. */
+export function drawTeapot(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  px(ctx, x - 6, y - 14, 12, 10, '#8a9aaa');
+  px(ctx, x - 5, y - 13, 10, 8, '#a8b8c8');
+  px(ctx, x - 3, y - 16, 6, 3, '#708090');
+  px(ctx, x - 2, y - 17, 4, 2, '#90a0b0');
+  px(ctx, x + 5, y - 12, 4, 3, '#8a9aaa');
+  px(ctx, x - 8, y - 10, 3, 2, '#708090');
+  px(ctx, x - 2, y - 10, 4, 3, '#e8d070');
 }
 
 /** Pack of cigarettes (сигареты). */
@@ -724,15 +749,13 @@ function drawIppolitInTub(
   }
 }
 
-/** Extra bottles in living room (world coords with ROOM_ORIGIN). */
-export function drawRoomBottles(ctx: CanvasRenderingContext2D, roomOrigin: number): void {
-  drawBottleCluster(ctx, roomOrigin + 28, FLOOR_Y, 0);
-  drawBottleCluster(ctx, roomOrigin + 150, FLOOR_Y, 5);
-  drawBottleCluster(ctx, roomOrigin + 280, FLOOR_Y - 2, 7);
-  px(ctx, roomOrigin + 220, FLOOR_Y - 50, 4, 12, '#2a4820');
-  px(ctx, roomOrigin + 221, FLOOR_Y - 52, 2, 3, '#808890');
-  px(ctx, roomOrigin + 226, FLOOR_Y - 48, 4, 10, '#3a6028');
-  px(ctx, roomOrigin + 227, FLOOR_Y - 50, 2, 3, '#808890');
-  px(ctx, roomOrigin + 232, FLOOR_Y - 52, 3, 11, '#687878');
-  px(ctx, roomOrigin + 233, FLOOR_Y - 54, 1, 3, '#a0b0b8');
+/** Extra tea cups in living room (world coords with ROOM_ORIGIN). */
+export function drawRoomCups(ctx: CanvasRenderingContext2D, roomOrigin: number): void {
+  drawCupCluster(ctx, roomOrigin + 28, FLOOR_Y, 0);
+  drawCupCluster(ctx, roomOrigin + 150, FLOOR_Y, 5);
+  drawCupCluster(ctx, roomOrigin + 280, FLOOR_Y - 2, 7);
+  drawTeapot(ctx, roomOrigin + 226, FLOOR_Y);
 }
+
+/** @deprecated Use {@link drawRoomCups}. */
+export const drawRoomBottles = drawRoomCups;

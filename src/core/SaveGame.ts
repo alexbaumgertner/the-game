@@ -1,23 +1,60 @@
 /**
- * SaveGame — localStorage persistence for progress flags + beer cans.
+ * SaveGame — localStorage persistence for progress flags + tea cups.
  * Every storage / JSON access is guarded: Safari private mode, blocked
  * storage or corrupt data must never break the game.
+ *
+ * v1 → v2: beer.cans → tea.cups; new level9–12 flags default false.
  */
 
 import { DEFAULT_FLAGS, type ProgressFlags } from './StateManager';
 
 export const SAVE_KEY = 'novgorod1995:save';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export interface SaveData {
-  version: 1;
+  version: 2;
   flags: ProgressFlags;
-  beer: { cans: number };
+  tea: { cups: number };
 }
 
 export interface SaveSource {
   flags: Readonly<ProgressFlags>;
-  beer: { cans: number };
+  tea: { cups: number };
+}
+
+function parseFlags(rawFlags: unknown): ProgressFlags {
+  const flags = { ...DEFAULT_FLAGS };
+  if (typeof rawFlags !== 'object' || rawFlags === null) return flags;
+  for (const key of Object.keys(DEFAULT_FLAGS) as (keyof ProgressFlags)[]) {
+    const v = (rawFlags as Record<string, unknown>)[key];
+    if (typeof v === 'boolean') flags[key] = v;
+  }
+  return flags;
+}
+
+function parseCupsFromV1Beer(obj: Record<string, unknown>): number {
+  const rawBeer = obj.beer;
+  const rawCans =
+    typeof rawBeer === 'object' && rawBeer !== null
+      ? (rawBeer as Record<string, unknown>).cans
+      : 0;
+  if (typeof rawCans === 'number' && Number.isFinite(rawCans)) {
+    return Math.max(0, Math.floor(rawCans));
+  }
+  return 0;
+}
+
+function parseCupsFromV2Tea(obj: Record<string, unknown>): number {
+  const rawTea = obj.tea;
+  const rawCups =
+    typeof rawTea === 'object' && rawTea !== null
+      ? (rawTea as Record<string, unknown>).cups
+      : undefined;
+  if (typeof rawCups === 'number' && Number.isFinite(rawCups)) {
+    return Math.max(0, Math.floor(rawCups));
+  }
+  // Fallback if a v2 save somehow still has beer.cans
+  return parseCupsFromV1Beer(obj);
 }
 
 /** Returns a validated save, or null when missing / corrupt / unknown version. */
@@ -28,27 +65,19 @@ export function loadSave(): SaveData | null {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return null;
     const obj = parsed as Record<string, unknown>;
-    if (obj.version !== SAVE_VERSION) return null;
+    const version = obj.version;
 
-    const rawFlags = obj.flags;
-    if (typeof rawFlags !== 'object' || rawFlags === null) return null;
-    const flags = { ...DEFAULT_FLAGS };
-    for (const key of Object.keys(DEFAULT_FLAGS) as (keyof ProgressFlags)[]) {
-      const v = (rawFlags as Record<string, unknown>)[key];
-      if (typeof v === 'boolean') flags[key] = v;
+    if (version === 1) {
+      const flags = parseFlags(obj.flags);
+      const cups = parseCupsFromV1Beer(obj);
+      return { version: SAVE_VERSION, flags, tea: { cups } };
     }
 
-    const rawBeer = obj.beer;
-    const rawCans =
-      typeof rawBeer === 'object' && rawBeer !== null
-        ? (rawBeer as Record<string, unknown>).cans
-        : 0;
-    const cans =
-      typeof rawCans === 'number' && Number.isFinite(rawCans)
-        ? Math.max(0, Math.floor(rawCans))
-        : 0;
+    if (version !== SAVE_VERSION) return null;
 
-    return { version: SAVE_VERSION, flags, beer: { cans } };
+    const flags = parseFlags(obj.flags);
+    const cups = parseCupsFromV2Tea(obj);
+    return { version: SAVE_VERSION, flags, tea: { cups } };
   } catch {
     return null;
   }
@@ -59,7 +88,7 @@ export function writeSave(state: SaveSource): void {
     const data: SaveData = {
       version: SAVE_VERSION,
       flags: { ...state.flags },
-      beer: { cans: state.beer.cans },
+      tea: { cups: state.tea.cups },
     };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   } catch {

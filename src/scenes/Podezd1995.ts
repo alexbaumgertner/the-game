@@ -8,7 +8,7 @@ import type { StateManager } from '@/core/StateManager';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { APT_PAL } from '@/art/segaPalette';
 import { preloadApartmentPhotos } from '@/art/apartmentPhotos';
 import { drawMdWallpaper } from '@/art/mdTiles';
@@ -43,7 +43,7 @@ export interface PodezdSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createPodezd1995Scene(deps: PodezdSceneDeps) {

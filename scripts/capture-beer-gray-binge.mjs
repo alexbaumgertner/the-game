@@ -1,5 +1,6 @@
 /**
- * Capture faster gray + growing thoughts, and binge shout / cigarette pull.
+ * Capture faster gray + growing thoughts, and ПИВО (tea) color restore.
+ * Legacy binge shout removed — second frame shows restore after drink.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -90,26 +91,18 @@ await setupApartment();
 await seedThirst(100, 2600);
 await saveCanvas('beer-gray-faster.png');
 
-// Binge: 2 drinks in a row → shout + cigarette pull hint
+// Tea restore: drink ПИВО → color back (filename kept for older links)
 await page.evaluate(() => {
   const g = window.__novgorod;
   const b = g.beer;
   b.enabled = true;
   b.cans = 3;
-  b.thirst = 40;
-  b.consecutiveDrinks = 0;
-  b.secondsSinceDrink = 999;
-  b.bingeShoutTimer = 0;
-  b.cigarettePullTimer = 0;
-  b.drink(); // 1st
-  b.secondsSinceDrink = 1;
-  b.drink(); // 2nd → binge
-  // Place hero mid-room so pull hint + shout are visible; kitchen cigs to the right
-  g.player.x = 480;
+  b.thirst = 20;
+  b.drink();
+  g.player.x = 160;
   g.player.y = 192;
-  g.apartment.setCamX?.(480 - 128);
 });
-await sleep(900);
+await sleep(500);
 await saveCanvas('beer-binge-shavuh.png');
 
 await browser.close();

@@ -8,7 +8,7 @@ import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { MOST_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
@@ -48,7 +48,7 @@ export interface MostSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createMost1995Scene(deps: MostSceneDeps) {

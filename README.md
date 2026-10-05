@@ -44,7 +44,7 @@ src/
   entities/   Player, Gangster, BazarBubble
   scenes/     Apartment2026, Rynok1995, Podezd1995, Vokzal1995, Garazhi1995,
               Dvor1995, Most1995, Diskoteka1995, Detinets1995
-  systems/    DialogueSystem, CombatMath, BeerSystem
+  systems/    DialogueSystem, CombatMath, TeaSystem (alias beer)
   ui/         HUD, TouchControls
   main.ts     Bootstrap — GameLoop → StateManager
 ```
