@@ -15,6 +15,13 @@ import { DialogueSystem } from '@/systems/DialogueSystem';
 import { applyLightingOverlay } from '@/render/LightingOverlay';
 import { px, segaBox } from '@/art/pixelDraw';
 import {
+  armiyaViewCaption,
+  armiyaViewProgress,
+  armiyaViewsReady,
+  drawArmiyaBackdrop,
+  preloadArmiyaViews,
+} from '@/art/armiyaViews';
+import {
   drawUiText,
   drawUiTextCentered,
   measureUiText,
@@ -87,6 +94,8 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
   let lookTimer = 0;
   let quietCooldown = 0;
   let pausedHint = false;
+  /** Capture override: force plate progress 0…1, or null for live mapping. */
+  let debugViewProgress: number | null = null;
 
   const task = (): ArmyTask => ARMY_TASKS[Math.min(round, ARMY_TASKS.length - 1)]!;
 
@@ -180,6 +189,7 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
 
   return {
     enter(_ctx: SceneContext): void {
+      preloadArmiyaViews();
       audio.playTheme('army');
       tea.pauseForFlashback();
       spark.reset(0.62);
@@ -366,23 +376,36 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
     ): void {
       const desat = 1 - spark.value;
       const grid = 4 + Math.floor(desat * 8);
+      const viewProg =
+        debugViewProgress ?? armiyaViewProgress(phase, round, ARMY_ROUNDS);
 
-      // Sky / square
-      px(ctx, 0, 0, width, height, C.skyDim);
-      px(ctx, 0, 0, width, FLOOR_Y - 40, C.sky);
-      // Square tiles — more grid when spark low
-      for (let y = FLOOR_Y - 40; y < FLOOR_Y; y += grid) {
+      // Far plates (parade / slogan / yard / …) above the playable square
+      if (armiyaViewsReady()) {
+        drawArmiyaBackdrop(ctx, width, height, viewProg, time);
+      } else {
+        px(ctx, 0, 0, width, height, C.skyDim);
+        px(ctx, 0, 0, width, FLOOR_Y - 40, C.sky);
+        segaBox(ctx, 8, 40, 70, 90, C.wall, C.grayDim, { borderDark: C.wallDark });
+        px(ctx, 20, 70, 20, 28, C.skyDim);
+        px(ctx, 48, 100, 14, 28, C.wallDark);
+      }
+
+      // Square tiles — more grid when spark low (gameplay band)
+      const tileTop = FLOOR_Y - 40;
+      for (let y = tileTop; y < FLOOR_Y; y += grid) {
         for (let x = 0; x < width; x += grid) {
           const on = ((x + y) / grid) % 2 === 0;
-          px(ctx, x, y, grid, grid, on ? C.ground : C.groundDark);
+          const base = on ? C.ground : C.groundDark;
+          // Soft tiles over plate seam so sprites read
+          if (armiyaViewsReady()) {
+            ctx.fillStyle = on ? 'rgba(74,83,64,0.72)' : 'rgba(58,66,52,0.78)';
+            ctx.fillRect(x, y, grid, grid);
+          } else {
+            px(ctx, x, y, grid, grid, base);
+          }
         }
       }
       px(ctx, 0, FLOOR_Y, width, height - FLOOR_Y, C.wallDark);
-
-      // Barracks wall
-      segaBox(ctx, 8, 40, 70, 90, C.wall, C.grayDim, { borderDark: C.wallDark });
-      px(ctx, 20, 70, 20, 28, C.skyDim);
-      px(ctx, 48, 100, 14, 28, C.wallDark);
 
       // Desat wash
       if (desat > 0.05) {
@@ -504,6 +527,26 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
         dialogue.render(ctx, width, height);
       }
 
+      if (
+        armiyaViewsReady() &&
+        phase !== 'night' &&
+        phase !== 'done' &&
+        !dialogue.isOpen
+      ) {
+        const caption = armiyaViewCaption(viewProg);
+        const cw = measureUiText(ctx, caption, 6.5, 500) + 10;
+        uiPanel(
+          ctx,
+          Math.round((width - cw) / 2),
+          height - 26,
+          cw,
+          12,
+          'rgba(10,12,16,0.55)',
+          'rgba(168,176,112,0.4)',
+        );
+        drawUiTextCentered(ctx, caption, width / 2, height - 24, '#c8c0a0', 6.5, 500);
+      }
+
       drawUiText(ctx, 'K — выход в квартиру', 4, height - 10, '#607080', 5, 500);
     },
 
@@ -524,6 +567,15 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
     debugForceDone(): void {
       dialogue.resetSilent();
       finishNight(0);
+    },
+
+    /** Capture / debug: pin far-plate progress (0…1) or clear with null. */
+    debugSetViewProgress(p: number | null): void {
+      if (p === null || Number.isNaN(p)) {
+        debugViewProgress = null;
+        return;
+      }
+      debugViewProgress = Math.max(0, Math.min(1, p));
     },
   };
 }
