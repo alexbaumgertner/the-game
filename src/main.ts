@@ -39,6 +39,7 @@ import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
+import { preloadMostBridgeViews } from './art/mostBridgeViews';
 import { LEVELS } from './data/levels';
 
 /** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
@@ -65,6 +66,7 @@ function bootstrap(): void {
   preloadApartmentPhotos();
   preloadFamilyFaces();
   preloadBusBridgeViews();
+  preloadMostBridgeViews();
   preloadVokzalPosters();
   preloadGarazhiGraffiti();
 
