@@ -5,6 +5,7 @@
  * Disabled during 1995 flashback levels (`pauseForFlashback`).
  */
 
+import { audio } from '@/audio';
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
 import { getSettings } from '@/core/Settings';
 
@@ -144,6 +145,7 @@ export class TeaSystem {
     this.thirst = TEA_THIRST_SECONDS;
     this.showLongHint = false;
     this.clearCrisis();
+    audio.playSfx('mug');
     return true;
   }
 

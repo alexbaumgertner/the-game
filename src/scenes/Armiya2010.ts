@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_2010 — Level 9 «Армия».
  * Приказ ↔ Искра: absurd tasks, sergeant view cone, quiet micro-autonomy.
@@ -179,8 +180,10 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
 
   return {
     enter(_ctx: SceneContext): void {
+      audio.playTheme('army');
       tea.pauseForFlashback();
       spark.reset(0.62);
+      audio.setArmySpark(spark.value);
       player.setEra('adult');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.setFloorY(FLOOR_Y);
@@ -216,6 +219,7 @@ export function createArmiya2010Scene(deps: ArmiyaSceneDeps) {
 
     update(dt: number): void {
       time += dt;
+      audio.setArmySpark(spark.value);
       const input = states.input;
       if (!input) return;
 

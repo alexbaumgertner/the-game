@@ -4,6 +4,7 @@
  * Mental Fortitude drives survivability; Street Swagger fuels Bazar shouts.
  */
 
+import { audio } from '@/audio';
 import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
 import { bodyRect, type Rect } from '@/systems/CombatMath';
 import { BazarBubble } from '@/entities/BazarBubble';
@@ -211,6 +212,8 @@ export class Player {
   private gravity = 520;
   private jumpVel = -195;
   private floorY = 188;
+  /** Last walk-cycle frame that triggered a footstep SFX. */
+  private lastFootFrame = -1;
 
   constructor(config: PlayerConfig = {}) {
     this.x = config.x ?? 40;
@@ -495,6 +498,8 @@ export class Player {
     if (this.bazarShake > 0) this.bazarShake = Math.max(0, this.bazarShake - dt);
     if (this.invuln > 0) this.invuln -= dt;
 
+    this.tickFootstep();
+
     if (this.inspecting) {
       this.inspectTimer -= dt;
       if (this.inspectTimer <= 0) {
@@ -516,6 +521,28 @@ export class Player {
         }
       }
     }
+  }
+
+  /** Soft footfall on even walk frames while grounded and moving. */
+  private tickFootstep(): void {
+    const walking =
+      this.grounded &&
+      (this.animState === 'teen_walk' ||
+        this.animState === 'teen_run' ||
+        this.animState === 'adult_walk' ||
+        this.animState === 'adult_run');
+    if (!walking) {
+      this.lastFootFrame = -1;
+      return;
+    }
+    const map = this.animMap as Record<string, AnimClip>;
+    const clip = map[this.animState];
+    if (!clip || clip.frames.length === 0) return;
+    const frameIndex = Math.floor(this.animTime * clip.fps) % clip.frames.length;
+    if (frameIndex !== this.lastFootFrame && frameIndex % 2 === 0) {
+      audio.playSfx('footstep');
+    }
+    this.lastFootFrame = frameIndex;
   }
 
   /** Draw multi-tile Genesis sprite for the active clip frame. */

@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_2015 — Level 11 «Круг».
  * Chairs, 12-step wall (paraphrase), honesty quiz vs «Умный».
@@ -159,6 +160,7 @@ export function createKrug2015Scene(deps: KrugSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('krug');
       tea.pauseForFlashback();
       spark.reset(0.5);
       player.setEra('adult');

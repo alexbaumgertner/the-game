@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 3 “Вокзал” (snowy platform / waiting hall, Winter 1995).
  * Wave 1 → timed money/bag dialogue → Wave 2 + parcel retrieve → clear.
@@ -269,6 +270,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('station');
       beer.pauseForFlashback();
       preloadVokzalPosters();
       player.setEra('teen');

@@ -12,15 +12,15 @@ import {
   type DialogTextSize,
   type GameSettings,
 } from '@/core/Settings';
+import { audio } from '@/audio';
 
 export type PausePage = 'root' | 'settings';
 
 export type PauseAction =
   | { type: 'resume' }
   | { type: 'exitApartment' }
+  | { type: 'muteToggled' }
   | { type: 'none' };
-
-const ROOT_ITEMS = ['Продолжить', 'Выйти в квартиру', 'Настройки'] as const;
 
 function dialogSizeLabel(v: DialogTextSize): string {
   return v === 'large' ? 'Крупный' : 'Обычный';
@@ -72,7 +72,7 @@ export class PauseMenu {
   /** Labels for TouchControls strip while open. */
   touchLabels(): string[] {
     if (!this.open) return [];
-    if (this.page === 'root') return [...ROOT_ITEMS];
+    if (this.page === 'root') return this.rootLabels();
     return this.settingsLabels().map((l) => l.replace(/^[^:]+:\s*/, '').slice(0, 22));
   }
 
@@ -87,8 +87,13 @@ export class PauseMenu {
     ];
   }
 
+  private rootLabels(): string[] {
+    const muteLabel = audio.isMuted ? 'Звук: выкл (M)' : 'Звук: вкл (M)';
+    return ['Продолжить', 'Выйти в квартиру', muteLabel, 'Настройки'];
+  }
+
   private items(): string[] {
-    return this.page === 'root' ? [...ROOT_ITEMS] : this.settingsLabels();
+    return this.page === 'root' ? this.rootLabels() : this.settingsLabels();
   }
 
   move(delta: number): void {
@@ -107,6 +112,10 @@ export class PauseMenu {
     if (this.page === 'root') {
       if (this.cursor === 0) return { type: 'resume' };
       if (this.cursor === 1) return { type: 'exitApartment' };
+      if (this.cursor === 2) {
+        audio.toggleMute();
+        return { type: 'muteToggled' };
+      }
       this.page = 'settings';
       this.cursor = 0;
       return { type: 'none' };
@@ -121,7 +130,7 @@ export class PauseMenu {
       writeSettings({ dialogSpeed: cycleSpeed(s.dialogSpeed) });
     } else {
       this.page = 'root';
-      this.cursor = 2;
+      this.cursor = 3;
     }
     return { type: 'none' };
   }
@@ -131,7 +140,7 @@ export class PauseMenu {
     if (!this.open) return { type: 'none' };
     if (this.page === 'settings') {
       this.page = 'root';
-      this.cursor = 2;
+      this.cursor = 3;
       return { type: 'none' };
     }
     return { type: 'resume' };

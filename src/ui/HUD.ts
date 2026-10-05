@@ -15,6 +15,8 @@ export interface HudSnapshot {
   levelTitle?: string;
   objective?: string;
   paused?: boolean;
+  /** Audio mute (key M / pause menu). */
+  muted?: boolean;
   fortitude?: number;
   maxFortitude?: number;
   swagger?: number;
@@ -49,6 +51,7 @@ export class HUD {
       levelTitle,
       objective,
       paused,
+      muted,
       fortitude,
       maxFortitude,
       swagger,
@@ -121,8 +124,9 @@ export class HUD {
       drawUiText(ctx, levelTitle, rightX + rightPad, 12.5, '#70d0ff', 6, 550);
     }
 
-    // Pause overlay is owned by PauseMenu (root + settings).
+    // Pause overlay is owned by PauseMenu (root + settings). M toggles mute.
     void paused;
+    void muted;
 
     ctx.restore();
   }

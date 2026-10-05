@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_2026 — Level 12 «Финал».
  * Night questions → diary montage → help newcomer → credits.
@@ -121,6 +122,7 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
   const pushThought = (): void => {
     if (qIndex >= FINALE_QUESTIONS.length) {
       phase = 'montage';
+      audio.setFinalePhase(1);
       montageIndex = 0;
       montageTimer = 2.2;
       dawn = 1;
@@ -143,6 +145,8 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('finale');
+      audio.setFinalePhase(0);
       tea.enabled = true;
       tea.thirst = 35; // start dim; thoughts restore via dawn
       tea.showLongHint = false;
@@ -220,6 +224,7 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
           montageIndex += 1;
           if (montageIndex >= FINALE_MONTAGE.length) {
             phase = 'help';
+            audio.setFinalePhase(2);
             showToast(NEWCOMER_LINES.ask, 2.2);
             syncHud();
           } else {
@@ -285,6 +290,7 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
           creditIndex += 1;
           if (creditIndex >= FINALE_CREDITS.length) {
             phase = 'done';
+            audio.setFinalePhase(3);
             unlockReplay();
             tea.thirst = 120;
             showToast(FINALE_CLOSING, 3);
@@ -394,6 +400,14 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
     debugForcePhase(p: Phase): void {
       dialogue.resetSilent();
       phase = p;
+      const phaseMap: Record<Phase, number> = {
+        night: 0,
+        montage: 1,
+        help: 2,
+        credits: 3,
+        done: 3,
+      };
+      audio.setFinalePhase(phaseMap[p]);
       if (p === 'done') unlockReplay();
       if (p === 'montage') {
         montageIndex = 0;
