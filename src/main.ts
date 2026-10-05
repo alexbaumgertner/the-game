@@ -40,6 +40,7 @@ import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
 import { preloadDiscoHallViews } from './art/discoHallViews';
+import { preloadDetinetsHallViews } from './art/detinetsHallViews';
 import { preloadMostBridgeViews } from './art/mostBridgeViews';
 import { LEVELS } from './data/levels';
 import { registerServiceWorker } from './pwa/register';
@@ -70,6 +71,7 @@ function bootstrap(): void {
   preloadBusBridgeViews();
   preloadDiscoHallViews();
   preloadMostBridgeViews();
+  preloadDetinetsHallViews();
   preloadVokzalPosters();
   preloadGarazhiGraffiti();
 

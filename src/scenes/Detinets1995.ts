@@ -13,6 +13,12 @@ import { DETINETS_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
 import {
+  drawDetinetsHallBackdrop,
+  detinetsHallViewsReady,
+  detinetsViewCaption,
+  preloadDetinetsHallViews,
+} from '@/art/detinetsHallViews';
+import {
   drawUiText,
   drawUiTextCentered,
   measureUiText,
@@ -233,13 +239,21 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
   const stack = new ParallaxStack();
 
   const rebuildStack = (alpha: number): void => {
+    const progress =
+      WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
     stack.setLayers([
       {
         id: 'sky',
         speedRatio: 0.08,
         zIndex: 0,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawKremlinSky(ctx, w, h, scroll),
+        draw: (ctx, scroll, _c, w, h) => {
+          if (detinetsHallViewsReady()) {
+            drawDetinetsHallBackdrop(ctx, w, h, progress, time);
+          } else {
+            drawKremlinSky(ctx, w, h, scroll);
+          }
+        },
       },
       {
         id: 'gameplay',
@@ -259,7 +273,11 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
             w,
             h,
             {
-              ambient: { color: 'rgba(18, 22, 34, 0.52)' },
+              ambient: {
+                color: detinetsHallViewsReady()
+                  ? 'rgba(18, 16, 22, 0.42)'
+                  : 'rgba(18, 22, 34, 0.52)',
+              },
               points: bulbs,
               cones: [],
               time,
@@ -285,6 +303,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadDetinetsHallViews();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -293,7 +312,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -480,6 +499,24 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
           'rgba(240,192,64,0.7)',
         );
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
+      } else if (
+        detinetsHallViewsReady() &&
+        (phase === 'wave1' || phase === 'wave2' || phase === 'cleared')
+      ) {
+        const progress =
+          WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
+        const cap = detinetsViewCaption(progress);
+        const cw = measureUiText(ctx, cap, 6.5, 500) + 10;
+        uiPanel(
+          ctx,
+          Math.round((width - cw) / 2),
+          height - 28,
+          cw,
+          11,
+          'rgba(16,12,10,0.55)',
+          'rgba(200,160,80,0.35)',
+        );
+        drawUiTextCentered(ctx, cap, width / 2, height - 25, P.uiText, 6.5, 500);
       }
 
       if (phase === 'gameover') {
