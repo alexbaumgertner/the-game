@@ -25,6 +25,12 @@ import {
   NEWCOMER_LINES,
 } from '@/data/finale';
 import { LEVELS } from '@/data/levels';
+import {
+  closeJournalIfOpen,
+  isJournalAvailable,
+  isJournalOpen,
+  openJournal,
+} from '@/ui/Journal';
 
 const FLOOR_Y = 188;
 const P = APT_PAL;
@@ -55,12 +61,15 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
   let creditTimer = 0;
   let toast = '';
   let toastTimer = 0;
+  /** True while letter journal overlay is open from help choice. */
+  let letterPending = false;
 
   const helpChoices = [
     { id: 'listen', label: 'Слушать' },
     { id: 'advise', label: 'Слабый совет' },
     { id: 'ask', label: 'Спросить / поделиться' },
     { id: 'pour', label: 'Налить ПИВО' },
+    { id: 'letter', label: 'Выписать письмо' },
   ] as const;
 
   const showToast = (m: string, s = 1.8): void => {
@@ -124,6 +133,14 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
     dawn = Math.min(1, qIndex / FINALE_QUESTIONS.length);
   };
 
+  const beginCredits = (): void => {
+    phase = 'credits';
+    creditIndex = 0;
+    creditTimer = 1.8;
+    letterPending = false;
+    syncHud();
+  };
+
   return {
     enter(): void {
       tea.enabled = true;
@@ -144,11 +161,14 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
       thought = null;
       toast = '';
       toastTimer = 0;
+      letterPending = false;
       syncHud();
       pushThought();
     },
 
     exit(): void {
+      closeJournalIfOpen();
+      letterPending = false;
       dialogue.resetSilent();
     },
 
@@ -156,6 +176,10 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
       const input = states.input;
       if (!input) return;
       if (toastTimer > 0) toastTimer = Math.max(0, toastTimer - dt);
+
+      if (letterPending || isJournalOpen()) {
+        return;
+      }
 
       if (input.justPressed('kick')) {
         returnHome();
@@ -215,18 +239,42 @@ export function createFinale2026Scene(deps: FinaleSceneDeps) {
         if (input.justPressed('confirm') || input.justPressed('interact')) {
           const c = helpChoices[helpCursor]!;
           stayed = true;
-          if (c.id === 'listen') showToast(NEWCOMER_LINES.listenOk, 2.2);
-          else if (c.id === 'advise') showToast(NEWCOMER_LINES.adviseWeak, 2.2);
-          else if (c.id === 'ask') showToast(NEWCOMER_LINES.askShare, 2.2);
-          else if (c.id === 'pour') {
+          if (c.id === 'listen') {
+            showToast(NEWCOMER_LINES.listenOk, 2.2);
+            beginCredits();
+          } else if (c.id === 'advise') {
+            showToast(NEWCOMER_LINES.adviseWeak, 2.2);
+            beginCredits();
+          } else if (c.id === 'ask') {
+            showToast(NEWCOMER_LINES.askShare, 2.2);
+            beginCredits();
+          } else if (c.id === 'pour') {
             showToast(NEWCOMER_LINES.pourPivo, 2.4);
             tea.pickup(1);
             tea.drink();
+            beginCredits();
+          } else if (c.id === 'letter') {
+            letterPending = true;
+            void (async () => {
+              try {
+                if (!isJournalAvailable()) {
+                  letterPending = false;
+                  beginCredits();
+                  return;
+                }
+                const result = await openJournal({
+                  input,
+                  title: 'Письмо',
+                });
+                letterPending = false;
+                if (result.hadText) showToast('Стало легче.', 2.0);
+                beginCredits();
+              } catch {
+                letterPending = false;
+                beginCredits();
+              }
+            })();
           }
-          phase = 'credits';
-          creditIndex = 0;
-          creditTimer = 1.8;
-          syncHud();
         }
         return;
       }

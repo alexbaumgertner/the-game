@@ -74,6 +74,7 @@ import {
   chitalnyaThemeUnlocked,
   type ChitalnyaThemeId,
 } from '@/data/philosophyExpand';
+import { closeJournalIfOpen, isJournalOpen, openJournal } from '@/ui/Journal';
 
 const WIDTH = LOGICAL_WIDTH;
 const FLOOR_Y = APT_FLOOR_Y;
@@ -81,6 +82,9 @@ const PROMPT_Y = 210;
 const P = APT_PAL;
 /** Desk / PC seat X (living room). */
 const DESK_X = ROOM_ORIGIN + 92;
+const DESK_W = 56;
+/** Warm spill after a non-empty journal close (seconds). */
+const JOURNAL_WARM_SEC = 3.6;
 /** Dresser (комод) hotspot. */
 const DRESSER_X = ROOM_ORIGIN + 236;
 const DRESSER_W = 70;
@@ -226,11 +230,27 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let ippolitSpoke = false;
   let cigarettesTaken = false;
   let catLitterAsked = false;
+  /** Temporary warm spill after closing a non-empty journal. */
+  let warmLightT = 0;
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
     toastTimer = seconds;
     overlay = 'toast';
+  };
+
+  const openDeskJournal = (): void => {
+    if (isJournalOpen()) return;
+    void openJournal({
+      input: states.input,
+      title: 'Журнал',
+      onClose: (result) => {
+        if (result.hadText) {
+          showToast('Стало легче.', 2.2);
+          warmLightT = JOURNAL_WARM_SEC;
+        }
+      },
+    });
   };
 
   const refreshObjective = (): void => {
@@ -279,6 +299,9 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const nearDresser = (): boolean =>
     player.x >= DRESSER_X && player.x <= DRESSER_X + DRESSER_W;
 
+  const nearDesk = (): boolean =>
+    player.x >= DESK_X - 8 && player.x <= DESK_X + DESK_W;
+
   const nearBookshelf = (): boolean =>
     player.x >= BOOKSHELF_X && player.x <= BOOKSHELF_X + BOOKSHELF_W;
 
@@ -304,10 +327,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     player.x >= TOILET_ORIGIN && player.x < ROOM_ORIGIN;
 
   const activePrompt = (): string | null => {
-    if (overlay !== 'none' || dialogue.isOpen) return null;
+    if (overlay !== 'none' || dialogue.isOpen || isJournalOpen()) return null;
     if (!states.flags.introDone) return null;
+    if (nearDesk()) return 'Открыть журнал';
     if (nearDresser() && !states.flags.diaryUnlocked) return 'Открыть комод';
     if (nearDresser() && states.flags.diaryUnlocked) return 'Открыть дневник';
+    if (nearBookshelf() && chitalnyaAvailable()) return 'Читальня';
     if (nearChain()) return 'Дёрнуть цепочку';
     if (
       nearLitter() &&
@@ -336,6 +361,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!input.justPressed('interact') && !input.justPressed('confirm')) return;
     if (player.inspecting) return;
     if (dialogue.isOpen) return;
+    if (isJournalOpen()) return;
 
     if (overlay === 'photo') {
       overlay = 'diary';
@@ -351,6 +377,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (overlay === 'diary' || overlay === 'chitalnya') return;
 
     if (!states.flags.introDone) return;
+
+    if (nearDesk()) {
+      player.beginInspect(0.3);
+      openDeskJournal();
+      return;
+    }
 
     const can = nearTea();
     if (can) {
@@ -455,7 +487,15 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const tryDrink = (): void => {
     const input = states.input;
     if (!input?.justPressed('beer')) return;
-    if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo' || overlay === 'chitalnya') return;
+    if (
+      dialogue.isOpen ||
+      overlay === 'diary' ||
+      overlay === 'photo' ||
+      overlay === 'chitalnya' ||
+      isJournalOpen()
+    ) {
+      return;
+    }
     if (beer.drink()) {
       showToast('ПИВО согрело.');
     } else if (beer.cups <= 0) {
@@ -637,6 +677,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       overlay = 'none';
       toast = '';
       toastTimer = 0;
+      warmLightT = 0;
       diaryCursor = 0;
       dialogue.resetSilent();
       introStarted = false;
@@ -690,6 +731,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     exit(): void {
       overlay = 'none';
+      warmLightT = 0;
+      closeJournalIfOpen();
       dialogue.resetSilent();
     },
 
@@ -697,6 +740,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       time += dt;
       player.update(dt);
       if (flushT > 0) flushT = Math.max(0, flushT - dt);
+      if (warmLightT > 0) warmLightT = Math.max(0, warmLightT - dt);
+
+      if (isJournalOpen()) {
+        if (states.flags.introDone) beer.update(dt);
+        return;
+      }
 
       const targetCam = player.x - WIDTH * 0.42;
       camX += (targetCam - camX) * Math.min(1, dt * 6);
@@ -822,26 +871,51 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           zIndex: 20,
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
-            // Soft ambient only — NO desk/computer lamp bloom
+            // Soft ambient only — NO permanent desk/computer lamp bloom
             const winScreenX = ROOM_ORIGIN + 250 - camX;
+            const points: {
+              kind: 'point';
+              x: number;
+              y: number;
+              radius: number;
+              color: string;
+              screenSpace: true;
+            }[] = [
+              {
+                kind: 'point',
+                // Cool spill from night window only (no desk/PC lamp bloom)
+                x: winScreenX,
+                y: 72,
+                radius: 36,
+                color: '#7090c8',
+                screenSpace: true,
+              },
+            ];
+            if (warmLightT > 0) {
+              const deskScreenX = DESK_X + 18 - camX;
+              const fade = Math.min(1, warmLightT / 1.2);
+              points.push({
+                kind: 'point',
+                x: deskScreenX,
+                y: 118,
+                radius: 58,
+                color: `rgba(232, 176, 96, ${(0.55 * fade).toFixed(3)})`,
+                screenSpace: true,
+              });
+            }
             applyLightingOverlay(
               c,
               0,
               w,
               h,
               {
-                ambient: { color: 'rgba(36, 30, 42, 0.28)' },
-                points: [
-                  {
-                    kind: 'point',
-                    // Cool spill from night window only (no desk/PC lamp bloom)
-                    x: winScreenX,
-                    y: 72,
-                    radius: 36,
-                    color: '#7090c8',
-                    screenSpace: true,
-                  },
-                ],
+                ambient: {
+                  color:
+                    warmLightT > 0
+                      ? 'rgba(48, 36, 28, 0.18)'
+                      : 'rgba(36, 30, 42, 0.28)',
+                },
+                points,
                 cones: [],
                 time,
               },
@@ -1237,6 +1311,16 @@ function drawHotspotHints(
   opts: { cigarettesGone: boolean; flushBusy: boolean },
 ): void {
   if (!states.flags.introDone) return;
+
+  const nearDeskHint =
+    playerX >= DESK_X - 8 && playerX <= DESK_X + DESK_W;
+  const desk = clock.sample('desk-journal', nearDeskHint, timeSec);
+  if (desk.active) {
+    drawInteractPrompt(ctx, DESK_X + DESK_W / 2, FLOOR_Y - 72, 'Открыть журнал', timeSec, {
+      size: 5.5,
+      showLabel: desk.showLabel,
+    });
+  }
 
   const nearShelf =
     playerX >= BOOKSHELF_X &&
