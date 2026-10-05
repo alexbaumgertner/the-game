@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "check:sprite-colors": "vite-node scripts/check-sprite-colors.ts",
-    "check:font-glyphs": "node scripts/check-font-glyphs.mjs"
+    "check:font-glyphs": "node scripts/check-font-glyphs.mjs",
+    "check:todo-owner": "node scripts/check-todo-owner.mjs"
   },
   "devDependencies": {
     "typescript": "~5.7.3",

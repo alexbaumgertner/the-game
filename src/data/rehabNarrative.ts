@@ -52,7 +52,7 @@ export const REHAB_ACTIONS: readonly RehabAction[] = [
     spark: 0.14,
     vignette: v('rehab_group', [
       { speaker: 'Ведущий', text: 'Кто хочет сказать — скажет. Кто нет — тоже здесь.' },
-      { speaker: 'Зуич', text: 'Слушаю. TODO(owner): что сказал в первый раз.' },
+      { speaker: 'Зуич', text: 'Слушаю.' },
     ]),
   },
   {
@@ -61,7 +61,7 @@ export const REHAB_ACTIONS: readonly RehabAction[] = [
     spark: 0.12,
     vignette: v('rehab_walk', [
       { speaker: 'Зуич', text: 'Двор. Шаги без приказа. Странно привыкать.' },
-      { speaker: 'Зуич', text: 'TODO(owner): маршрут / погода.' },
+      { speaker: 'Зуич', text: 'Иду. Воздух.' },
     ]),
   },
   {
@@ -77,7 +77,7 @@ export const REHAB_ACTIONS: readonly RehabAction[] = [
     label: 'Чтение',
     spark: 0.13,
     vignette: v('rehab_read', [
-      { speaker: 'Зуич', text: 'Страница. Не устава. TODO(owner): какая книга.' },
+      { speaker: 'Зуич', text: 'Страница. Не устава.' },
     ]),
   },
   {
@@ -85,7 +85,7 @@ export const REHAB_ACTIONS: readonly RehabAction[] = [
     label: 'Звонок семье',
     spark: 0.15,
     vignette: v('rehab_call', [
-      { speaker: 'Зуич', text: 'Гудки. Голос. Коротко и по делу. TODO(owner).' },
+      { speaker: 'Зуич', text: 'Гудки. Голос. Коротко и по делу.' },
     ]),
   },
   {

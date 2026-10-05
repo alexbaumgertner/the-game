@@ -90,7 +90,7 @@ export const INTRO_SCRIPT: DialogueScript = {
   lines: {
     wake: {
       speaker: 'Зуич',
-      text: '2010. Плац. Холодно. TODO(owner): часть / город — без номеров.',
+      text: '2010. Плац. Холодно.',
       next: 'sarge',
     },
     sarge: {
