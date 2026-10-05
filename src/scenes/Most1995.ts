@@ -4,7 +4,6 @@
  */
 
 import type { StateManager } from '@/core/StateManager';
-import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
@@ -12,6 +11,11 @@ import type { BeerSystem } from '@/systems/BeerSystem';
 import { MOST_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
+import {
+  drawMostBridgeFar,
+  mostViewCaption,
+  preloadMostBridgeViews,
+} from '@/art/mostBridgeViews';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -30,10 +34,12 @@ import {
 } from '@/systems/DialogueSystem';
 import { QuizSystem, quizHudHint } from '@/systems/QuizSystem';
 import { tickQuizEncounter } from '@/systems/quizEncounter';
+import { LOGICAL_WIDTH } from '@/core/Display';
 
 const P = MOST_PAL;
 const WORLD_W = 560;
 const FLOOR_Y = 186;
+const CAM_MAX = WORLD_W - LOGICAL_WIDTH;
 const WRONG_REASSURE_MF_DRAIN = 22;
 
 type LevelPhase = 'wave1' | 'dialogue' | 'wave2' | 'cleared' | 'gameover';
@@ -208,13 +214,15 @@ export function createMost1995Scene(deps: MostSceneDeps) {
   const stack = new ParallaxStack();
 
   const rebuildStack = (alpha: number): void => {
+    const camProgress = CAM_MAX > 0 ? Math.max(0, Math.min(1, camX / CAM_MAX)) : 0;
     stack.setLayers([
       {
         id: 'sky',
-        speedRatio: 0.06,
+        speedRatio: 0.08,
         zIndex: 0,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawRiverSky(ctx, w, h, scroll),
+        draw: (ctx, _scroll, _c, w, h) =>
+          drawMostBridgeFar(ctx, w, h, camProgress, time),
       },
       {
         id: 'gameplay',
@@ -260,6 +268,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
   return {
     enter(): void {
       beer.pauseForFlashback();
+      preloadMostBridgeViews();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -268,7 +277,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -476,6 +485,20 @@ export function createMost1995Scene(deps: MostSceneDeps) {
           'rgba(112,192,232,0.7)',
         );
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f0f8ff', 7, 600);
+      } else if (phase === 'wave1' || phase === 'wave2' || phase === 'cleared') {
+        const camProgress = CAM_MAX > 0 ? Math.max(0, Math.min(1, camX / CAM_MAX)) : 0;
+        const caption = mostViewCaption(camProgress);
+        const cw = measureUiText(ctx, caption, 6.5, 500) + 10;
+        uiPanel(
+          ctx,
+          Math.round((width - cw) / 2),
+          height - 28,
+          cw,
+          11,
+          'rgba(10,14,22,0.55)',
+          'rgba(80,140,180,0.35)',
+        );
+        drawUiTextCentered(ctx, caption, width / 2, height - 25, '#a0b8d0', 6.5, 500);
       }
 
       if (phase === 'gameover') {
@@ -526,25 +549,6 @@ export function createMost1995Scene(deps: MostSceneDeps) {
     camX += (target - camX) * Math.min(1, dt * 6);
     if (camX < 0) camX = 0;
     if (camX > WORLD_W - LOGICAL_WIDTH) camX = WORLD_W - LOGICAL_WIDTH;
-  }
-}
-
-function drawRiverSky(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  scroll: number,
-): void {
-  px(ctx, 0, 0, width, height, P.skyTop);
-  ditherRect(ctx, 0, 0, width, 70, P.skyTop, P.skyMid);
-  px(ctx, 0, 78, width, 50, P.skyLow);
-  const ox = Math.round(scroll * 0.1);
-  // Far Detinets silhouette
-  for (let i = -1; i < 5; i++) {
-    const bx = i * 100 - (ox % 100);
-    px(ctx, bx + 10, 48, 50, 40, P.kremlin);
-    px(ctx, bx + 20, 36, 18, 14, P.kremlinHi);
-    px(ctx, bx + 55, 52, 28, 36, P.kremlin);
   }
 }
 
