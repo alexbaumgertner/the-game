@@ -24,6 +24,10 @@ export type QuizSubject =
   | 'пиаже'
   | 'выготский'
   | 'философия'
+  | 'подчинение'
+  | 'роли'
+  | 'воля'
+  | 'смысл'
   | PhilosophyEra;
 
 export interface QuizQuestion {
@@ -1504,3 +1508,14 @@ export function nextSchoolQuestion(
 ): ReturnType<typeof shuffleQuestion> {
   return nextPhilosophyQuestion(rng);
 }
+
+export {
+  CHITALNYA_THEMES,
+  chitalnyaThemeUnlocked,
+  PODCHINENIE_QUESTIONS,
+  ROLI_QUESTIONS,
+  VOLYA_QUESTIONS,
+  SMYSL_QUESTIONS,
+  type ChitalnyaTheme,
+  type ChitalnyaThemeId,
+} from '@/data/philosophyExpand';
