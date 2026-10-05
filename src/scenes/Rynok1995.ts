@@ -479,7 +479,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         quiz.closeSilent();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         if (gameOverTimer <= 0) {
           player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
           states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
@@ -686,8 +686,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, R.uiBorder, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {

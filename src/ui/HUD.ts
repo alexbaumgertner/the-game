@@ -3,7 +3,7 @@
  * Clear modern sans UI; no overlapping scene title panels.
  */
 
-import { drawUiText, drawUiTextCentered, fitUiText, measureUiText, uiPanel } from '@/art/uiFont';
+import { drawUiText, fitUiText, measureUiText, uiPanel } from '@/art/uiFont';
 import { SEGA, APT_PAL, TEEN_PAL } from '@/art/segaPalette';
 
 export interface HudSnapshot {
@@ -43,7 +43,7 @@ export class HUD {
     // reserved
   }
 
-  render(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number): void {
+  render(ctx: CanvasRenderingContext2D, canvasWidth: number, _canvasHeight: number): void {
     const {
       eraLabel,
       levelTitle,
@@ -121,22 +121,8 @@ export class HUD {
       drawUiText(ctx, levelTitle, rightX + rightPad, 12.5, '#70d0ff', 6, 550);
     }
 
-    if (paused) {
-      ctx.fillStyle = 'rgba(8, 8, 14, 0.72)';
-      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
-      const label = 'ПАУЗА';
-      const pw = measureUiText(ctx, label, 14, 700) + 24;
-      uiPanel(
-        ctx,
-        Math.round((canvasWidth - pw) / 2),
-        Math.round(canvasHeight / 2 - 16),
-        pw,
-        28,
-        'rgba(12,14,20,0.92)',
-        'rgba(200,168,80,0.85)',
-      );
-      drawUiTextCentered(ctx, label, canvasWidth / 2, canvasHeight / 2 - 6, SEGA.white, 14, 700);
-    }
+    // Pause overlay is owned by PauseMenu (root + settings).
+    void paused;
 
     ctx.restore();
   }

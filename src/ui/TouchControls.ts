@@ -23,6 +23,13 @@ export interface TouchControlsOptions {
     | { active: boolean; labels?: [string, string, string, string] }
     | null
     | undefined;
+  /** Pause menu rows (Продолжить / Выйти / Настройки / …). */
+  getPauseMenuChoices?: () =>
+    | { active: boolean; labels?: string[] }
+    | null
+    | undefined;
+  /** Invoked when a pause-menu touch row is tapped. */
+  onPauseMenuSelect?: (index: number) => void;
 }
 
 function prefersTouchUi(): boolean {
@@ -48,10 +55,13 @@ export class TouchControls {
   private readonly onPause?: () => void;
   private readonly getDialogueChoices?: TouchControlsOptions['getDialogueChoices'];
   private readonly getQuizChoices?: TouchControlsOptions['getQuizChoices'];
+  private readonly getPauseMenuChoices?: TouchControlsOptions['getPauseMenuChoices'];
+  private readonly onPauseMenuSelect?: TouchControlsOptions['onPauseMenuSelect'];
   private readonly shell: HTMLDivElement;
   private readonly pad: HTMLDivElement;
   private readonly choiceBar: HTMLDivElement;
   private readonly quizBar: HTMLDivElement;
+  private readonly pauseBar: HTMLDivElement;
   private readonly toggleBtn: HTMLButtonElement;
   private visible: boolean;
   private forced = false;
@@ -65,6 +75,8 @@ export class TouchControls {
     this.onPause = options.onPause;
     this.getDialogueChoices = options.getDialogueChoices;
     this.getQuizChoices = options.getQuizChoices;
+    this.getPauseMenuChoices = options.getPauseMenuChoices;
+    this.onPauseMenuSelect = options.onPauseMenuSelect;
     this.visible = prefersTouchUi();
 
     this.shell = document.createElement('div');
@@ -138,7 +150,11 @@ export class TouchControls {
       </button>
     `;
 
-    this.shell.append(this.toggleBtn, this.choiceBar, this.quizBar, this.pad);
+    this.pauseBar = document.createElement('div');
+    this.pauseBar.className = 'tc-pause-menu';
+    this.pauseBar.hidden = true;
+
+    this.shell.append(this.toggleBtn, this.choiceBar, this.quizBar, this.pauseBar, this.pad);
     this.root.appendChild(this.shell);
 
     this.bindPad(this.pad);
@@ -244,6 +260,44 @@ export class TouchControls {
   private readonly tickChoices = (): void => {
     if (this.destroyed) return;
     this.rafId = requestAnimationFrame(this.tickChoices);
+
+    const pauseInfo = this.getPauseMenuChoices?.();
+    const showPause = !!(this.visible && pauseInfo?.active);
+    this.pauseBar.hidden = !showPause;
+    this.shell.classList.toggle('tc-pause-open', showPause);
+    if (showPause) {
+      const labels = pauseInfo?.labels ?? [];
+      const existing = this.pauseBar.querySelectorAll('button[data-pause-item]');
+      if (existing.length !== labels.length) {
+        this.pauseBar.innerHTML = labels
+          .map(
+            (label, i) => `
+          <button type="button" class="tc-btn tc-choice" data-pause-item="${i}" aria-label="${label}">
+            <span class="tc-choice-key">${i + 1}</span>
+            <span class="tc-choice-label">${label.toUpperCase()}</span>
+          </button>`,
+          )
+          .join('');
+        for (const btn of this.pauseBar.querySelectorAll<HTMLButtonElement>('button[data-pause-item]')) {
+          btn.addEventListener('contextmenu', (e) => e.preventDefault());
+          btn.addEventListener('pointerdown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const idx = Number(btn.dataset.pauseItem);
+            if (Number.isFinite(idx)) this.onPauseMenuSelect?.(idx);
+          });
+        }
+      } else {
+        labels.forEach((label, i) => {
+          const el = this.pauseBar.querySelector(`[data-pause-item="${i}"] .tc-choice-label`);
+          if (el) el.textContent = label.toUpperCase();
+        });
+      }
+      this.choiceBar.hidden = true;
+      this.quizBar.hidden = true;
+      return;
+    }
+
     const info = this.getDialogueChoices?.();
     const show = !!(this.visible && info?.active);
     this.choiceBar.hidden = !show;
@@ -292,7 +346,8 @@ export function injectTouchControlStyles(): void {
 }
 #touch-controls.tc-visible .tc-pad,
 #touch-controls.tc-visible .tc-choices:not([hidden]),
-#touch-controls.tc-visible .tc-quiz:not([hidden]) {
+#touch-controls.tc-visible .tc-quiz:not([hidden]),
+#touch-controls .tc-pause-menu:not([hidden]) {
   opacity: 1;
   visibility: visible;
 }
@@ -410,7 +465,8 @@ export function injectTouchControlStyles(): void {
   letter-spacing: 0.12em;
 }
 .tc-choices,
-.tc-quiz {
+.tc-quiz,
+.tc-pause-menu {
   pointer-events: auto;
   position: absolute;
   left: 50%;
@@ -428,6 +484,15 @@ export function injectTouchControlStyles(): void {
   bottom: calc(8px + var(--tc-safe-b));
   max-height: 55vh;
   overflow-y: auto;
+}
+.tc-pause-menu {
+  bottom: calc(20% + var(--tc-safe-b));
+  opacity: 1;
+  visibility: visible;
+  z-index: 50;
+}
+#touch-controls.tc-pause-open .tc-pad {
+  opacity: 0.2;
 }
 #touch-controls.tc-quiz-open .tc-pad {
   opacity: 0.25;
