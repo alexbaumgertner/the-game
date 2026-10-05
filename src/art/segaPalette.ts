@@ -554,6 +554,28 @@ export const DISKO_PAL = {
   uiText: '#f0e8f8',
 } as const;
 
+/** 2010 Army — khaki parade, cold gray, satirical hollow pomp. */
+export const ARMY_PAL = {
+  skyTop: '#3a4450',
+  skyMid: '#2a343e',
+  skyLow: '#1a242e',
+  ground: '#4a5340',
+  groundDark: '#3a4234',
+  wall: '#5a6048',
+  wallDark: '#3a4030',
+  khaki: '#6a7048',
+  khakiHi: '#8a9060',
+  gray: '#707880',
+  grayDim: '#505860',
+  accent: '#c8b878',
+  flag: '#c04040',
+  ribbon: '#d87830',
+  text: '#e8e0d0',
+  spark: '#70a0c8',
+  uiBorder: '#a8b070',
+  uiText: '#e8e0d0',
+} as const;
+
 /** 1995 Detinets walls — kremlin brick, Sofia silhouette, snow. */
 export const DETINETS_PAL = {
   skyTop: '#0c1424',

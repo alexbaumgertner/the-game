@@ -44,6 +44,7 @@ import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
 import { preloadDiscoHallViews } from './art/discoHallViews';
 import { preloadDetinetsHallViews } from './art/detinetsHallViews';
+import { preloadArmiyaViews } from './art/armiyaViews';
 import { preloadMostBridgeViews } from './art/mostBridgeViews';
 import { LEVELS } from './data/levels';
 import { registerServiceWorker } from './pwa/register';
@@ -82,6 +83,7 @@ function bootstrap(): void {
   preloadDiscoHallViews();
   preloadMostBridgeViews();
   preloadDetinetsHallViews();
+  preloadArmiyaViews();
   preloadVokzalPosters();
   preloadGarazhiGraffiti();
 
