@@ -31,8 +31,8 @@ import { createDvor1995Scene } from './scenes/Dvor1995';
 import { createMost1995Scene } from './scenes/Most1995';
 import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
 import { createDetinets1995Scene } from './scenes/Detinets1995';
+import { createArmiya2010Scene } from './scenes/Armiya2010';
 import {
-  createArmiya2010Scene,
   createRehab2015Scene,
   createKrug2015Scene,
   createFinale2026Scene,
@@ -101,7 +101,7 @@ function bootstrap(): void {
   const most = createMost1995Scene(deps);
   const diskoteka = createDiskoteka1995Scene(deps);
   const detinets = createDetinets1995Scene(deps);
-  const armiya = createArmiya2010Scene(stubDeps);
+  const armiya = createArmiya2010Scene({ ...stubDeps, spark });
   const rehab = createRehab2015Scene(stubDeps);
   const krug = createKrug2015Scene(stubDeps);
   const finale = createFinale2026Scene(stubDeps);
