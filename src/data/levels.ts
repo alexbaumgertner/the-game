@@ -1,6 +1,8 @@
 /**
  * Level registry — single source for diary, year strip, and scene wiring.
  * Years for levels 10–11 are editable here only.
+ * Each entry's `scene` must be registerable; cleared/selected flags must exist
+ * in `DEFAULT_FLAGS`.
  */
 
 import type { GameEra, SceneId } from '@/core/StateManager';
