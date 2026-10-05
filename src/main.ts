@@ -32,11 +32,9 @@ import { createMost1995Scene } from './scenes/Most1995';
 import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
 import { createDetinets1995Scene } from './scenes/Detinets1995';
 import { createArmiya2010Scene } from './scenes/Armiya2010';
-import {
-  createRehab2015Scene,
-  createKrug2015Scene,
-  createFinale2026Scene,
-} from './scenes/LevelStub';
+import { createRehab2015Scene } from './scenes/Rehab2015';
+import { createKrug2015Scene } from './scenes/Krug2015';
+import { createFinale2026Scene } from './scenes/LevelStub';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
@@ -102,8 +100,8 @@ function bootstrap(): void {
   const diskoteka = createDiskoteka1995Scene(deps);
   const detinets = createDetinets1995Scene(deps);
   const armiya = createArmiya2010Scene({ ...stubDeps, spark });
-  const rehab = createRehab2015Scene(stubDeps);
-  const krug = createKrug2015Scene(stubDeps);
+  const rehab = createRehab2015Scene({ ...stubDeps, spark });
+  const krug = createKrug2015Scene({ ...stubDeps, spark });
   const finale = createFinale2026Scene(stubDeps);
 
   const scenes = {
