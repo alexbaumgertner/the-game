@@ -9,6 +9,8 @@
  * All work is in logical 320×224; display scale is the canvas transform only.
  */
 
+import { getSettings } from '@/core/Settings';
+
 export type LightKind = 'ambient' | 'fire' | 'headlight';
 
 export interface PointLight {
@@ -193,14 +195,22 @@ export function applyLightingOverlay(
 
   for (const p of frame.points) {
     // Quantize flicker to a few discrete strengths (MD feel)
+    const reduceFx = getSettings().reducedEffects;
     const rawFlicker =
-      p.kind === 'fire'
+      p.kind === 'fire' && !reduceFx
         ? 0.82 +
           0.18 *
             Math.sin(frame.time * 9 + (p.phase ?? 0)) *
             Math.sin(frame.time * 13.7 + (p.phase ?? 1))
         : 1;
-    const flicker = p.kind === 'fire' ? (rawFlicker > 0.92 ? 1 : rawFlicker > 0.86 ? 0.9 : 0.8) : 1;
+    const flicker =
+      p.kind === 'fire' && !reduceFx
+        ? rawFlicker > 0.92
+          ? 1
+          : rawFlicker > 0.86
+            ? 0.9
+            : 0.8
+        : 1;
     const sx = p.screenSpace ? p.x : p.x - ox;
     const sy = p.y;
     const r = p.radius * (p.kind === 'fire' ? flicker : 1);

@@ -1,14 +1,16 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 3 “Вокзал” (snowy platform / waiting hall, Winter 1995).
  * Wave 1 → timed money/bag dialogue → Wave 2 + parcel retrieve → clear.
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { effectShake } from '@/core/Settings';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { VOKZAL_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
@@ -54,7 +56,7 @@ export interface VokzalSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createVokzal1995Scene(deps: VokzalSceneDeps) {
@@ -125,7 +127,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
       return 'Добей гопников';
     }
     if (phase === 'cleared') return 'УР. 3 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return 'ПЕРЕДЫШКА…';
   };
 
   const syncHud = (objective?: string): void => {
@@ -188,7 +190,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
+      syncHud('ПЕРЕДЫШКА…');
       return;
     }
 
@@ -268,6 +270,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('station');
       beer.pauseForFlashback();
       preloadVokzalPosters();
       player.setEra('teen');
@@ -339,7 +342,7 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         return;
       }
 
@@ -440,8 +443,9 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
+      const shakeMul = effectShake(1);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28) * shakeMul) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28) * shakeMul) : 0;
 
       ctx.save();
       ctx.translate(shakeX, shakeY);
@@ -492,8 +496,8 @@ export function createVokzal1995Scene(deps: VokzalSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiText, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {

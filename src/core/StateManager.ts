@@ -7,8 +7,11 @@
 
 import type { Input } from './Input';
 
-/** High-level narrative eras. */
-export type GameEra = 'ERA_2026' | 'ERA_1995';
+/**
+ * High-level narrative eras (yearly).
+ * Keep `ERA_2026` / `ERA_1995` stable for existing scenes and scripts.
+ */
+export type GameEra = 'ERA_2026' | 'ERA_1995' | 'ERA_2010' | 'ERA_2015';
 
 /** Named gameplay / UI scenes. */
 export type SceneId =
@@ -20,7 +23,11 @@ export type SceneId =
   | 'dvor_1995'
   | 'most_1995'
   | 'diskoteka_1995'
-  | 'detinets_1995';
+  | 'detinets_1995'
+  | 'armiya_2010'
+  | 'rehab_2015'
+  | 'krug_2015'
+  | 'finale_2026';
 
 export interface SceneContext {
   era: GameEra;
@@ -88,6 +95,14 @@ export interface ProgressFlags {
   level8Selected: boolean;
   /** Set when Level 8 детинец (финал зимы) is cleared. */
   level8Cleared: boolean;
+  level9Selected: boolean;
+  level9Cleared: boolean;
+  level10Selected: boolean;
+  level10Cleared: boolean;
+  level11Selected: boolean;
+  level11Cleared: boolean;
+  level12Selected: boolean;
+  level12Cleared: boolean;
 }
 
 export const DEFAULT_FLAGS: ProgressFlags = {
@@ -113,6 +128,14 @@ export const DEFAULT_FLAGS: ProgressFlags = {
   level7Cleared: false,
   level8Selected: false,
   level8Cleared: false,
+  level9Selected: false,
+  level9Cleared: false,
+  level10Selected: false,
+  level10Cleared: false,
+  level11Selected: false,
+  level11Cleared: false,
+  level12Selected: false,
+  level12Cleared: false,
 };
 
 export class StateManager {

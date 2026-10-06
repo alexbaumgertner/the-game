@@ -1,0 +1,26 @@
+{
+  "name": "Новгород 1995 — Зуич",
+  "short_name": "Новгород 1995",
+  "description": "Зуич · Новгород 1995 — пиксельный аркадный платформер",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0a0c",
+  "theme_color": "#0a0a0c",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "art/face-hero.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "art/face-hero.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

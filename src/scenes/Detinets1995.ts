@@ -1,17 +1,25 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 8 “Детинец” (Kremlin walls finale, Winter 1995).
  * Courtyard approach wave → timed dialogue → wall walk + boss-lite → clear.
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { effectShake } from '@/core/Settings';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { DETINETS_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
+import {
+  drawDetinetsHallBackdrop,
+  detinetsHallViewsReady,
+  detinetsViewCaption,
+  preloadDetinetsHallViews,
+} from '@/art/detinetsHallViews';
 import {
   drawUiText,
   drawUiTextCentered,
@@ -58,7 +66,7 @@ export interface DetinetsSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
@@ -130,7 +138,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
     if (phase === 'dialogue') return 'Финал зимы - выбор';
     if (phase === 'wave2') return 'Стена - старший + волна';
     if (phase === 'cleared') return 'УР. 8 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return 'ПЕРЕДЫШКА…';
   };
 
   const syncHud = (objective?: string): void => {
@@ -191,7 +199,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
+      syncHud('ПЕРЕДЫШКА…');
       return;
     }
 
@@ -233,13 +241,21 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
   const stack = new ParallaxStack();
 
   const rebuildStack = (alpha: number): void => {
+    const progress =
+      WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
     stack.setLayers([
       {
         id: 'sky',
         speedRatio: 0.08,
         zIndex: 0,
         screenSpace: true,
-        draw: (ctx, scroll, _c, w, h) => drawKremlinSky(ctx, w, h, scroll),
+        draw: (ctx, scroll, _c, w, h) => {
+          if (detinetsHallViewsReady()) {
+            drawDetinetsHallBackdrop(ctx, w, h, progress, time);
+          } else {
+            drawKremlinSky(ctx, w, h, scroll);
+          }
+        },
       },
       {
         id: 'gameplay',
@@ -259,7 +275,11 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
             w,
             h,
             {
-              ambient: { color: 'rgba(18, 22, 34, 0.52)' },
+              ambient: {
+                color: detinetsHallViewsReady()
+                  ? 'rgba(18, 16, 22, 0.42)'
+                  : 'rgba(18, 22, 34, 0.52)',
+              },
               points: bulbs,
               cones: [],
               time,
@@ -284,7 +304,9 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('detinets');
       beer.pauseForFlashback();
+      preloadDetinetsHallViews();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -293,7 +315,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -354,7 +376,7 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         return;
       }
 
@@ -448,8 +470,9 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
+      const shakeMul = effectShake(1);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28) * shakeMul) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28) * shakeMul) : 0;
 
       ctx.save();
       ctx.translate(shakeX, shakeY);
@@ -480,13 +503,31 @@ export function createDetinets1995Scene(deps: DetinetsSceneDeps) {
           'rgba(240,192,64,0.7)',
         );
         drawUiTextCentered(ctx, toast, width / 2, 39, '#f8f0d0', 7, 600);
+      } else if (
+        detinetsHallViewsReady() &&
+        (phase === 'wave1' || phase === 'wave2' || phase === 'cleared')
+      ) {
+        const progress =
+          WORLD_W > LOGICAL_WIDTH ? camX / (WORLD_W - LOGICAL_WIDTH) : 0;
+        const cap = detinetsViewCaption(progress);
+        const cw = measureUiText(ctx, cap, 6.5, 500) + 10;
+        uiPanel(
+          ctx,
+          Math.round((width - cw) / 2),
+          height - 28,
+          cw,
+          11,
+          'rgba(16,12,10,0.55)',
+          'rgba(200,160,80,0.35)',
+        );
+        drawUiTextCentered(ctx, cap, width / 2, height - 25, P.uiText, 6.5, 500);
       }
 
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiText, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {
