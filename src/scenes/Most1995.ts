@@ -1,13 +1,15 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 6 “Мост / Волхов” (pedestrian bridge, Winter 1995).
  * Wave 1 on approach → timed dialogue → Wave 2 on deck + reclaim letter → clear.
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { effectShake } from '@/core/Settings';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { MOST_PAL } from '@/art/segaPalette';
 import { ditherRect, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
@@ -54,7 +56,7 @@ export interface MostSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createMost1995Scene(deps: MostSceneDeps) {
@@ -126,7 +128,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
       return 'Добей гопников';
     }
     if (phase === 'cleared') return 'УР. 6 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return 'ПЕРЕДЫШКА…';
   };
 
   const syncHud = (objective?: string): void => {
@@ -186,7 +188,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
+      syncHud('ПЕРЕДЫШКА…');
       return;
     }
 
@@ -267,6 +269,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('bridge');
       beer.pauseForFlashback();
       preloadMostBridgeViews();
       player.setEra('teen');
@@ -338,7 +341,7 @@ export function createMost1995Scene(deps: MostSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         return;
       }
 
@@ -438,8 +441,9 @@ export function createMost1995Scene(deps: MostSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
+      const shakeMul = effectShake(1);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28) * shakeMul) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28) * shakeMul) : 0;
 
       ctx.save();
       ctx.translate(shakeX, shakeY);
@@ -504,8 +508,8 @@ export function createMost1995Scene(deps: MostSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiText, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {

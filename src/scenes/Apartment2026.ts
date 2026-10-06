@@ -1,16 +1,17 @@
+import { audio } from '@/audio';
 /**
- * ERA_2026 — хрущёвка Зуича (Зелинского 2).
+ * ERA_2026 — хрущёвка Зуича (Дом).
  * Туалет ← комната → кухня → ванная.
- * Интро: комп → кошка → комод → дневник 1995.
+ * Интро: комп → кошка → комод → дневник.
  * Квесты: сигареты; после L1 — лоток; после L2 — помыться.
- * Пиво: pickups + BeerSystem (жажда параллельно; 2+ подряд → крик / тяга к сигаретам).
+ * ПИВО (ромашковый чай): pickups + TeaSystem (жажда; без запоя).
  */
 
 import type { SceneContext, StateManager } from '@/core/StateManager';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { APT_PAL, CAT_PAL } from '@/art/segaPalette';
 import { drawAerialsPoster, preloadAerialsPoster } from '@/art/aerialsPoster';
 import {
@@ -34,11 +35,11 @@ import {
   TOILET_ORIGIN,
   WORLD_W,
   drawBathroom,
-  drawBeerCan,
+  drawTeaMug,
   drawCigarettePack,
   drawDoorwayArch,
   drawKitchen,
-  drawRoomBottles,
+  drawRoomCups,
   drawToiletRoom,
   preloadIppolitFace,
   preloadKitchenFramePhoto,
@@ -61,6 +62,20 @@ import {
 import { ParallaxStack } from '@/render/ParallaxLayer';
 import { applyLightingOverlay } from '@/render/LightingOverlay';
 import { DialogueSystem, type DialogueScript } from '@/systems/DialogueSystem';
+import {
+  LEVELS,
+  YEAR_STRIP,
+  levelYearKey,
+} from '@/data/levels';
+import { PIVO_FIRST_PICKUP } from '@/systems/TeaSystem';
+import type { ProgressFlags } from '@/core/StateManager';
+import { QuizSystem } from '@/systems/QuizSystem';
+import {
+  CHITALNYA_THEMES,
+  chitalnyaThemeUnlocked,
+  type ChitalnyaThemeId,
+} from '@/data/philosophyExpand';
+import { closeJournalIfOpen, isJournalOpen, openJournal } from '@/ui/Journal';
 
 const WIDTH = LOGICAL_WIDTH;
 const FLOOR_Y = APT_FLOOR_Y;
@@ -68,22 +83,28 @@ const PROMPT_Y = 210;
 const P = APT_PAL;
 /** Desk / PC seat X (living room). */
 const DESK_X = ROOM_ORIGIN + 92;
+const DESK_W = 56;
+/** Warm spill after a non-empty journal close (seconds). */
+const JOURNAL_WARM_SEC = 3.6;
 /** Dresser (комод) hotspot. */
 const DRESSER_X = ROOM_ORIGIN + 236;
 const DRESSER_W = 70;
+/** Bookshelf «Читальня» near desk. */
+const BOOKSHELF_X = ROOM_ORIGIN + 40;
+const BOOKSHELF_W = 36;
 
-interface BeerCan {
+interface TeaCup {
   x: number;
   taken: boolean;
 }
 
-export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary';
+export type OverlayMode = 'none' | 'photo' | 'toast' | 'diary' | 'chitalnya';
 
 export interface ApartmentSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem; // window alias; same TeaSystem instance
 }
 
 const INTRO_SCRIPT: DialogueScript = {
@@ -120,7 +141,7 @@ const AFTER_LEVEL1_SCRIPT: DialogueScript = {
   lines: {
     back: {
       speaker: 'Зуич',
-      text: 'Зелинского 2… 2026. Рынок, сестрёнка, семёрка через мост — всё это было.',
+      text: 'Дом… 2026. Рынок, сестрёнка, семёрка через мост — всё это было.',
       next: 'cat',
     },
     cat: {
@@ -192,24 +213,45 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   let toast = '';
   let toastTimer = 0;
   let diaryCursor = 0;
+  let diaryScroll = 0;
   let prompt = 'ИССЛЕДУЙ КВАРТИРУ';
   let time = 0;
   let camX = ROOM_ORIGIN;
   let depthCam = 0;
   const stack = new ParallaxStack();
   const dialogue = new DialogueSystem();
+  const quiz = new QuizSystem();
+  let chitalnyaCursor = 0;
+  let chitalnyaTheme: ChitalnyaThemeId | null = null;
+  let chitalnyaQ = 0;
   let introStarted = false;
-  let beerCans: BeerCan[] = [];
+  let teaCups: TeaCup[] = [];
   const hotspotHints = new HotspotHintClock();
   let flushT = 0;
   let ippolitSpoke = false;
   let cigarettesTaken = false;
   let catLitterAsked = false;
+  /** Temporary warm spill after closing a non-empty journal. */
+  let warmLightT = 0;
 
   const showToast = (msg: string, seconds = 1.6): void => {
     toast = msg;
     toastTimer = seconds;
     overlay = 'toast';
+  };
+
+  const openDeskJournal = (): void => {
+    if (isJournalOpen()) return;
+    void openJournal({
+      input: states.input,
+      title: 'Журнал',
+      onClose: (result) => {
+        if (result.hadText) {
+          showToast('Стало легче.', 2.2);
+          warmLightT = JOURNAL_WARM_SEC;
+        }
+      },
+    });
   };
 
   const refreshObjective = (): void => {
@@ -238,30 +280,17 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       hud.set({ objective: 'Помойся' });
       return;
     }
-    if (!states.flags.level1Cleared) {
-      prompt = 'ДНЕВНИК - ВЫБОР УРОВНЯ';
-      hud.set({ objective: 'Дневник - ур. 1' });
-    } else if (!states.flags.level2Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 2 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 2' });
-    } else if (!states.flags.level3Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 3 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 3' });
-    } else if (!states.flags.level4Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 4 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 4' });
-    } else if (!states.flags.level5Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 5 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 5' });
-    } else if (!states.flags.level6Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 6 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 6' });
-    } else if (!states.flags.level7Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 7 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 7' });
-    } else if (!states.flags.level8Cleared) {
-      prompt = 'ДНЕВНИК - УРОВЕНЬ 8 ГОТОВ';
-      hud.set({ objective: 'Дневник - ур. 8' });
+    let nextId = 0;
+    for (const lvl of LEVELS) {
+      const cleared = !!states.flags[`level${lvl.id}Cleared` as keyof ProgressFlags];
+      if (!cleared) {
+        nextId = lvl.id;
+        break;
+      }
+    }
+    if (nextId > 0) {
+      prompt = nextId === 1 ? 'ДНЕВНИК - ВЫБОР УРОВНЯ' : `ДНЕВНИК - УРОВЕНЬ ${nextId} ГОТОВ`;
+      hud.set({ objective: `Дневник - ур. ${nextId}` });
     } else {
       prompt = 'ДНЕВНИК - ВОСПОМИНАНИЯ';
       hud.set({ objective: 'Дневник - повтор' });
@@ -271,8 +300,17 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const nearDresser = (): boolean =>
     player.x >= DRESSER_X && player.x <= DRESSER_X + DRESSER_W;
 
-  const nearBeer = (): BeerCan | null => {
-    for (const c of beerCans) {
+  const nearDesk = (): boolean =>
+    player.x >= DESK_X - 8 && player.x <= DESK_X + DESK_W;
+
+  const nearBookshelf = (): boolean =>
+    player.x >= BOOKSHELF_X && player.x <= BOOKSHELF_X + BOOKSHELF_W;
+
+  const chitalnyaAvailable = (): boolean =>
+    states.flags.level9Cleared || states.flags.level11Cleared || states.flags.level12Cleared;
+
+  const nearTea = (): TeaCup | null => {
+    for (const c of teaCups) {
       if (!c.taken && Math.abs(player.x - c.x) < 18) return c;
     }
     return null;
@@ -290,10 +328,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     player.x >= TOILET_ORIGIN && player.x < ROOM_ORIGIN;
 
   const activePrompt = (): string | null => {
-    if (overlay !== 'none' || dialogue.isOpen) return null;
+    if (overlay !== 'none' || dialogue.isOpen || isJournalOpen()) return null;
     if (!states.flags.introDone) return null;
+    if (nearDesk()) return 'Открыть журнал';
     if (nearDresser() && !states.flags.diaryUnlocked) return 'Открыть комод';
     if (nearDresser() && states.flags.diaryUnlocked) return 'Открыть дневник';
+    if (nearBookshelf() && chitalnyaAvailable()) return 'Читальня';
     if (nearChain()) return 'Дёрнуть цепочку';
     if (
       nearLitter() &&
@@ -311,8 +351,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       return 'Помыться';
     }
     if (nearIppolit()) return 'Поговорить';
-    const can = nearBeer();
-    if (can) return 'Взять пиво';
+    const can = nearTea();
+    if (can) return 'Взять ПИВО';
     return null;
   };
 
@@ -322,10 +362,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (!input.justPressed('interact') && !input.justPressed('confirm')) return;
     if (player.inspecting) return;
     if (dialogue.isOpen) return;
+    if (isJournalOpen()) return;
 
     if (overlay === 'photo') {
       overlay = 'diary';
       diaryCursor = nextDiaryCursor();
+      audio.playSfx('journal');
       hud.set({ objective: 'Выбери воспоминание' });
       return;
     }
@@ -334,16 +376,28 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       toastTimer = 0;
       return;
     }
-    if (overlay === 'diary') return;
+    if (overlay === 'diary' || overlay === 'chitalnya') return;
 
     if (!states.flags.introDone) return;
 
-    const can = nearBeer();
+    if (nearDesk()) {
+      player.beginInspect(0.3);
+      openDeskJournal();
+      return;
+    }
+
+    const can = nearTea();
     if (can) {
       player.beginInspect(0.35);
       can.taken = true;
       beer.pickup(1);
-      showToast('Банка пива.');
+      audio.playSfx('kettle');
+      if (beer.needsAcronymToast) {
+        beer.needsAcronymToast = false;
+        showToast(PIVO_FIRST_PICKUP, 3.2);
+      } else {
+        showToast('Чашка ромашки.');
+      }
       return;
     }
 
@@ -370,12 +424,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       player.beginInspect(0.4);
       cigarettesTaken = true;
       states.setFlag('cigarettesFound', true);
-      beer.cigarettePullTimer = 0;
-      showToast(
-        beer.bingeShoutTimer > 0
-          ? 'Сигареты! Шавуха подождёт…'
-          : 'Сигареты. Пачка мятая, но своя.',
-      );
+      showToast('Сигареты. Пачка мятая, но своя.');
       refreshObjective();
       return;
     }
@@ -413,6 +462,16 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       return;
     }
 
+    if (nearBookshelf() && chitalnyaAvailable()) {
+      player.beginInspect(0.35);
+      overlay = 'chitalnya';
+      chitalnyaCursor = 0;
+      chitalnyaTheme = null;
+      quiz.closeSilent();
+      hud.set({ objective: 'Читальня — тема' });
+      return;
+    }
+
     if (nearDresser()) {
       player.beginInspect(0.4);
       if (!states.flags.diaryUnlocked) {
@@ -424,6 +483,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       }
       overlay = 'diary';
       diaryCursor = nextDiaryCursor();
+      audio.playSfx('journal');
       hud.set({ objective: 'Выбери воспоминание' });
     }
   };
@@ -431,63 +491,123 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
   const tryDrink = (): void => {
     const input = states.input;
     if (!input?.justPressed('beer')) return;
-    if (dialogue.isOpen || overlay === 'diary' || overlay === 'photo') return;
+    if (
+      dialogue.isOpen ||
+      overlay === 'diary' ||
+      overlay === 'photo' ||
+      overlay === 'chitalnya' ||
+      isJournalOpen()
+    ) {
+      return;
+    }
     if (beer.drink()) {
-      if (beer.isBingeChaos) {
-        showToast('Шавуха… и сигареты!', 2.2);
-        if (!cigarettesTaken && !states.flags.cigarettesFound) {
-          hud.set({ objective: 'Сигареты → кухня' });
-          prompt = '→ К СИГАРЕТАМ У ХОЛОДИЛЬНИКА';
-        }
-      } else {
-        showToast('Бухло принято.');
-      }
-    } else if (beer.cans <= 0) {
-      showToast('Нет пива. Ищи банки.');
+      showToast('ПИВО согрело.');
+    } else if (beer.cups <= 0) {
+      showToast('Нет ПИВО. Ищи чашки.');
     }
   };
 
-  /** Binge walk impulse: pull Зуич toward fridge cigarettes. */
-  const bingeWalkAxis = (inputAxis: number): number => {
-    if (!beer.wantsCigarettePull) return inputAxis;
-    if (cigarettesTaken || states.flags.cigarettesFound) return inputAxis;
-    const dx = CIGARETTES_X - player.x;
-    if (Math.abs(dx) <= 10) return inputAxis;
-    const pull = dx > 0 ? 1 : -1;
-    // Scripted pull wins when player idle or fighting the urge; reinforce if aligned.
-    if (inputAxis === 0 || Math.sign(inputAxis) === pull) return pull;
-    return pull;
+  const walkAxis = (inputAxis: number): number => inputAxis;
+
+  const isLevelUnlocked = (id: number): boolean => {
+    if (id <= 1) return true;
+    const prev = `level${id - 1}Cleared` as keyof ProgressFlags;
+    return !!states.flags[prev];
   };
 
-  const level2Unlocked = (): boolean => states.flags.level1Cleared;
-  const level3Unlocked = (): boolean => states.flags.level2Cleared;
-  const level4Unlocked = (): boolean => states.flags.level3Cleared;
-  const level5Unlocked = (): boolean => states.flags.level4Cleared;
-  const level6Unlocked = (): boolean => states.flags.level5Cleared;
-  const level7Unlocked = (): boolean => states.flags.level6Cleared;
-  const level8Unlocked = (): boolean => states.flags.level7Cleared;
+  const isLevelCleared = (id: number): boolean => {
+    const key = `level${id}Cleared` as keyof ProgressFlags;
+    return !!states.flags[key];
+  };
 
   const maxDiaryCursor = (): number => {
-    if (level8Unlocked()) return 7;
-    if (level7Unlocked()) return 6;
-    if (level6Unlocked()) return 5;
-    if (level5Unlocked()) return 4;
-    if (level4Unlocked()) return 3;
-    if (level3Unlocked()) return 2;
-    if (level2Unlocked()) return 1;
-    return 0;
+    let max = 0;
+    for (const lvl of LEVELS) {
+      if (isLevelUnlocked(lvl.id)) max = lvl.id - 1;
+    }
+    return max;
   };
 
   const nextDiaryCursor = (): number => {
-    if (!states.flags.level1Cleared) return 0;
-    if (!states.flags.level2Cleared) return 1;
-    if (!states.flags.level3Cleared) return 2;
-    if (!states.flags.level4Cleared) return 3;
-    if (!states.flags.level5Cleared) return 4;
-    if (!states.flags.level6Cleared) return 5;
-    if (!states.flags.level7Cleared) return 6;
-    if (!states.flags.level8Cleared) return 7;
+    for (const lvl of LEVELS) {
+      if (!isLevelCleared(lvl.id)) return lvl.id - 1;
+    }
     return 0;
+  };
+
+  const VISIBLE_ROWS = 6;
+
+
+  const updateChitalnya = (dt: number): void => {
+    const input = states.input;
+    if (!input) return;
+    if (quiz.isOpen) {
+      if (input.justPressed('choice1')) {
+        const r = quiz.selectAnswer(0);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice2')) {
+        const r = quiz.selectAnswer(1);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice3')) {
+        const r = quiz.selectAnswer(2);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('choice4')) {
+        const r = quiz.selectAnswer(3);
+        if (r === 'wrong') player.takeDamage(14, -1);
+      }
+      if (input.justPressed('hint') && quiz.takeHint()) {
+        player.takeDamage(14, -1);
+      }
+      quiz.update(dt);
+      return;
+    }
+
+    const unlocked = CHITALNYA_THEMES.filter((th) =>
+      chitalnyaThemeUnlocked(th, states.flags),
+    );
+    if (unlocked.length === 0) {
+      if (input.justPressed('confirm') || input.justPressed('interact') || input.justPressed('kick')) {
+        overlay = 'none';
+      }
+      return;
+    }
+
+    if (chitalnyaTheme === null) {
+      if (input.justPressed('up') || input.justPressed('left')) {
+        chitalnyaCursor = Math.max(0, chitalnyaCursor - 1);
+      }
+      if (input.justPressed('down') || input.justPressed('right')) {
+        chitalnyaCursor = Math.min(unlocked.length - 1, chitalnyaCursor + 1);
+      }
+      if (input.justPressed('kick')) {
+        overlay = 'none';
+        return;
+      }
+      if (input.justPressed('confirm') || input.justPressed('interact')) {
+        const th = unlocked[chitalnyaCursor];
+        if (!th) return;
+        chitalnyaTheme = th.id;
+        chitalnyaQ = 0;
+        quiz.openFromBank('Читальня', th.bank, 0, () => {
+          chitalnyaQ += 1;
+          if (chitalnyaQ >= 3) {
+            showToast('Хватит на сегодня. Можно ещё.', 2);
+            chitalnyaTheme = null;
+          } else {
+            quiz.openFromBank('Читальня', th.bank, chitalnyaQ);
+          }
+        });
+      }
+      return;
+    }
+
+    if (input.justPressed('kick')) {
+      quiz.closeSilent();
+      chitalnyaTheme = null;
+    }
   };
 
   const updateDiarySelect = (dt: number): void => {
@@ -503,55 +623,22 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
     if (input.justPressed('down') || input.justPressed('right')) {
       diaryCursor = Math.min(maxCursor, diaryCursor + 1);
     }
+    if (diaryCursor < diaryScroll) diaryScroll = diaryCursor;
+    if (diaryCursor >= diaryScroll + VISIBLE_ROWS) {
+      diaryScroll = diaryCursor - VISIBLE_ROWS + 1;
+    }
 
     if (input.justPressed('confirm') || input.justPressed('interact')) {
-      if (diaryCursor === 0) {
-        states.setFlag('level1Selected', true);
-        overlay = 'none';
-        states.goto('rynok_1995', { era: 'ERA_1995', data: { level: 1 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 1 && level2Unlocked()) {
-        states.setFlag('level2Selected', true);
-        overlay = 'none';
-        states.goto('podezd_1995', { era: 'ERA_1995', data: { level: 2 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 2 && level3Unlocked()) {
-        states.setFlag('level3Selected', true);
-        overlay = 'none';
-        states.goto('vokzal_1995', { era: 'ERA_1995', data: { level: 3 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 3 && level4Unlocked()) {
-        states.setFlag('level4Selected', true);
-        overlay = 'none';
-        states.goto('garazhi_1995', { era: 'ERA_1995', data: { level: 4 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 4 && level5Unlocked()) {
-        states.setFlag('level5Selected', true);
-        overlay = 'none';
-        states.goto('dvor_1995', { era: 'ERA_1995', data: { level: 5 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 5 && level6Unlocked()) {
-        states.setFlag('level6Selected', true);
-        overlay = 'none';
-        states.goto('most_1995', { era: 'ERA_1995', data: { level: 6 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 6 && level7Unlocked()) {
-        states.setFlag('level7Selected', true);
-        overlay = 'none';
-        states.goto('diskoteka_1995', { era: 'ERA_1995', data: { level: 7 }, fadeSeconds: 0.55 });
-        return;
-      }
-      if (diaryCursor === 7 && level8Unlocked()) {
-        states.setFlag('level8Selected', true);
-        overlay = 'none';
-        states.goto('detinets_1995', { era: 'ERA_1995', data: { level: 8 }, fadeSeconds: 0.55 });
-      }
+      const lvl = LEVELS[diaryCursor];
+      if (!lvl || !isLevelUnlocked(lvl.id)) return;
+      const sel = `level${lvl.id}Selected` as keyof ProgressFlags;
+      states.setFlag(sel, true);
+      overlay = 'none';
+      states.goto(lvl.scene, {
+        era: lvl.era,
+        data: { level: lvl.id },
+        fadeSeconds: 0.55,
+      });
     }
   };
 
@@ -578,6 +665,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
   return {
     enter(ctx: SceneContext): void {
+      audio.playTheme('apartment');
       preloadAerialsPoster();
       preloadApartmentPhotos();
       preloadIppolitFace();
@@ -594,6 +682,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       overlay = 'none';
       toast = '';
       toastTimer = 0;
+      warmLightT = 0;
       diaryCursor = 0;
       dialogue.resetSilent();
       introStarted = false;
@@ -602,7 +691,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       ippolitSpoke = false;
       cigarettesTaken = states.flags.cigarettesFound;
       catLitterAsked = false;
-      beerCans = [
+      teaCups = [
         { x: ROOM_ORIGIN + 48, taken: false },
         { x: ROOM_ORIGIN + 168, taken: false },
         { x: ROOM_ORIGIN + 300, taken: false },
@@ -647,6 +736,8 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     exit(): void {
       overlay = 'none';
+      warmLightT = 0;
+      closeJournalIfOpen();
       dialogue.resetSilent();
     },
 
@@ -654,6 +745,12 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       time += dt;
       player.update(dt);
       if (flushT > 0) flushT = Math.max(0, flushT - dt);
+      if (warmLightT > 0) warmLightT = Math.max(0, warmLightT - dt);
+
+      if (isJournalOpen()) {
+        if (states.flags.introDone) beer.update(dt);
+        return;
+      }
 
       const targetCam = player.x - WIDTH * 0.42;
       camX += (targetCam - camX) * Math.min(1, dt * 6);
@@ -699,6 +796,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
         updateDiarySelect(dt);
         return;
       }
+      if (overlay === 'chitalnya') {
+        updateChitalnya(dt);
+        return;
+      }
 
       if (overlay === 'photo') {
         tryInteract();
@@ -714,11 +815,11 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
       const frozen = beer.isFrozen;
       const rawAxis = frozen ? 0 : (states.input?.axisX() ?? 0);
-      const axis = frozen ? 0 : bingeWalkAxis(rawAxis);
+      const axis = frozen ? 0 : walkAxis(rawAxis);
       if (states.flags.introDone) {
         const baseSpeed = 52;
         player.walkSpeed =
-          beer.wantsCigarettePull && !cigarettesTaken && !states.flags.cigarettesFound
+          false && !cigarettesTaken && !states.flags.cigarettesFound
             ? baseSpeed * 1.35
             : baseSpeed;
         player.applyWalk(axis, dt, 20, WORLD_W - 20);
@@ -744,7 +845,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
               c,
               height,
               depthCam,
-              beerCans,
+              teaCups,
               time,
               flushT,
               states.flags.litterCleaned,
@@ -762,7 +863,7 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
             drawCatAt(c, catWorldX(), time);
             player.render(c, alpha);
             if (!dialogue.isOpen && overlay === 'none') {
-              drawHotspotHints(c, states, beerCans, time, player.x, hotspotHints, {
+              drawHotspotHints(c, states, teaCups, time, player.x, hotspotHints, {
                 cigarettesGone: cigsGone,
                 flushBusy: flushT > 0,
               });
@@ -775,26 +876,51 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
           zIndex: 20,
           screenSpace: true,
           draw: (c, _s, _cam, w, h) => {
-            // Soft ambient only — NO desk/computer lamp bloom
+            // Soft ambient only — NO permanent desk/computer lamp bloom
             const winScreenX = ROOM_ORIGIN + 250 - camX;
+            const points: {
+              kind: 'point';
+              x: number;
+              y: number;
+              radius: number;
+              color: string;
+              screenSpace: true;
+            }[] = [
+              {
+                kind: 'point',
+                // Cool spill from night window only (no desk/PC lamp bloom)
+                x: winScreenX,
+                y: 72,
+                radius: 36,
+                color: '#7090c8',
+                screenSpace: true,
+              },
+            ];
+            if (warmLightT > 0) {
+              const deskScreenX = DESK_X + 18 - camX;
+              const fade = Math.min(1, warmLightT / 1.2);
+              points.push({
+                kind: 'point',
+                x: deskScreenX,
+                y: 118,
+                radius: 58,
+                color: `rgba(232, 176, 96, ${(0.55 * fade).toFixed(3)})`,
+                screenSpace: true,
+              });
+            }
             applyLightingOverlay(
               c,
               0,
               w,
               h,
               {
-                ambient: { color: 'rgba(36, 30, 42, 0.28)' },
-                points: [
-                  {
-                    kind: 'point',
-                    // Cool spill from night window only (no desk/PC lamp bloom)
-                    x: winScreenX,
-                    y: 72,
-                    radius: 36,
-                    color: '#7090c8',
-                    screenSpace: true,
-                  },
-                ],
+                ambient: {
+                  color:
+                    warmLightT > 0
+                      ? 'rgba(48, 36, 28, 0.18)'
+                      : 'rgba(36, 30, 42, 0.28)',
+                },
+                points,
                 cones: [],
                 time,
               },
@@ -811,16 +937,11 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
       if (overlay === 'photo') drawPhotoOverlay(ctx, width, height);
       if (overlay === 'toast') drawToast(ctx, width, height, toast);
       if (overlay === 'diary') {
-        drawDiarySelect(ctx, width, height, diaryCursor, {
-          level1Cleared: states.flags.level1Cleared,
-          level2Cleared: states.flags.level2Cleared,
-          level3Cleared: states.flags.level3Cleared,
-          level4Cleared: states.flags.level4Cleared,
-          level5Cleared: states.flags.level5Cleared,
-          level6Cleared: states.flags.level6Cleared,
-          level7Cleared: states.flags.level7Cleared,
-          level8Cleared: states.flags.level8Cleared,
-        });
+        drawDiarySelect(ctx, width, height, diaryCursor, diaryScroll, states.flags);
+      }
+      if (overlay === 'chitalnya') {
+        drawChitalnya(ctx, width, height, chitalnyaCursor, states.flags, chitalnyaTheme);
+        if (quiz.isOpen) quiz.render(ctx, width, height);
       }
 
       if (dialogue.isOpen) {
@@ -836,6 +957,10 @@ export function createApartment2026Scene(deps: ApartmentSceneDeps) {
 
     getDialogue(): DialogueSystem {
       return dialogue;
+    },
+
+    getQuiz(): QuizSystem {
+      return quiz;
     },
 
     /** Debug / capture helper — force UI overlay. */
@@ -854,7 +979,7 @@ function drawApartmentWorld(
   ctx: CanvasRenderingContext2D,
   height: number,
   depthCam: number,
-  beerCans: BeerCan[],
+  teaCups: TeaCup[],
   time: number,
   flushT: number,
   litterClean: boolean,
@@ -876,7 +1001,7 @@ function drawApartmentWorld(
 
   drawDoorwayArch(ctx, ROOM_ORIGIN + 4, '← туалет');
   drawDoorwayArch(ctx, ROOM_ORIGIN + ROOM_W - 4, 'кухня →');
-  drawRoomBottles(ctx, ROOM_ORIGIN);
+  drawRoomCups(ctx, ROOM_ORIGIN);
 
   // Kitchen + bath
   drawKitchen(ctx, KITCHEN_ORIGIN, height, time);
@@ -886,8 +1011,8 @@ function drawApartmentWorld(
     drawCigarettePack(ctx, CIGARETTES_X, FLOOR_Y - 14, time);
   }
 
-  for (const c of beerCans) {
-    if (!c.taken) drawBeerCan(ctx, c.x, FLOOR_Y - 8);
+  for (const c of teaCups) {
+    if (!c.taken) drawTeaMug(ctx, c.x, FLOOR_Y - 8);
   }
 }
 
@@ -911,6 +1036,7 @@ function drawLivingRoom(
   drawDeskAndPc(ctx);
   drawComputerJunk(ctx);
   drawDresser(ctx);
+  drawBookshelfProp(ctx);
   // No desk lamp / soft bloom above the PC (user request)
   drawBaseboard(ctx, width);
 }
@@ -1183,13 +1309,37 @@ function drawCatAt(ctx: CanvasRenderingContext2D, worldX: number, time: number):
 function drawHotspotHints(
   ctx: CanvasRenderingContext2D,
   states: StateManager,
-  beerCans: BeerCan[],
+  teaCups: TeaCup[],
   timeSec: number,
   playerX: number,
   clock: HotspotHintClock,
   opts: { cigarettesGone: boolean; flushBusy: boolean },
 ): void {
   if (!states.flags.introDone) return;
+
+  const nearDeskHint =
+    playerX >= DESK_X - 8 && playerX <= DESK_X + DESK_W;
+  const desk = clock.sample('desk-journal', nearDeskHint, timeSec);
+  if (desk.active) {
+    drawInteractPrompt(ctx, DESK_X + DESK_W / 2, FLOOR_Y - 72, 'Открыть журнал', timeSec, {
+      size: 5.5,
+      showLabel: desk.showLabel,
+    });
+  }
+
+  const nearShelf =
+    playerX >= BOOKSHELF_X &&
+    playerX <= BOOKSHELF_X + BOOKSHELF_W &&
+    (states.flags.level9Cleared ||
+      states.flags.level11Cleared ||
+      states.flags.level12Cleared);
+  const shelf = clock.sample('bookshelf', nearShelf, timeSec);
+  if (shelf.active) {
+    drawInteractPrompt(ctx, BOOKSHELF_X + BOOKSHELF_W / 2, FLOOR_Y - 58, 'Читальня', timeSec, {
+      size: 5.5,
+      showLabel: shelf.showLabel,
+    });
+  }
 
   const nearDress = playerX >= DRESSER_X && playerX <= DRESSER_X + DRESSER_W;
   const dresser = clock.sample('dresser', nearDress, timeSec);
@@ -1252,8 +1402,8 @@ function drawHotspotHints(
     }
   }
 
-  for (let i = 0; i < beerCans.length; i++) {
-    const c = beerCans[i]!;
+  for (let i = 0; i < teaCups.length; i++) {
+    const c = teaCups[i]!;
     if (c.taken) {
       clock.sample(`beer-${i}`, false, timeSec);
       continue;
@@ -1261,7 +1411,7 @@ function drawHotspotHints(
     const near = Math.abs(playerX - c.x) < 18;
     const hint = clock.sample(`beer-${i}`, near, timeSec);
     if (!hint.active) continue;
-    drawInteractPrompt(ctx, c.x, FLOOR_Y - 22, 'Взять пиво', timeSec, {
+    drawInteractPrompt(ctx, c.x, FLOOR_Y - 22, 'Взять ПИВО', timeSec, {
       size: 5.5,
       showLabel: hint.showLabel,
     });
@@ -1329,16 +1479,8 @@ function drawDiarySelect(
   width: number,
   height: number,
   cursor: number,
-  progress: {
-    level1Cleared: boolean;
-    level2Cleared: boolean;
-    level3Cleared: boolean;
-    level4Cleared: boolean;
-    level5Cleared: boolean;
-    level6Cleared: boolean;
-    level7Cleared: boolean;
-    level8Cleared: boolean;
-  },
+  scroll: number,
+  flags: ProgressFlags,
 ): void {
   ctx.fillStyle = 'rgba(6, 4, 10, 0.9)';
   ctx.fillRect(0, 0, width, height);
@@ -1351,114 +1493,160 @@ function drawDiarySelect(
   px(ctx, bx + 4, by + 4, bw - 8, bh - 8, '#5a3a20');
   px(ctx, bx + 6, by + 6, bw - 12, 2, '#7a5a38');
 
-  drawUiTextCentered(ctx, 'Дневник — уровни', width / 2, by + 8, P.diaryPages, 8, 650);
+  drawUiTextCentered(ctx, 'Дневник — уровни', width / 2 - 10, by + 8, P.diaryPages, 8, 650);
 
-  const thumbX = bx + bw - 40;
-  const thumbY = by + 6;
-  px(ctx, thumbX, thumbY, 26, 20, P.frameDark);
-  px(ctx, thumbX + 1, thumbY + 1, 24, 18, P.frame);
-  if (!drawFamilyPhotoFace(ctx, thumbX + 2, thumbY + 2, 22, 16)) {
-    px(ctx, thumbX + 2, thumbY + 2, 22, 16, '#88b070');
+  const thumbX = bx + bw - 34;
+  const thumbY = by + 4;
+  px(ctx, thumbX, thumbY, 22, 16, P.frameDark);
+  px(ctx, thumbX + 1, thumbY + 1, 20, 14, P.frame);
+  if (!drawFamilyPhotoFace(ctx, thumbX + 2, thumbY + 2, 18, 12)) {
+    px(ctx, thumbX + 2, thumbY + 2, 18, 12, '#88b070');
   }
 
-  px(ctx, bx + 14, by + 28, bw - 28, 1, '#8a6a48');
+  // Year strip: 1995 → 2015 → сейчас
+  const stripY = by + 26;
+  const stripLabels = YEAR_STRIP;
+  const stripW = bw - 40;
+  const stripX0 = bx + 14;
+  px(ctx, stripX0, stripY + 6, stripW, 1, '#8a6a48');
+  for (let i = 0; i < stripLabels.length; i++) {
+    const frac = stripLabels.length === 1 ? 0.5 : i / (stripLabels.length - 1);
+    const nx = Math.round(stripX0 + frac * stripW);
+    const activeYear = levelYearKey(LEVELS[cursor]!);
+    const on = stripLabels[i]!.yearKey === activeYear;
+    px(ctx, nx - 2, stripY + 4, 5, 5, on ? P.brassHi : '#6a5a48');
+    drawUiTextCentered(
+      ctx,
+      stripLabels[i]!.label,
+      nx,
+      stripY - 2,
+      on ? P.brassHi : '#8a7a68',
+      5.5,
+      on ? 650 : 500,
+    );
+  }
+  // Level nodes on strip (dim locked)
+  for (const lvl of LEVELS) {
+    const years = stripLabels.map((s) => s.yearKey);
+    const yk = levelYearKey(lvl);
+    const yi = Math.max(0, years.indexOf(yk));
+    const frac = years.length === 1 ? 0.5 : yi / (years.length - 1);
+    // offset within same year bucket
+    const same = LEVELS.filter((l) => levelYearKey(l) === yk);
+    const si = same.findIndex((l) => l.id === lvl.id);
+    const jitter = (si - (same.length - 1) / 2) * 10;
+    const nx = Math.round(stripX0 + frac * stripW + jitter);
+    const unlocked =
+      lvl.id === 1 || !!flags[`level${lvl.id - 1}Cleared` as keyof ProgressFlags];
+    const cleared = !!flags[`level${lvl.id}Cleared` as keyof ProgressFlags];
+    const selected = lvl.id - 1 === cursor;
+    const col = !unlocked ? '#4a3a30' : selected ? P.brassHi : cleared ? '#90b070' : '#c0a878';
+    px(ctx, nx - 1, stripY + 10, 3, 3, col);
+  }
 
-  const levels = [
-    {
-      title: 'Ур. 1 — Рынок · рюкзак',
-      sub: progress.level1Cleared ? 'Пройден — повтор' : 'Сестрёнка · автобус',
-      locked: false,
-    },
-    {
-      title: progress.level1Cleared ? 'Ур. 2 — Выпускной' : 'Ур. 2 — ???',
-      sub: !progress.level1Cleared
-        ? 'Закрыт — пройди ур. 1'
-        : progress.level2Cleared
-          ? 'Пройден — повтор'
-          : 'Разговор с отцом',
-      locked: !progress.level1Cleared,
-    },
-    {
-      title: progress.level2Cleared ? 'Ур. 3 — Вокзал' : 'Ур. 3 — ???',
-      sub: !progress.level2Cleared
-        ? 'Закрыт — пройди ур. 2'
-        : progress.level3Cleared
-          ? 'Пройден — повтор'
-          : 'Зима 1995',
-      locked: !progress.level2Cleared,
-    },
-    {
-      title: progress.level3Cleared ? 'Ур. 4 — Гаражи' : 'Ур. 4 — ???',
-      sub: !progress.level3Cleared
-        ? 'Закрыт — пройди ур. 3'
-        : progress.level4Cleared
-          ? 'Пройден — повтор'
-          : 'Зима 1995',
-      locked: !progress.level3Cleared,
-    },
-    {
-      title: progress.level4Cleared ? 'Ур. 5 — Двор / крыша' : 'Ур. 5 — ???',
-      sub: !progress.level4Cleared
-        ? 'Закрыт — пройди ур. 4'
-        : progress.level5Cleared
-          ? 'Пройден — повтор'
-          : 'Финал блока',
-      locked: !progress.level4Cleared,
-    },
-    {
-      title: progress.level5Cleared ? 'Ур. 6 — Мост / Волхов' : 'Ур. 6 — ???',
-      sub: !progress.level5Cleared
-        ? 'Закрыт — пройди ур. 5'
-        : progress.level6Cleared
-          ? 'Пройден — повтор'
-          : 'Зима 1995',
-      locked: !progress.level5Cleared,
-    },
-    {
-      title: progress.level6Cleared ? 'Ур. 7 — Дискотека «Орбита»' : 'Ур. 7 — ???',
-      sub: !progress.level6Cleared
-        ? 'Закрыт — пройди ур. 6'
-        : progress.level7Cleared
-          ? 'Пройден — повтор'
-          : 'Зима 1995',
-      locked: !progress.level6Cleared,
-    },
-    {
-      title: progress.level7Cleared ? 'Ур. 8 — Детинец' : 'Ур. 8 — ???',
-      sub: !progress.level7Cleared
-        ? 'Закрыт — пройди ур. 7'
-        : progress.level8Cleared
-          ? 'Пройден — повтор'
-          : 'Финал зимы',
-      locked: !progress.level7Cleared,
-    },
-  ];
+  px(ctx, bx + 14, stripY + 18, bw - 28, 1, '#8a6a48');
 
-  const rowH = 19;
-  levels.forEach((lvl, i) => {
-    const ly = by + 32 + i * rowH;
-    const selected = !lvl.locked && i === cursor;
+  const VISIBLE = 6;
+  const rowH = 18;
+  const listTop = stripY + 22;
+  const start = Math.max(0, Math.min(scroll, LEVELS.length - VISIBLE));
+  const slice = LEVELS.slice(start, start + VISIBLE);
+
+  slice.forEach((lvl, row) => {
+    const i = start + row;
+    const unlocked =
+      lvl.id === 1 || !!flags[`level${lvl.id - 1}Cleared` as keyof ProgressFlags];
+    const cleared = !!flags[`level${lvl.id}Cleared` as keyof ProgressFlags];
+    const locked = !unlocked;
+    const ly = listTop + row * rowH;
+    const selected = !locked && i === cursor;
     if (selected) {
-      segaBox(ctx, bx + 8, ly - 2, bw - 16, 18, '#3a2818', P.brass, {
+      segaBox(ctx, bx + 8, ly - 2, bw - 16, 17, '#3a2818', P.brass, {
         borderDark: P.brassDim,
         inset: false,
       });
     }
-    const titleColor = lvl.locked ? '#6a5a50' : selected ? P.brassHi : P.diaryPages;
-    drawUiText(ctx, `${selected ? '›' : ' '} ${lvl.title}`, bx + 12, ly, titleColor, 6.5, 600);
-    drawUiText(ctx, lvl.sub, bx + 24, ly + 8, lvl.locked ? '#5a4a40' : '#a09080', 5.5, 500);
+    const title = locked
+      ? `Ур. ${lvl.id} — ???`
+      : `Ур. ${lvl.id} — ${lvl.title}`;
+    const sub = locked
+      ? `Закрыт — пройди ур. ${lvl.id - 1}`
+      : cleared
+        ? 'Пройден — повтор'
+        : lvl.subtitle;
+    const titleColor = locked ? '#6a5a50' : selected ? P.brassHi : P.diaryPages;
+    const dim = locked ? 0.55 : 1;
+    ctx.save();
+    ctx.globalAlpha = dim;
+    drawUiText(ctx, `${selected ? '›' : ' '} ${title}`, bx + 12, ly, titleColor, 6.5, 600);
+    drawUiText(ctx, sub, bx + 24, ly + 8, locked ? '#5a4a40' : '#a09080', 5.5, 500);
+    ctx.restore();
   });
 
-  const hints = [
-    'Enter / E — начать ур. 1',
-    'Enter / E — начать ур. 2',
-    'Enter / E — начать ур. 3',
-    'Enter / E — начать ур. 4',
-    'Enter / E — начать ур. 5',
-    'Enter / E — начать ур. 6',
-    'Enter / E — начать ур. 7',
-    'Enter / E — начать ур. 8',
-  ];
-  const hint = hints[cursor] ?? hints[0]!;
-  drawUiTextCentered(ctx, hint, width / 2, by + bh - 12, P.uiText, 6.5, 550);
+  // Scroll cues (ASCII — font has no triangle glyphs)
+  if (start > 0) {
+    drawUiTextCentered(ctx, '^', width / 2, listTop - 2, '#a09080', 5, 500);
+  }
+  if (start + VISIBLE < LEVELS.length) {
+    drawUiTextCentered(ctx, 'v', width / 2, by + bh - 20, '#a09080', 5, 500);
+  }
+
+  const hint = `Enter / E — ур. ${cursor + 1}`;
+  drawUiTextCentered(ctx, hint, width / 2, by + bh - 10, P.uiText, 6.5, 550);
+}
+
+
+function drawBookshelfProp(ctx: CanvasRenderingContext2D): void {
+  const x = BOOKSHELF_X;
+  const y = FLOOR_Y - 52;
+  segaBox(ctx, x, y, BOOKSHELF_W, 52, '#3a2a18', '#8a6a40', { borderDark: '#2a1a10' });
+  for (let i = 0; i < 4; i++) {
+    px(ctx, x + 3 + i * 8, y + 6, 6, 14, ['#6a3040', '#304060', '#406040', '#604030'][i]!);
+  }
+  for (let i = 0; i < 4; i++) {
+    px(ctx, x + 3 + i * 8, y + 28, 6, 14, ['#405060', '#603040', '#305040', '#504030'][i]!);
+  }
+}
+
+function drawChitalnya(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cursor: number,
+  flags: ProgressFlags,
+  active: ChitalnyaThemeId | null,
+): void {
+  ctx.fillStyle = 'rgba(6, 8, 14, 0.9)';
+  ctx.fillRect(0, 0, width, height);
+  segaBox(ctx, 24, 20, width - 48, height - 40, '#243040', '#8090a8', { borderDark: '#405060' });
+  drawUiTextCentered(ctx, 'Читальня', width / 2, 32, '#e8e0d0', 9, 700);
+  drawUiTextCentered(ctx, 'Свободный квиз по темам', width / 2, 48, '#a0b0c0', 6, 500);
+
+  const unlocked = CHITALNYA_THEMES.filter((th) => chitalnyaThemeUnlocked(th, flags));
+  if (unlocked.length === 0) {
+    drawUiTextCentered(ctx, 'Пока закрыто — пройди ур. 9+', width / 2, 100, '#c0a090', 7, 550);
+    drawUiTextCentered(ctx, 'E / K — назад', width / 2, height - 36, '#8090a0', 6, 500);
+    return;
+  }
+
+  CHITALNYA_THEMES.forEach((th, i) => {
+    const ok = chitalnyaThemeUnlocked(th, flags);
+    const ly = 70 + i * 28;
+    const sel = ok && unlocked.indexOf(th) === cursor && active === null;
+    if (sel) {
+      segaBox(ctx, 40, ly - 4, width - 80, 24, '#304858', '#c8b878', {
+        borderDark: '#506878',
+        inset: false,
+      });
+    }
+    const title = ok ? th.title : `${th.title} · закрыто`;
+    drawUiText(ctx, `${sel ? '>' : ' '} ${title}`, 48, ly, ok ? (sel ? '#e8d090' : '#d0d8e0') : '#607080', 7, 600);
+    drawUiText(ctx, ok ? `${th.bank.length} вопросов` : `после ур. ${th.unlockAfterLevel}`, 48, ly + 12, '#8090a0', 5.5, 500);
+  });
+
+  if (active) {
+    drawUiTextCentered(ctx, 'Отвечай 1–4 · H подсказка · K к темам', width / 2, height - 36, '#c0d0e0', 6, 500);
+  } else {
+    drawUiTextCentered(ctx, 'Enter — тема · K — назад', width / 2, height - 36, '#c0d0e0', 6, 500);
+  }
 }

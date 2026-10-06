@@ -1,15 +1,21 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 4 “Гаражи” (garage row / metal boxes, Winter 1995).
  * Wave 1 → timed крыша dialogue (MF branch) → Wave 2 + reclaim crate → clear.
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { effectShake } from '@/core/Settings';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { GARAZHI_PAL } from '@/art/segaPalette';
+import {
+  drawGarazhiGraffiti,
+  preloadGarazhiGraffiti,
+} from '@/art/garazhiGraffiti';
 import { ditherRect, px, speckles, woodGrain } from '@/art/pixelDraw';
 import {
   drawUiText,
@@ -48,7 +54,7 @@ export interface GarazhiSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
@@ -119,7 +125,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
       return 'Добей гопников';
     }
     if (phase === 'cleared') return 'УР. 4 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return 'ПЕРЕДЫШКА…';
   };
 
   const syncHud = (objective?: string): void => {
@@ -179,7 +185,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
+      syncHud('ПЕРЕДЫШКА…');
       return;
     }
 
@@ -247,7 +253,9 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('garages');
       beer.pauseForFlashback();
+      preloadGarazhiGraffiti();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
       player.x = 40;
@@ -256,7 +264,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
       player.facing = 1;
       player.walkSpeed = 58;
       camX = 0;
-        phase = 'wave1';
+      phase = 'wave1';
       gameOverTimer = 0;
       toast = '';
       toastTimer = 0;
@@ -317,7 +325,7 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         return;
       }
 
@@ -417,8 +425,9 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
+      const shakeMul = effectShake(1);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28) * shakeMul) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28) * shakeMul) : 0;
 
       ctx.save();
       ctx.translate(shakeX, shakeY);
@@ -469,8 +478,8 @@ export function createGarazhi1995Scene(deps: GarazhiSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiText, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {
@@ -541,7 +550,9 @@ function drawGarazhiWorld(
   speckles(ctx, 0, FLOOR_Y, worldW, 20, P.snowMid, 30, 1);
 
   for (let i = 0; i < 5; i++) {
-    drawGarageBox(ctx, 20 + i * 100, FLOOR_Y, i % 2 === 0);
+    const gx = 20 + i * 100;
+    drawGarageBox(ctx, gx, FLOOR_Y, i % 2 === 0);
+    drawGarageGraffiti(ctx, gx, FLOOR_Y, i);
   }
 
   // Cars under tarps
@@ -583,6 +594,38 @@ function drawGarageBox(
   // Number plate
   px(ctx, x + 34, floorY - 64, 16, 8, '#2a2820');
   px(ctx, x + 36, floorY - 62, 12, 4, P.rustHi);
+}
+
+/** Large «Гараж» film stills wheatpasted on doors / side metal. */
+function drawGarageGraffiti(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  floorY: number,
+  index: number,
+): void {
+  // Door face sits at floorY-58..floorY-6, width ~72 (closed) / right leaf ~34 (openish).
+  switch (index) {
+    case 0:
+      // Openish — big landscape plate on the closed leaf + overhang
+      drawGarazhiGraffiti(ctx, 'gaftAkhedzhakova', x + 30, floorY - 54, 50, 38);
+      drawGarazhiGraffiti(ctx, 'brondukov', x + 10, floorY - 52, 22, 28);
+      break;
+    case 1:
+      drawGarazhiGraffiti(ctx, 'ryazanovHippo', x + 10, floorY - 56, 68, 44);
+      break;
+    case 2:
+      drawGarazhiGraffiti(ctx, 'couple', x + 44, floorY - 56, 34, 46);
+      drawGarazhiGraffiti(ctx, 'akhedzhakovaScarf', x + 10, floorY - 50, 28, 22);
+      break;
+    case 3:
+      drawGarazhiGraffiti(ctx, 'nemolyaeva', x + 12, floorY - 56, 64, 44);
+      break;
+    case 4:
+      drawGarazhiGraffiti(ctx, 'gaftMonkey', x + 10, floorY - 56, 68, 44);
+      break;
+    default:
+      break;
+  }
 }
 
 function drawTarpCar(ctx: CanvasRenderingContext2D, x: number, floorY: number): void {

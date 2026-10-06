@@ -1,14 +1,16 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 5 “Двор / крыша” (block finale, Winter 1995).
  * Courtyard wave → timed dialogue → climb to roof → harder wave + boss-lite → clear.
  */
 
 import type { StateManager } from '@/core/StateManager';
+import { effectShake } from '@/core/Settings';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, MAX_SWAGGER, type Player } from '@/entities/Player';
 import { Gangster } from '@/entities/Gangster';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { DVOR_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, speckles } from '@/art/pixelDraw';
 import { drawSnappedSnow } from '@/art/snowParticles';
@@ -58,7 +60,7 @@ export interface DvorSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createDvor1995Scene(deps: DvorSceneDeps) {
@@ -130,7 +132,7 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
     if (phase === 'dialogue') return 'Разговор - финал блока';
     if (phase === 'wave2') return 'Крыша - старший + волна';
     if (phase === 'cleared') return 'УР. 5 ПРОЙДЕН';
-    return 'КОНЕЦ ИГРЫ';
+    return 'ПЕРЕДЫШКА…';
   };
 
   const syncHud = (objective?: string): void => {
@@ -191,7 +193,7 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
     if (player.isKo) {
       phase = 'gameover';
       gameOverTimer = 1.8;
-      syncHud('КОНЕЦ ИГРЫ');
+      syncHud('ПЕРЕДЫШКА…');
       return;
     }
 
@@ -286,6 +288,7 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('yard');
       beer.pauseForFlashback();
       player.setEra('teen');
       player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
@@ -356,7 +359,7 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         if (gameOverTimer <= 0) clearCombatAndReturn();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         return;
       }
 
@@ -450,8 +453,9 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
       width: number,
       height: number,
     ): void {
-      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28)) : 0;
-      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28)) : 0;
+      const shakeMul = effectShake(1);
+      const shakeX = shake > 0 ? Math.round(Math.sin(time * 55) * 3 * (shake / 0.28) * shakeMul) : 0;
+      const shakeY = shake > 0 ? Math.round(Math.cos(time * 47) * 2 * (shake / 0.28) * shakeMul) : 0;
 
       ctx.save();
       ctx.translate(shakeX, shakeY);
@@ -487,8 +491,8 @@ export function createDvor1995Scene(deps: DvorSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, P.uiText, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {

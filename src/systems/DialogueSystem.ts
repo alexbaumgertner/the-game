@@ -3,7 +3,10 @@
  * Level 1: mother-stall mid-fight choices that drain MF or calm panic.
  */
 
+import { audio } from '@/audio';
 import { drawUiText, measureUiText, uiPanel } from '@/art/uiFont';
+import { HERO_NAME } from '@/data/names';
+import { DIALOG_SPEED_CPS, getSettings } from '@/core/Settings';
 export type DialogueEffect =
   | 'calm_father'
   | 'calm_mother'
@@ -139,6 +142,7 @@ export class DialogueSystem {
     this.timedOut = false;
     this.settled = false;
     this.armChoiceTimer();
+    audio.playSfx('dialog');
   }
 
   close(): void {
@@ -201,6 +205,7 @@ export class DialogueSystem {
     this.lineId = line.next;
     this.visibleChars = 0;
     this.armChoiceTimer();
+    audio.playSfx('dialog');
   }
 
   /** Pick choice by 0-based index (keys 1/2 → 0/1). */
@@ -215,6 +220,8 @@ export class DialogueSystem {
   update(dt: number): void {
     const line = this.currentLine;
     if (!line) return;
+
+    this.revealSpeed = DIALOG_SPEED_CPS[getSettings().dialogSpeed];
 
     if (this.visibleChars < line.text.length) {
       this.visibleChars = Math.min(
@@ -256,10 +263,24 @@ export class DialogueSystem {
     ctx.strokeStyle = '#604820';
     ctx.strokeRect(pad + 2.5, y + 2.5, canvasWidth - pad * 2 - 5, boxH - 5);
 
-    drawUiText(ctx, line.speaker, pad + 6, y + 6, '#e8c56a', 8, 650);
+    const large = getSettings().dialogTextSize === 'large';
+    const speakerSize = large ? 9.5 : 8;
+    const bodySize = large ? 9 : 7.5;
+    const bodyGap = large ? 12 : 10;
+
+    drawUiText(ctx, line.speaker, pad + 6, y + 6, '#e8c56a', speakerSize, 650);
 
     const shown = line.text.slice(0, Math.floor(this.visibleChars));
-    this.drawWrapped(ctx, shown, pad + 6, y + 18, canvasWidth - pad * 2 - 12, '#e8e4d8');
+    this.drawWrapped(
+      ctx,
+      shown,
+      pad + 6,
+      y + 18,
+      canvasWidth - pad * 2 - 12,
+      '#e8e4d8',
+      bodySize,
+      bodyGap,
+    );
 
     if (!this.revealComplete) {
       drawUiText(ctx, 'Enter', canvasWidth - 36, y + boxH - 11, '#887848', 6.5, 500);
@@ -283,7 +304,7 @@ export class DialogueSystem {
         const key = String(i + 1);
         uiPanel(ctx, pad + 6, cy - 2, 12, 11, 'rgba(32,24,40,0.9)', 'rgba(232,197,106,0.8)');
         drawUiText(ctx, key, pad + 9, cy, '#f8f0d0', 7, 700);
-        drawUiText(ctx, c.label, pad + 22, cy, '#d8d0c0', 7, 550);
+        drawUiText(ctx, c.label, pad + 22, cy, '#d8d0c0', large ? 8 : 7, 550);
       });
     } else {
       drawUiText(ctx, 'Enter', canvasWidth - 36, y + boxH - 11, '#887848', 6.5, 500);
@@ -323,21 +344,23 @@ export class DialogueSystem {
     y: number,
     maxW: number,
     color: string,
+    size = 7.5,
+    lineGap = 10,
   ): void {
     const words = text.split(' ');
     let line = '';
     let yy = y;
     for (const w of words) {
       const trial = line ? `${line} ${w}` : w;
-      if (measureUiText(ctx, trial, 7.5, 500) > maxW && line) {
-        drawUiText(ctx, line, x, yy, color, 7.5, 500);
+      if (measureUiText(ctx, trial, size, 500) > maxW && line) {
+        drawUiText(ctx, line, x, yy, color, size, 500);
         line = w;
-        yy += 10;
+        yy += lineGap;
       } else {
         line = trial;
       }
     }
-    if (line) drawUiText(ctx, line, x, yy, color, 7.5, 500);
+    if (line) drawUiText(ctx, line, x, yy, color, size, 500);
   }
 }
 
@@ -348,7 +371,7 @@ export const MOTHER_STALL_SCRIPT: DialogueScript = {
   lines: {
     intro: {
       speaker: 'Мама',
-      text: 'Саша! Шубу сперли с лотка. Я одна — помоги!',
+      text: `${HERO_NAME}! Шубу сперли с лотка. Я одна — помоги!`,
       next: 'choice',
     },
     choice: {
@@ -399,7 +422,7 @@ export const PODEZD_LANDING_SCRIPT: DialogueScript = {
     },
     mother_line: {
       speaker: 'Мама',
-      text: 'Саша - осторожно. Говори правду. Времени мало.',
+      text: `${HERO_NAME} — осторожно. Говори правду. Времени мало.`,
       next: 'choice',
     },
     choice: {
@@ -447,7 +470,7 @@ export const VOKZAL_PLATFORM_SCRIPT: DialogueScript = {
     },
     relative_line: {
       speaker: 'Тётя',
-      text: 'Саша… посылка от отца внутри. Не отдавай просто так.',
+      text: `${HERO_NAME}… посылка от отца внутри. Не отдавай просто так.`,
       next: 'choice',
     },
     choice: {

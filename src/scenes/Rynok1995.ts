@@ -1,3 +1,4 @@
+import { audio } from '@/audio';
 /**
  * ERA_1995 — Level 1 “Центральный рынок” narrative.
  * Help мама → take сестрёнка → buy backpack ≤600₽ (market philosophy quiz
@@ -9,7 +10,7 @@ import type { StateManager } from '@/core/StateManager';
 import { LOGICAL_WIDTH } from '@/core/Display';
 import { MAX_FORTITUDE, type Player } from '@/entities/Player';
 import type { HUD } from '@/ui/HUD';
-import type { BeerSystem } from '@/systems/BeerSystem';
+import type { TeaSystem } from '@/systems/TeaSystem';
 import { RYNOK_PAL } from '@/art/segaPalette';
 import { ditherRect, fillBricks, px, segaBox, speckles, woodGrain } from '@/art/pixelDraw';
 import { drawNesText, drawNesTextCentered, measureNesText } from '@/art/nesFont';
@@ -96,7 +97,7 @@ export interface RynokSceneDeps {
   states: StateManager;
   player: Player;
   hud: HUD;
-  beer: BeerSystem;
+  beer: TeaSystem;
 }
 
 export function createRynok1995Scene(deps: RynokSceneDeps) {
@@ -416,6 +417,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
 
   return {
     enter(): void {
+      audio.playTheme('market');
       beer.pauseForFlashback();
       preloadFamilyFaces();
       preloadBusBridgeViews();
@@ -479,7 +481,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
         gameOverTimer -= dt;
         player.update(dt);
         quiz.closeSilent();
-        syncHud('КОНЕЦ ИГРЫ');
+        syncHud('ПЕРЕДЫШКА…');
         if (gameOverTimer <= 0) {
           player.resetCombatProgress({ fortitude: MAX_FORTITUDE, swagger: 0 });
           states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.55 });
@@ -686,8 +688,8 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
       if (phase === 'gameover') {
         ctx.fillStyle = 'rgba(8, 4, 8, 0.55)';
         ctx.fillRect(0, 0, width, height);
-        drawUiTextCentered(ctx, 'Конец игры', width / 2, height / 2 - 16, '#f08080', 12, 700);
-        drawUiTextCentered(ctx, 'Назад в 2026…', width / 2, height / 2 + 2, R.uiBorder, 7, 500);
+        drawUiTextCentered(ctx, 'Передышка…', width / 2, height / 2 - 16, '#d8d0c0', 12, 700);
+        drawUiTextCentered(ctx, 'Назад в 2026', width / 2, height / 2 + 2, '#a8a090', 7, 500);
       }
 
       if (phase === 'cleared') {
@@ -704,7 +706,7 @@ export function createRynok1995Scene(deps: RynokSceneDeps) {
           'rgba(64,200,120,0.8)',
         );
         drawUiTextCentered(ctx, 'Ур. 1 пройден', width / 2, height / 2 - 16, '#a0f0c0', 12, 700);
-        drawUiTextCentered(ctx, 'Дом · Зелинского', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
+        drawUiTextCentered(ctx, 'Дом · Двор', width / 2, height / 2 + 4, R.uiBorder, 7, 500);
       }
     },
 

@@ -4,9 +4,11 @@
  * Mental Fortitude drives survivability; Street Swagger fuels Bazar shouts.
  */
 
+import { audio } from '@/audio';
 import { drawPlayerSprite, SPRITE_SIZES, type PlayerSpriteKind } from '@/art/playerSprites';
 import { bodyRect, type Rect } from '@/systems/CombatMath';
 import { BazarBubble } from '@/entities/BazarBubble';
+import { getSettings } from '@/core/Settings';
 
 /** Childhood (1990s flashback) sprite states. */
 export type TeenAnimState =
@@ -210,6 +212,8 @@ export class Player {
   private gravity = 520;
   private jumpVel = -195;
   private floorY = 188;
+  /** Last walk-cycle frame that triggered a footstep SFX. */
+  private lastFootFrame = -1;
 
   constructor(config: PlayerConfig = {}) {
     this.x = config.x ?? 40;
@@ -494,6 +498,8 @@ export class Player {
     if (this.bazarShake > 0) this.bazarShake = Math.max(0, this.bazarShake - dt);
     if (this.invuln > 0) this.invuln -= dt;
 
+    this.tickFootstep();
+
     if (this.inspecting) {
       this.inspectTimer -= dt;
       if (this.inspectTimer <= 0) {
@@ -517,6 +523,28 @@ export class Player {
     }
   }
 
+  /** Soft footfall on even walk frames while grounded and moving. */
+  private tickFootstep(): void {
+    const walking =
+      this.grounded &&
+      (this.animState === 'teen_walk' ||
+        this.animState === 'teen_run' ||
+        this.animState === 'adult_walk' ||
+        this.animState === 'adult_run');
+    if (!walking) {
+      this.lastFootFrame = -1;
+      return;
+    }
+    const map = this.animMap as Record<string, AnimClip>;
+    const clip = map[this.animState];
+    if (!clip || clip.frames.length === 0) return;
+    const frameIndex = Math.floor(this.animTime * clip.fps) % clip.frames.length;
+    if (frameIndex !== this.lastFootFrame && frameIndex % 2 === 0) {
+      audio.playSfx('footstep');
+    }
+    this.lastFootFrame = frameIndex;
+  }
+
   /** Draw multi-tile Genesis sprite for the active clip frame. */
   render(ctx: CanvasRenderingContext2D, _alpha: number): void {
     const map = this.animMap as Record<string, AnimClip>;
@@ -527,7 +555,10 @@ export class Player {
         : 0;
 
     const kind = this.resolveSpriteKind();
-    const flash = this.invuln > 0 && Math.floor(this.invuln * 20) % 2 === 0;
+    const flash =
+      !getSettings().reducedEffects &&
+      this.invuln > 0 &&
+      Math.floor(this.invuln * 20) % 2 === 0;
     if (flash) return;
     // Pixel face is part of the sprite grid (MD ≤15 colors; no photo overlay).
     drawPlayerSprite(ctx, kind, frameIndex, this.x, this.y, this.facing);

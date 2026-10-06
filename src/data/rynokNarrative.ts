@@ -4,6 +4,7 @@
  */
 
 import type { DialogueScript } from '@/systems/DialogueSystem';
+import { HERO_NAME } from '@/data/names';
 
 export const STARTING_RUBLES = 600;
 
@@ -14,7 +15,7 @@ export const MOM_START_SCRIPT: DialogueScript = {
   lines: {
     hello: {
       speaker: 'Мама',
-      text: 'Саша, помоги с лотком. Куртки сами не продадутся — а сестрёнку возьми с собой.',
+      text: `${HERO_NAME}, помоги с лотком. Куртки сами не продадутся — а сестрёнку возьми с собой.`,
       next: 'task',
     },
     task: {
@@ -140,7 +141,7 @@ export const SELLER_C_SCRIPT: DialogueScript = {
     },
     sis_push: {
       speaker: 'Сестрёнка',
-      text: 'Саша, пожалуйста! Этот самый хороший.',
+      text: `${HERO_NAME}, пожалуйста! Этот самый хороший.`,
       next: 'choice2',
     },
     choice2: {
@@ -176,7 +177,7 @@ export const MOM_RETURN_SCRIPT: DialogueScript = {
     },
     mom: {
       speaker: 'Мама',
-      text: 'Молодцы. Ключи от дома — вот. На автобусе до парка Тридцатилетия Октября, Зелинского рядом.',
+      text: 'Молодцы. Ключи от дома — вот. На автобусе до парка Тридцатилетия Октября, дом рядом.',
       next: 'choice',
     },
     choice: {
@@ -256,7 +257,7 @@ export const BUS_BOARD_SCRIPT: DialogueScript = {
     },
     wrong: {
       speaker: 'Сестрёнка',
-      text: 'Саша, нам не на вокзал! Мама сказала — парк!',
+      text: `${HERO_NAME}, нам не на вокзал! Мама сказала — парк!`,
       next: 'choice',
     },
   },

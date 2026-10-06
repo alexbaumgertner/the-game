@@ -15,10 +15,15 @@ import {
 } from './core/Display';
 import { Player } from './entities/Player';
 import { HUD } from './ui/HUD';
+import { PauseMenu } from './ui/PauseMenu';
+import { SparkMeter } from './ui/SparkMeter';
 import { injectTouchControlStyles, TouchControls } from './ui/TouchControls';
-import { BeerSystem } from './systems/BeerSystem';
+import { TeaSystem } from './systems/TeaSystem';
+import { loadSettings } from './core/Settings';
+import { audio } from './audio';
 import { preloadAerialsPoster } from './art/aerialsPoster';
 import { preloadApartmentPhotos } from './art/apartmentPhotos';
+import { preloadGarazhiGraffiti } from './art/garazhiGraffiti';
 import { preloadVokzalPosters } from './art/vokzalPosters';
 import { createApartment2026Scene } from './scenes/Apartment2026';
 import { createRynok1995Scene } from './scenes/Rynok1995';
@@ -29,12 +34,26 @@ import { createDvor1995Scene } from './scenes/Dvor1995';
 import { createMost1995Scene } from './scenes/Most1995';
 import { createDiskoteka1995Scene } from './scenes/Diskoteka1995';
 import { createDetinets1995Scene } from './scenes/Detinets1995';
+import { createArmiya2010Scene } from './scenes/Armiya2010';
+import { createRehab2015Scene } from './scenes/Rehab2015';
+import { createKrug2015Scene } from './scenes/Krug2015';
+import { createFinale2026Scene } from './scenes/Finale2026';
 import type { DialogueSystem } from './systems/DialogueSystem';
 import type { QuizSystem } from './systems/QuizSystem';
 import { preloadFamilyFaces } from './art/familyFaces';
 import { preloadBusBridgeViews } from './art/busBridgeViews';
 import { preloadDiscoHallViews } from './art/discoHallViews';
+import { preloadDetinetsHallViews } from './art/detinetsHallViews';
+import { preloadArmiyaViews } from './art/armiyaViews';
 import { preloadMostBridgeViews } from './art/mostBridgeViews';
+import { LEVELS } from './data/levels';
+import { registerServiceWorker } from './pwa/register';
+import {
+  closeJournalIfOpen,
+  isJournalOpen,
+  openJournal,
+  tryOpenJournal,
+} from './ui/Journal';
 
 /** A registered scene: lifecycle handlers plus accessors for shared dialogue / quiz overlays. */
 type SceneEntry = SceneHandlers & {
@@ -56,13 +75,17 @@ function bootstrap(): void {
   // Crisp pixels — never let the browser smooth our buffer.
   ctx.imageSmoothingEnabled = false;
   configureDisplay(canvas, ctx);
+  loadSettings();
   preloadAerialsPoster();
   preloadApartmentPhotos();
   preloadFamilyFaces();
   preloadBusBridgeViews();
-  preloadMostBridgeViews();
   preloadDiscoHallViews();
+  preloadMostBridgeViews();
+  preloadDetinetsHallViews();
+  preloadArmiyaViews();
   preloadVokzalPosters();
+  preloadGarazhiGraffiti();
 
   const onResize = (): void => {
     configureDisplay(canvas, ctx);
@@ -77,11 +100,17 @@ function bootstrap(): void {
   const states = new StateManager();
   states.input = input;
 
+  audio.install();
+
   const player = new Player({ x: 100, y: 192, era: 'adult' });
   const hud = new HUD();
-  const beer = new BeerSystem();
+  const tea = new TeaSystem();
+  /** Compat alias for capture scripts / older debug API. */
+  const beer = tea;
+  const spark = new SparkMeter();
 
   const deps = { states, player, hud, beer };
+  const stubDeps = { states, player, hud, tea };
   const apartment = createApartment2026Scene(deps);
   const rynok = createRynok1995Scene(deps);
   const podezd = createPodezd1995Scene(deps);
@@ -91,6 +120,10 @@ function bootstrap(): void {
   const most = createMost1995Scene(deps);
   const diskoteka = createDiskoteka1995Scene(deps);
   const detinets = createDetinets1995Scene(deps);
+  const armiya = createArmiya2010Scene({ ...stubDeps, spark });
+  const rehab = createRehab2015Scene({ ...stubDeps, spark });
+  const krug = createKrug2015Scene({ ...stubDeps, spark });
+  const finale = createFinale2026Scene(stubDeps); // tea/beer shared
 
   const scenes = {
     apartment_2026: apartment,
@@ -102,6 +135,10 @@ function bootstrap(): void {
     most_1995: most,
     diskoteka_1995: diskoteka,
     detinets_1995: detinets,
+    armiya_2010: armiya,
+    rehab_2015: rehab,
+    krug_2015: krug,
+    finale_2026: finale,
   } satisfies Record<SceneId, SceneEntry>;
 
   for (const [id, handlers] of Object.entries(scenes) as [SceneId, SceneEntry][]) {
@@ -109,20 +146,24 @@ function bootstrap(): void {
   }
 
   // Restore saved progress before the first scene enters; start is always the apartment.
+  // Save v2 stores tea.cups; BeerSystem still exposes cans (HUD / __novgorod.beer).
   const save = loadSave();
   if (save) {
     states.loadFlags(save.flags);
-    beer.cans = save.beer.cans;
+    tea.cups = save.tea.cups;
   }
   // After resetSave() the unload handlers must not write the old state back.
   let saveDisabled = false;
   const persist = (): void => {
-    if (!saveDisabled) writeSave({ flags: states.flags, beer });
+    if (!saveDisabled) writeSave({ flags: states.flags, tea });
   };
   states.onFlagsChanged = persist;
   window.addEventListener('pagehide', persist);
 
   states.boot('apartment_2026', { era: 'ERA_2026' });
+  hud.set({ muted: audio.isMuted });
+
+  const pauseMenu = new PauseMenu();
 
   const loop = new GameLoop({
     fixedDt: 1 / 60,
@@ -145,25 +186,54 @@ function bootstrap(): void {
       assertCrispTransform(ctx);
       hud.render(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
       assertCrispTransform(ctx);
+      if (pauseMenu.isOpen) {
+        pauseMenu.render(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+        assertCrispTransform(ctx);
+      }
       states.renderFade(ctx, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     },
   });
 
+  const applyPauseAction = (action: { type: string }): void => {
+    if (action.type === 'resume') {
+      resumeGame();
+      return;
+    }
+    if (action.type === 'muteToggled') {
+      hud.set({ muted: audio.isMuted });
+      return;
+    }
+    if (action.type === 'exitApartment') {
+      // Soft exit — no progress penalty; soft fade home.
+      pauseMenu.hide();
+      loop.resume();
+      hud.set({ paused: false, muted: audio.isMuted });
+      states.goto('apartment_2026', { era: 'ERA_2026', fadeSeconds: 0.4 });
+    }
+  };
+
   const pauseGame = (): void => {
     if (loop.isPaused) return;
     loop.pause();
-    hud.set({ paused: loop.isPaused });
+    pauseMenu.show();
+    hud.set({ paused: true, muted: audio.isMuted });
   };
 
   const resumeGame = (): void => {
-    if (!loop.isPaused) return;
+    if (!loop.isPaused && !pauseMenu.isOpen) return;
+    pauseMenu.hide();
     loop.resume();
-    hud.set({ paused: loop.isPaused });
+    hud.set({ paused: false, muted: audio.isMuted });
   };
 
   const togglePause = (): void => {
-    if (loop.isPaused) resumeGame();
+    if (loop.isPaused || pauseMenu.isOpen) resumeGame();
     else pauseGame();
+  };
+
+  const toggleMute = (): void => {
+    audio.toggleMute();
+    hud.set({ muted: audio.isMuted });
   };
 
   // Backgrounded tab: save and pause; the player resumes manually on return.
@@ -174,9 +244,63 @@ function bootstrap(): void {
   });
 
   window.addEventListener('keydown', (e) => {
+    if (pauseMenu.isOpen) {
+      if (e.code === 'Escape') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.back());
+        return;
+      }
+      if (e.code === 'KeyP') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.back());
+        return;
+      }
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        pauseMenu.move(-1);
+        return;
+      }
+      if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+        e.preventDefault();
+        pauseMenu.move(1);
+        return;
+      }
+      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.confirm());
+        return;
+      }
+      if (e.code === 'Digit1' || e.code === 'Numpad1') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(0));
+        return;
+      }
+      if (e.code === 'Digit2' || e.code === 'Numpad2') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(1));
+        return;
+      }
+      if (e.code === 'Digit3' || e.code === 'Numpad3') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(2));
+        return;
+      }
+      if (e.code === 'Digit4' || e.code === 'Numpad4') {
+        e.preventDefault();
+        applyPauseAction(pauseMenu.selectIndex(3));
+        return;
+      }
+      return;
+    }
+
     if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (isJournalOpen()) return;
       e.preventDefault();
       togglePause();
+    }
+    if (e.code === 'KeyM') {
+      e.preventDefault();
+      toggleMute();
     }
   });
 
@@ -191,6 +315,13 @@ function bootstrap(): void {
     input,
     root: document.body,
     onPause: togglePause,
+    getPauseMenuChoices: () => {
+      if (!pauseMenu.isOpen) return { active: false };
+      return { active: true, labels: pauseMenu.touchLabels() };
+    },
+    onPauseMenuSelect: (index) => {
+      applyPauseAction(pauseMenu.selectIndex(index));
+    },
     getDialogueChoices: () => {
       const d = sceneDialogue();
       if (!d || !d.isOpen || !d.hasChoices) return { active: false };
@@ -204,11 +335,19 @@ function bootstrap(): void {
     },
   });
 
-  // Tap dialogue / quiz rows directly on the canvas (in addition to pad).
+  // Tap dialogue / quiz / pause menu rows directly on the canvas (in addition to pad).
   const onCanvasPointer = (e: PointerEvent): void => {
     if (e.button !== undefined && e.button !== 0) return;
     const pt = clientToLogical(canvas, e.clientX, e.clientY);
     if (!pt) return;
+
+    if (pauseMenu.isOpen) {
+      const hit = pauseMenu.hitTest(pt.x, pt.y, LOGICAL_WIDTH, LOGICAL_HEIGHT);
+      if (hit === null) return;
+      e.preventDefault();
+      applyPauseAction(pauseMenu.selectIndex(hit));
+      return;
+    }
 
     const q = sceneQuiz();
     if (q?.isOpen) {
@@ -246,29 +385,43 @@ function bootstrap(): void {
   document.body.addEventListener(
     'touchmove',
     (e) => {
+      if (isJournalOpen()) return;
       e.preventDefault();
     },
     { passive: false },
   );
 
   /** Debug level jumps: `gotoX` marks all earlier levels cleared, then fades into the scene. */
-  const LEVEL_JUMPS: { name: string; scene: SceneId }[] = [
-    { name: 'gotoRynok', scene: 'rynok_1995' },
-    { name: 'gotoPodezd', scene: 'podezd_1995' },
-    { name: 'gotoVokzal', scene: 'vokzal_1995' },
-    { name: 'gotoGarazhi', scene: 'garazhi_1995' },
-    { name: 'gotoDvor', scene: 'dvor_1995' },
-    { name: 'gotoMost', scene: 'most_1995' },
-    { name: 'gotoDiskoteka', scene: 'diskoteka_1995' },
-    { name: 'gotoDetinets', scene: 'detinets_1995' },
-  ];
+  const LEVEL_JUMPS: { name: string; scene: SceneId; era: ProgressFlags extends never ? never : string }[] =
+    LEVELS.map((lvl) => ({
+      name:
+        (
+          {
+            1: 'gotoRynok',
+            2: 'gotoPodezd',
+            3: 'gotoVokzal',
+            4: 'gotoGarazhi',
+            5: 'gotoDvor',
+            6: 'gotoMost',
+            7: 'gotoDiskoteka',
+            8: 'gotoDetinets',
+            9: 'gotoArmiya',
+            10: 'gotoRehab',
+            11: 'gotoKrug',
+            12: 'gotoFinale',
+          } as Record<number, string>
+        )[lvl.id] ?? `gotoLevel${lvl.id}`,
+      scene: lvl.scene,
+      era: lvl.era,
+    }));
+
   const debugGotos: Record<string, () => void> = {};
-  LEVEL_JUMPS.forEach(({ name, scene }, index) => {
+  LEVEL_JUMPS.forEach(({ name, scene, era }, index) => {
     debugGotos[name] = () => {
       for (let n = 1; n <= index; n++) {
         states.setFlag(`level${n}Cleared` as keyof ProgressFlags, true);
       }
-      states.goto(scene, { era: 'ERA_1995', fadeSeconds: 0.15 });
+      states.goto(scene, { era: era as 'ERA_1995' | 'ERA_2010' | 'ERA_2015' | 'ERA_2026', fadeSeconds: 0.15 });
     };
   });
 
@@ -280,7 +433,10 @@ function bootstrap(): void {
     player,
     input,
     hud,
+    tea,
     beer,
+    spark,
+    audio,
     apartment,
     rynok,
     podezd,
@@ -290,8 +446,21 @@ function bootstrap(): void {
     most,
     diskoteka,
     detinets,
+    armiya,
+    rehab,
+    krug,
+    finale,
     touch,
+    pauseMenu,
     canvas,
+    journal: {
+      open: (opts?: Parameters<typeof openJournal>[0]) =>
+        openJournal({ input, ...opts }),
+      tryOpen: (opts?: Parameters<typeof tryOpenJournal>[0]) =>
+        tryOpenJournal({ input, ...opts }),
+      isOpen: isJournalOpen,
+      close: closeJournalIfOpen,
+    },
     display: {
       LOGICAL_WIDTH,
       LOGICAL_HEIGHT,
@@ -311,4 +480,5 @@ function bootstrap(): void {
   };
 }
 
+registerServiceWorker();
 bootstrap();

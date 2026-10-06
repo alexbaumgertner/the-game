@@ -1,0 +1,43 @@
+# Checks that must be green before a PR is merged into `main`.
+# (Deploy to Pages runs separately from `main` — see deploy-pages.yml.)
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Sprite colors (≤ 15 per frame)
+        run: npm run check:sprite-colors
+
+      - name: Font glyphs
+        run: npm run check:font-glyphs
+
+      - name: Build
+        run: npm run build
